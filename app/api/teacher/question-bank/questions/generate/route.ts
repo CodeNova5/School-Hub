@@ -12,10 +12,10 @@ type GeneratedQuestion = {
   correct_answer?: string | null;
   explanation?: string | null;
   diagram?: string | null;
-  diagram_type?: 'svg' | 'mermaid' | null;
+  diagram_type?: 'svg' | 'mermaid' | 'tikz' | 'chemfig' | null;
 };
 
-function parseDiagram(row: Record<string, unknown>): { diagram: string | null; diagramType: 'svg' | 'mermaid' | null } {
+function parseDiagram(row: Record<string, unknown>): { diagram: string | null; diagramType: 'svg' | 'mermaid' | 'tikz' | 'chemfig' | null } {
   const rawDiagram = row.diagram ? String(row.diagram).trim() : '';
   const rawDiagramType = row.diagram_type ? String(row.diagram_type).trim().toLowerCase() : '';
 
@@ -29,15 +29,19 @@ function parseDiagram(row: Record<string, unknown>): { diagram: string | null; d
     cleaned = cleaned.replace(/^```[a-zA-Z]*\s*/, '').replace(/\s*```$/, '').trim();
   }
 
-  let type: 'svg' | 'mermaid' | null = null;
+  let type: 'svg' | 'mermaid' | 'tikz' | 'chemfig' | null = null;
 
   // 1. Check explicit type if provided
-  if (rawDiagramType === 'svg' || rawDiagramType === 'mermaid') {
+  if (rawDiagramType === 'svg' || rawDiagramType === 'mermaid' || rawDiagramType === 'tikz' || rawDiagramType === 'chemfig') {
     type = rawDiagramType;
   } else {
     // 2. Infer type from content
     if (cleaned.includes('<svg') || cleaned.startsWith('<svg') || cleaned.startsWith('<?xml')) {
       type = 'svg';
+    } else if (cleaned.includes('\\chemfig')) {
+      type = 'chemfig';
+    } else if (cleaned.includes('\\draw') || cleaned.includes('\\tikz') || cleaned.startsWith('\\begin{tikzpicture}')) {
+      type = 'tikz';
     } else if (
       cleaned.startsWith('graph') ||
       cleaned.startsWith('flowchart') ||
@@ -55,10 +59,14 @@ function parseDiagram(row: Record<string, unknown>): { diagram: string | null; d
     }
   }
 
-  // If we couldn't infer the type but we have content, we should default to svg if it looks like XML/HTML, else mermaid
+  // If we couldn't infer the type but we have content, we should default to svg if it looks like XML/HTML, else tikz/chemfig if it contains backslash, else mermaid
   if (!type) {
     if (cleaned.includes('<') && cleaned.includes('>')) {
       type = 'svg';
+    } else if (cleaned.includes('\\chemfig')) {
+      type = 'chemfig';
+    } else if (cleaned.includes('\\')) {
+      type = 'tikz';
     } else {
       type = 'mermaid';
     }
@@ -71,10 +79,14 @@ function parseDiagram(row: Record<string, unknown>): { diagram: string | null; d
       return { diagram: null, diagramType: null };
     }
     return { diagram: cleaned, diagramType: 'svg' };
-  } else {
+  } else if (type === 'mermaid') {
     // For mermaid, strip any leftover mermaid prefix/labels if they exist
     const finalMermaid = cleaned.replace(/^mermaid\s*[:\n]?/i, '').trim();
     return { diagram: finalMermaid, diagramType: 'mermaid' };
+  } else if (type === 'tikz') {
+    return { diagram: cleaned, diagramType: 'tikz' };
+  } else {
+    return { diagram: cleaned, diagramType: 'chemfig' };
   }
 }
 
@@ -273,7 +285,7 @@ export async function POST(request: NextRequest) {
     const systemParts: string[] = [
       'You are an expert teacher question author.',
       'Return only JSON with shape {"questions": GeneratedQuestion[]}.',
-      `GeneratedQuestion fields: topic, question_text, options (string[] for objective), correct_answer (the letter A, B, C, or D for objective, or the model answer string for theory), explanation${includeDiagrams ? ', diagram (string, optional, containing raw SVG markup or raw mermaid source), diagram_type ("svg" | "mermaid", optional, specifying the type of diagram)' : ''}.`,
+      `GeneratedQuestion fields: topic, question_text, options (string[] for objective), correct_answer (the letter A, B, C, or D for objective, or the model answer string for theory), explanation${includeDiagrams ? ', diagram (string, optional, containing diagram markup/source code), diagram_type ("svg" | "mermaid" | "tikz" | "chemfig", optional, specifying the type of diagram)' : ''}.`,
       'Do not include markdown or extra commentary.',
     ];
 
@@ -287,8 +299,51 @@ export async function POST(request: NextRequest) {
     ];
 
     if (includeDiagrams) {
-      systemParts.splice(systemParts.length - 1, 0, 'Optional diagram: If a question requires a diagram to explain or visualize it, include a "diagram" string and a "diagram_type" that is either "svg" or "mermaid". For mermaid diagrams return ONLY the mermaid source text (do not include ``` fences). For SVG diagrams return valid, standalone SVG markup starting with <svg ...> and containing explicit width/height attributes; do not include external resources, scripts, or data URLs. Prefer mermaid for flowcharts/diagrams when possible; use SVG only when precise vector markup is required. Limit diagram content to a reasonable size (under 5000 characters) and never include commentary or markdown in the diagram string.');
-      userParts.push('If a question requires a diagram, include a field "diagram" containing either raw mermaid source (preferred) or raw SVG markup, and a field "diagram_type" containing either "mermaid" or "svg". For mermaid return only the source (no fences); for SVG return standalone SVG markup. Do not include any explanatory text in the diagram field.');
+      systemParts.splice(
+        systemParts.length - 1,
+        0,
+        `DIAGRAM GENERATION AND LAYOUT PROTOCOLS:
+When 'includeDiagrams' is true, evaluate the exact subject area of the target topics to choose the absolute best programmatic rendering type. You must strictly avoid overlapping lines and text collisions by utilizing relative spacing rules.
+
+SUBJECT SELECTION MATRIX:
+
+Geometry / Calculus / Trigonometry / Physics Mechanics -> Use 'tikz'.
+
+Flowcharts / Cycles / Interconnected Biological Systems -> Use 'mermaid'.
+
+Organic Chemistry Structures / Chemical Equation Schemas -> Use 'chemfig'.
+
+Simple Generic Graphic Layouts / Abstract Icons -> Use 'svg'.
+
+STRUCTURAL LAYOUT RULES PER TYPE:
+
+FOR 'tikz':
+
+Always use relative node placements like node[midway, below=3mm] or node[above right=2mm].
+
+NEVER specify an absolute coordinate for text labels directly on top of coordinates.
+
+Keep angle arcs bounded tight and throw text entirely outside using explicit offsets.
+
+FOR 'chemfig':
+
+Use clean relative link structures (e.g., \\chemfig{*6(-=-=-=)}) so bonds pull text automatically without coordinate calculation.
+
+FOR 'svg' (Fallback Only):
+
+Implement mandatory label padding.
+
+For bottom baselines, use a dy shift or push the Y-coordinate at least 15-20px lower than the boundary line.
+
+For side lines, use text-anchor="end" or text-anchor="start" combined with explicit horizontal padding to prevent elements from intersecting lines.
+
+RETURN FORMAT:
+Provide the clean raw string source code containing no markdown code block backticks within the main json string field. Assign the exact identifier token ('svg' | 'mermaid' | 'tikz' | 'chemfig') to the 'diagram_type' property.
+
+
+note: the ai should specify which type it created so it can be easy to reder in the frontend`
+      );
+      userParts.push('If a question requires a diagram, include a field "diagram" containing the raw layout/rendering code (no markdown backticks or markdown code block wrapper), and a field "diagram_type" specifying the chosen layout format ("svg", "mermaid", "tikz", or "chemfig").');
     }
 
     userParts.push('Output valid JSON only.');

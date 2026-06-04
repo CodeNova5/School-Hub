@@ -45,7 +45,7 @@ type QuestionRecord = {
     imageMimeType?: string;
     imageSize?: number;
     diagram?: string;
-    diagram_type?: 'svg' | 'mermaid' | null;
+    diagram_type?: 'svg' | 'mermaid' | 'tikz' | 'chemfig' | null;
   } | null;
   question_type: 'objective' | 'theory';
   difficulty: 'easy' | 'medium' | 'hard';
@@ -144,17 +144,23 @@ export default function TeacherQuestionBankDetailPage() {
 
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
-  function DiagramRenderer({ diagram, type, name }: { diagram?: string | null; type?: 'svg' | 'mermaid' | null; name?: string }) {
+  function DiagramRenderer({ diagram, type, name }: { diagram?: string | null; type?: 'svg' | 'mermaid' | 'tikz' | 'chemfig' | null; name?: string }) {
     const containerRef = useRef<HTMLDivElement | null>(null);
 
-    useEffect(() => {
-      if (!diagram || !containerRef.current) return;
-
-      // Clean diagram string from any code fences (e.g. ```xml ... ``` or ```svg ... ```)
-      let cleanDiagram = diagram.trim();
-      if (cleanDiagram.startsWith('```')) {
-        cleanDiagram = cleanDiagram.replace(/^```[a-zA-Z]*\s*/, '').replace(/\s*```$/, '').trim();
+    // Clean diagram string from any code fences (e.g. ```xml ... ``` or ```svg ... ```)
+    const cleanDiagram = useMemo(() => {
+      if (!diagram) return '';
+      let clean = diagram.trim();
+      if (clean.startsWith('```')) {
+        clean = clean.replace(/^```[a-zA-Z]*\s*/, '').replace(/\s*```$/, '').trim();
       }
+      return clean;
+    }, [diagram]);
+
+    const isTikzOrChemfig = type === 'tikz' || type === 'chemfig';
+
+    useEffect(() => {
+      if (isTikzOrChemfig || !cleanDiagram || !containerRef.current) return;
 
       // Automatically determine if the diagram content is SVG
       const isSvgType = type === 'svg' || cleanDiagram.startsWith('<svg') || cleanDiagram.includes('<svg');
@@ -195,7 +201,33 @@ export default function TeacherQuestionBankDetailPage() {
       return () => {
         mounted = false;
       };
-    }, [diagram, type]);
+    }, [cleanDiagram, type, isTikzOrChemfig]);
+
+    if (isTikzOrChemfig) {
+      return (
+        <div
+          aria-label={name || 'diagram'}
+          className="mb-4 w-full max-w-md overflow-hidden rounded-xl border border-gray-200 bg-gray-50 shadow-sm flex flex-col"
+        >
+          {/* Header/Tag */}
+          <div className="bg-gray-100/80 px-3 py-1.5 border-b border-gray-200 flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+              LaTeX/TikZ Engine Layout
+            </span>
+            <span className="text-[10px] font-semibold text-blue-600 bg-blue-50/80 px-1.5 py-0.5 rounded border border-blue-100">
+              {type === 'tikz' ? 'TikZ / Geometry' : 'Chemfig / Chemistry'}
+            </span>
+          </div>
+
+          {/* Code block */}
+          <div className="p-3 overflow-x-auto">
+            <pre className="text-xs font-mono text-gray-800 leading-relaxed whitespace-pre-wrap break-all select-all">
+              <code>{cleanDiagram}</code>
+            </pre>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div

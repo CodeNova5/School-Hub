@@ -40,13 +40,14 @@ function hasMathContent(text: string): boolean {
 /**
  * Replaces accidental JSON-escaped control characters back into literal LaTeX commands.
  */
+
 function sanitizeLatex(text: string): string {
   if (!text) return '';
   return text
     .replace(/\x0c/g, '\\f') // Converts raw Form Feed back to \f
-    .replace(/\n/g, '\\n')   // Safeguards newline characters
-    .replace(/\r/g, '\\r')   // Safeguards carriage returns
-    .replace(/\t/g, '\\t');  // Safeguards tabs
+    .replace(/\r\n/g, '\n')  // Standardizes Windows newlines to standard newlines
+    .replace(/\r/g, '\n');   // Standardizes carriage returns to standard newlines
+  // REMOVED: .replace(/\n/g, '\\n') which was causing the visual '\n' bug
 }
 
 function SmartText({ content, containsMath }: SmartTextProps) {

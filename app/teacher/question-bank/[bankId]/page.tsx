@@ -23,36 +23,30 @@ interface SmartTextProps {
   content: string;
   containsMath: boolean;
 }
-
 function SmartText({ content, containsMath }: SmartTextProps) {
-  // 1. Fallback protection: Auto-detect math patterns if the database flag is missing or false
+  // Auto-detect math patterns if the flag is missing or false
   const hasMath = useMemo(() => {
     if (containsMath) return true;
     if (!content) return false;
 
-    // Checks for LaTeX backslashes, standard dollar delimiters, or brackets/parentheses formulas
-    return /\\(?:[a-zA-Z]+)|[\$\(\)\[\]]/.test(content);
+    // Checks for typical LaTeX patterns: \, $, or bracket variants
+    return /\\(?:[a-zA-Z]+)|[\$\(\)]/.test(content);
   }, [content, containsMath]);
 
   if (hasMath) {
+    // Normalizing parenthesis delimiters to standard dollar signs if needed
     let normalizedContent = content;
 
-    // 2. Formatting cleanup: Convert raw parenthesis-wrapped math like "(\frac...)" 
-    // to standard "$...$" inline blocks if they slipped through an old dataset.
+    // Optional: Convert (\frac...) to $\frac...$ on the fly if your AI outputs them
     if (normalizedContent.includes('(\\frac')) {
       normalizedContent = normalizedContent.replace(/\(([^)]*\\frac[^)]*)\)/g, '$$1$');
     }
 
     return (
-      <div className="inline-block align-middle prose prose-sm max-w-none dark:prose-invert [&_p]:inline">
+      <div className="inline-block align-middle prose prose-sm max-w-none dark:prose-invert [&\u200B_p]:inline">
         <ReactMarkdown
           remarkPlugins={[remarkMath]}
-          rehypePlugins={[
-            [rehypeKatex, {
-              strict: false,  // Prevents the page layout from crashing if LaTeX is invalid
-              trust: true     // Enables processing built-in global rendering components safely
-            }]
-          ]}
+          rehypePlugins={[[rehypeKatex, { strict: false, trust: true }]]}
         >
           {normalizedContent}
         </ReactMarkdown>
@@ -60,10 +54,8 @@ function SmartText({ content, containsMath }: SmartTextProps) {
     );
   }
 
-  // Fallback to plain text rendering if no math expressions exist
   return <span>{content}</span>;
 }
-
 type SubjectClassItem = {
   id: string;
   subjects?: { id: string; name: string } | null;

@@ -783,9 +783,10 @@ export default function TeacherQuestionBankDetailPage() {
                 <div className="space-y-6">
                   {filteredQuestions.map((question, index) => (
                     <div key={question.id} className="pb-6 border-b border-gray-100 last:border-0 last:pb-0">
-                      {/* Question Header */}
+
                       {/* Question Header */}
                       <div className="flex items-start justify-between mb-3">
+                        {/* Topic & Metadata Badges */}
                         <div className="flex flex-wrap gap-2">
                           <Badge variant="outline" className="bg-gray-50 border-gray-200">
                             {question.topic}
@@ -798,6 +799,7 @@ export default function TeacherQuestionBankDetailPage() {
                           </Badge>
                         </div>
 
+                        {/* Action Buttons */}
                         <div className="flex items-center gap-2">
                           {isEditable && (
                             <Button
@@ -810,18 +812,10 @@ export default function TeacherQuestionBankDetailPage() {
                               Edit
                             </Button>
                           )}
-                          {/* Locate where q.question_text is printed and update it: */}
-                          <div className="text-sm font-medium text-gray-900 dark:text-gray-100 flex gap-2 items-start">
-                            <span>{index + 1}.</span>
-                            <SmartText
-                              content={question.question_text}
-                              containsMath={!!question.metadata?.containsMath}
-                            />
-                          </div>
                         </div>
                       </div>
 
-                      {/* Question Text */}
+                      {/* Question Image (If applicable) */}
                       {question.metadata?.imageUrl && (
                         <div className="mb-4 overflow-hidden rounded-xl border border-gray-200 bg-gray-50 shadow-sm">
                           <img
@@ -832,9 +826,14 @@ export default function TeacherQuestionBankDetailPage() {
                         </div>
                       )}
 
-                      <p className="text-base text-gray-900 font-medium mb-4 leading-relaxed">
-                        {question.question_text}
-                      </p>
+                      {/* Main Question Text Block */}
+                      <div className="text-base text-gray-900 font-medium mb-4 leading-relaxed flex gap-2 items-start">
+                        <span className="select-none">{index + 1}.</span>
+                        <SmartText
+                          content={question.question_text}
+                          containsMath={!!question.metadata?.containsMath}
+                        />
+                      </div>
 
                       {/* Options for Objective Questions */}
                       {question.question_type === 'objective' && question.options.length > 0 && (
@@ -865,7 +864,6 @@ export default function TeacherQuestionBankDetailPage() {
 
                               if (ca) {
                                 if (question.question_type === 'objective' && /^[A-H]$/i.test(ca)) {
-                                  // Just grab the letter code directly and force it to uppercase
                                   disp = ca.toUpperCase();
                                 } else {
                                   disp = ca;

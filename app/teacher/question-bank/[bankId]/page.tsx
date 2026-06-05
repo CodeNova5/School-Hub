@@ -14,6 +14,30 @@ import { useSchoolContext } from '@/hooks/use-school-context';
 import { ArrowLeft, BookOpen, FolderKanban, Globe2, Lock, Save, Search, Settings2, Sparkles, X, AlertCircle, CheckCircle, PencilLine, Trash2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css'; // Essential style sheet for layout fonts
+
+interface SmartTextProps {
+  content: string;
+  containsMath: boolean;
+}
+
+function SmartText({ content, containsMath }: SmartTextProps) {
+  if (containsMath) {
+    return (
+      <div className="inline-block align-middle prose prose-sm max-w-none dark:prose-invert">
+        <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+          {content}
+        </ReactMarkdown>
+      </div>
+    );
+  }
+
+  return <span>{content}</span>;
+}
+
 type SubjectClassItem = {
   id: string;
   subjects?: { id: string; name: string } | null;
@@ -31,6 +55,9 @@ type BankRecord = {
   updated_at?: string;
 };
 
+// Find where your question interface/type is defined and update it to this:
+
+
 type QuestionRecord = {
   id: string;
   topic: string;
@@ -44,6 +71,7 @@ type QuestionRecord = {
     imageName?: string;
     imageMimeType?: string;
     imageSize?: number;
+    containsMath?: boolean;
   } | null;
   question_type: 'objective' | 'theory';
   difficulty: 'easy' | 'medium' | 'hard';
@@ -782,7 +810,14 @@ export default function TeacherQuestionBankDetailPage() {
                               Edit
                             </Button>
                           )}
-                          <span className="text-xs font-semibold text-gray-400">#{index + 1}</span>
+                          {/* Locate where q.question_text is printed and update it: */}
+                          <div className="text-sm font-medium text-gray-900 dark:text-gray-100 flex gap-2 items-start">
+                            <span>{index + 1}.</span>
+                            <SmartText
+                              content={question.question_text}
+                              containsMath={!!question.metadata?.containsMath}
+                            />
+                          </div>
                         </div>
                       </div>
 
@@ -812,7 +847,7 @@ export default function TeacherQuestionBankDetailPage() {
                               <span className="font-semibold text-gray-400 mr-2">
                                 {String.fromCharCode(65 + idx)}.
                               </span>
-                              {option}
+                              <SmartText content={option} containsMath={!!question.metadata?.containsMath} />
                             </div>
                           ))}
                         </div>
@@ -844,7 +879,9 @@ export default function TeacherQuestionBankDetailPage() {
                         {question.explanation && (
                           <div className="border-t border-blue-200 pt-3">
                             <div className="font-semibold text-gray-700 mb-1">Explanation</div>
-                            <div className="text-gray-600">{question.explanation}</div>
+                            <div className="text-gray-600">
+                              <SmartText content={question.explanation} containsMath={!!question.metadata?.containsMath} />
+                            </div>
                           </div>
                         )}
                       </div>

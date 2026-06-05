@@ -11,6 +11,7 @@ type GeneratedQuestion = {
   options: string[];
   correct_answer?: string | null;
   explanation?: string | null;
+  contains_math: boolean; // 👈 Explicit metadata flag for the frontend
 };
 
 function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' | 'theory'): GeneratedQuestion[] {
@@ -30,7 +31,6 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
 
     const normalizedCandidate = strippedCandidate || candidate;
 
-    // If already a single letter A-H
     if (/^[A-H]$/i.test(normalizedCandidate)) {
       const idx = LETTERS.indexOf(normalizedCandidate.toUpperCase());
       if (idx >= 0 && idx < options.length) return LETTERS[idx];
@@ -42,11 +42,9 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
       if (idx >= 0 && idx < options.length) return LETTERS[idx];
     }
 
-    // Exact match against option text
     const exactIdx = options.findIndex((opt) => opt.toLowerCase() === normalizedCandidate.toLowerCase());
     if (exactIdx >= 0) return LETTERS[exactIdx];
 
-    // Partial matches
     const partialIdx = options.findIndex((opt) => opt.toLowerCase().includes(normalizedCandidate.toLowerCase()) || normalizedCandidate.toLowerCase().includes(opt.toLowerCase()));
     if (partialIdx >= 0) return LETTERS[partialIdx];
 
@@ -63,6 +61,9 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
     const explanation = row.explanation ? String(row.explanation).trim() : '';
     const rawCorrect = row.correct_answer ? String(row.correct_answer).trim() : '';
 
+    // Read the boolean flag safely from the AI output, default to false if omitted
+    const containsMath = typeof row.contains_math === 'boolean' ? row.contains_math : false;
+
     if (!topic || !questionText) continue;
 
     if (questionType === 'objective') {
@@ -73,7 +74,7 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
       if (options.length < 2) continue;
 
       const letter = resolveLetter(options, rawCorrect);
-      if (!letter) continue; // invalid if we can't determine a letter
+      if (!letter) continue;
 
       normalized.push({
         topic,
@@ -81,6 +82,7 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
         options,
         correct_answer: letter,
         explanation,
+        contains_math: containsMath,
       });
       continue;
     }
@@ -92,6 +94,7 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
       options: [],
       correct_answer: rawCorrect || null,
       explanation,
+      contains_math: containsMath,
     });
   }
 
@@ -207,9 +210,10 @@ export async function POST(request: NextRequest) {
           content: [
             'You are an expert teacher question author.',
             'Return only JSON with shape {"questions": GeneratedQuestion[]}.',
-            // Update the schema description here so the model expects a letter for objective types
-            'GeneratedQuestion fields: topic, question_text, options (string[] for objective), correct_answer (the letter A, B, C, or D for objective, or the model answer string for theory), explanation.',
-            'Do not include markdown or extra commentary.',
+            'GeneratedQuestion fields: topic, question_text, options (string[] for objective), correct_answer (the letter A, B, C, or D for objective, or the model answer string for theory), explanation, contains_math (boolean).',
+            'CRITICAL FORMATTING DIRECTIONS FOR MATH: You are completely free to output mathematical symbols, formulas, variables, and fractions when relevant (e.g. for Mathematics, Physics, Chemistry questions). When doing so, you MUST use standard LaTeX inline notation wrapped inside single dollar signs, like $x^2 + y = 10$ or $\\frac{1}{2}$.',
+            'METADATA REQUIREMENT: If a question object contains any LaTeX notations anywhere within its text, options, or explanation fields, set "contains_math" strictly to true. Otherwise, if it is completely normal plain text, set it to false.',
+            'Do not include markdown blocks or extra commentary outside the JSON.',
           ].join(' '),
         },
         {
@@ -218,7 +222,6 @@ export async function POST(request: NextRequest) {
             `Generate ${questionCount} ${questionType} questions for subject ${subjectName} and class ${className}.`,
             `Difficulty level: ${difficulty}.`,
             `Topics to cover: ${topics.join(', ')}.`,
-            // Update the conditional prompt logic below
             questionType === 'objective'
               ? 'Each objective question must include exactly 4 options. The correct_answer must strictly be only the letter index of the correct option: "A", "B", "C", or "D".'
               : 'For theory questions include a concise model answer in correct_answer and marking guidance in explanation.',
@@ -293,6 +296,7 @@ export async function POST(request: NextRequest) {
         generatedBy: 'groq',
         model: GROQ_MODEL,
         promptVersion: PROMPT_VERSION,
+        containsMath: question.contains_math, // 👈 Saved inside your Supabase JSONB metadata column
       },
     }));
 
@@ -311,7 +315,8 @@ export async function POST(request: NextRequest) {
         visibility,
         created_by_teacher_id,
         created_at,
-        updated_at
+        updated_at,
+        metadata
       `);
 
     if (insertError) {

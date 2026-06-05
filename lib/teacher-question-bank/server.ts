@@ -52,7 +52,6 @@ export async function getTeacherQuestionBankContext(): Promise<TeacherQuestionBa
     },
   };
 }
-
 export function parseGroqJsonPayload(rawContent: unknown): Record<string, unknown> | null {
   if (typeof rawContent !== 'string') {
     return null;
@@ -63,15 +62,32 @@ export function parseGroqJsonPayload(rawContent: unknown): Record<string, unknow
     return null;
   }
 
-  // 1. Try parsing the raw string directly first (fastest path).
-  try {
-    const parsed = JSON.parse(trimmed);
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>;
+  // Helper utility to attempt aggressive string repair for bad LaTeX escapes
+  function tryParsingWithSanitization(str: string): Record<string, unknown> | null {
+    try {
+      const parsed = JSON.parse(str);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      // Look for single backslashes that aren't already escaped, and double-escape them.
+      // This targets backslashes followed by common alphabetic LaTeX commands or structural tokens
+      try {
+        const sanitized = str.replace(/(?<!\\)\\(?=[a-zA-Z{}])/g, '\\\\');
+        const parsedSanitized = JSON.parse(sanitized);
+        if (parsedSanitized && typeof parsedSanitized === 'object' && !Array.isArray(parsedSanitized)) {
+          return parsedSanitized as Record<string, unknown>;
+        }
+      } catch {
+        // structural validation failed completely
+      }
     }
-  } catch {
-    // not plain JSON — fall through
+    return null;
   }
+
+  // 1. Try parsing the raw string directly first (fastest path).
+  const firstPass = tryParsingWithSanitization(trimmed);
+  if (firstPass) return firstPass;
 
   // 2. Strip a single markdown code fence if present (handles ```json ... ``` wrappers).
   const withoutFence = trimmed
@@ -79,29 +95,16 @@ export function parseGroqJsonPayload(rawContent: unknown): Record<string, unknow
     .replace(/\s*```$/, '')
     .trim();
 
-  try {
-    const parsed = JSON.parse(withoutFence);
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>;
-    }
-  } catch {
-    // fall through to extraction
-  }
+  const secondPass = tryParsingWithSanitization(withoutFence);
+  if (secondPass) return secondPass;
 
   // 3. Extract the first {...} block from anywhere in the string.
-  // Handles responses where the AI adds preamble text before the JSON.
   const jsonStart = trimmed.indexOf('{');
   const jsonEnd = trimmed.lastIndexOf('}');
   if (jsonStart !== -1 && jsonEnd > jsonStart) {
-    try {
-      const extracted = trimmed.slice(jsonStart, jsonEnd + 1);
-      const parsed = JSON.parse(extracted);
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        return parsed as Record<string, unknown>;
-      }
-    } catch {
-      // could not extract valid JSON
-    }
+    const extracted = trimmed.slice(jsonStart, jsonEnd + 1);
+    const thirdPass = tryParsingWithSanitization(extracted);
+    if (thirdPass) return thirdPass;
   }
 
   return null;

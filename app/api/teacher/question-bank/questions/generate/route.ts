@@ -11,7 +11,7 @@ type GeneratedQuestion = {
   options: string[];
   correct_answer?: string | null;
   explanation?: string | null;
-  contains_math: boolean; // 👈 Explicit metadata flag for the frontend
+  contains_math: boolean;
 };
 
 function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' | 'theory'): GeneratedQuestion[] {
@@ -24,7 +24,6 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
     const candidate = String(raw).trim();
     if (!candidate) return null;
 
-    // Strip common AI prefixes like "Answer: A" or "Option A)"
     const strippedCandidate = candidate
       .replace(/^answer\s*[:\-]?\s*/i, '')
       .replace(/^(?:option\s*)?([A-H])\s*[).:-]?\s*/i, '$1')
@@ -32,23 +31,17 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
 
     const normalizedCandidate = strippedCandidate || candidate;
 
-    // ✅ PRIMARY PATH: if the AI already gave us a bare letter (most common case),
-    // trust it directly without attempting text-matching against option content.
-    // This is robust for LaTeX-heavy options (e.g. matrix questions) where
-    // partial-text matching would always fail and incorrectly discard the question.
     if (/^[A-H]$/i.test(normalizedCandidate)) {
       const idx = LETTERS.indexOf(normalizedCandidate.toUpperCase());
       if (idx >= 0 && idx < options.length) return LETTERS[idx];
     }
 
-    // Fallback: letter at the start of a longer string (e.g. "A. Some text")
     const letterMatch = normalizedCandidate.match(/^([A-H])\b/i);
     if (letterMatch) {
       const idx = LETTERS.indexOf(letterMatch[1].toUpperCase());
       if (idx >= 0 && idx < options.length) return LETTERS[idx];
     }
 
-    // Last resort: text-match against option strings (plain-text questions only)
     const exactIdx = options.findIndex((opt) => opt.toLowerCase() === normalizedCandidate.toLowerCase());
     if (exactIdx >= 0) return LETTERS[exactIdx];
 
@@ -59,13 +52,10 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
     );
     if (partialIdx >= 0) return LETTERS[partialIdx];
 
-    // If the AI returned a letter that is out of range for the options array,
-    // fall back to letter A rather than silently dropping the whole question.
     const anyLetter = candidate.match(/\b([A-H])\b/i);
     if (anyLetter) {
       const idx = LETTERS.indexOf(anyLetter[1].toUpperCase());
       if (idx >= 0 && idx < options.length) return LETTERS[idx];
-      // If genuinely out-of-range, return A as a safe default so the question is preserved.
       if (options.length > 0) return LETTERS[0];
     }
 
@@ -82,11 +72,8 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
     const explanation = row.explanation ? String(row.explanation).trim() : '';
     const rawCorrect = row.correct_answer ? String(row.correct_answer).trim() : '';
 
-    // Read the boolean flag safely from the AI output, default to false if omitted.
-    // Then run a server-side fallback: if any field contains LaTeX patterns that the
-    // AI missed, override to true so the frontend always renders math correctly.
     const containsMathFromAI = typeof row.contains_math === 'boolean' ? row.contains_math : false;
-    const LATEX_RE = /\$[^$\n]+?\$|\$\$[\s\S]+?\$\$|\\(?:frac|sqrt|le|ge|leq|geq|times|div|sum|int|pm|cdot|alpha|beta|gamma|theta|pi|sigma|infty)\b/;
+    const LATEX_RE = /\$[^$\n]+?\$|\$$[\s\S]+?\$$|\\(?:frac|sqrt|le|ge|leq|geq|times|div|sum|int|pm|cdot|alpha|beta|gamma|theta|pi|sigma|infty)\b/;
     const allText = [
       String(row.question_text || ''),
       ...(Array.isArray(row.options) ? row.options.map(String) : []),
@@ -117,7 +104,6 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
       continue;
     }
 
-    // theory
     normalized.push({
       topic,
       question_text: questionText,
@@ -232,7 +218,7 @@ export async function POST(request: NextRequest) {
 
     const groqResponse = await fetchGroqChatCompletion({
       model: GROQ_MODEL,
-      temperature: 0.5,
+      temperature: 0.3, // 💡 Slightly lowered temperature to improve schema adherence
       max_tokens: 3000,
       messages: [
         {
@@ -241,8 +227,12 @@ export async function POST(request: NextRequest) {
             'You are an expert teacher question author.',
             'Return ONLY valid JSON with shape {"questions": GeneratedQuestion[]}. No markdown fences, no commentary outside the JSON.',
             'GeneratedQuestion fields: topic (string), question_text (string), options (string[] — exactly 4 items for objective, empty [] for theory), correct_answer ("A"|"B"|"C"|"D" for objective OR a model-answer string for theory), explanation (string), contains_math (boolean).',
-            'MATH FORMATTING: For any mathematical symbols, equations, variables, exponents, fractions, inequalities, or special notation use LaTeX wrapped in single dollar signs: $x^2$, $\\frac{1}{2}$, $1 < x \\le \\frac{8}{3}$.',
-            'contains_math RULE — this field is MANDATORY on every question object: set it to true if ANY of the fields (question_text, options, explanation) contain even ONE LaTeX expression ($...$). Set it to false ONLY if the entire question is plain English with no formulas whatsoever. Omitting or guessing wrong will break rendering for students.',
+            'CRITICAL JSON ESCAPING RULES FOR LATEX:',
+            '1. Because you are outputting raw text inside a JSON string property, you MUST double-escape all backslashes.',
+            '2. Write "\\\\frac{1}{2}" instead of "\\frac{1}{2}". Write "\\\\times" instead of "\\times". Write "\\\\delta" instead of "\\delta".',
+            '3. Ensure all curly brackets used in LaTeX are safely contained inside the quoted JSON string properties.',
+            'MATH FORMATTING: For any mathematical symbols, equations, variables, exponents, fractions, inequalities, or chemical formulas, use LaTeX wrapped in single dollar signs: $x^2$, $\\\\frac{1}{2}$, $1 < x \\\\le \\\\frac{8}{3}$, $\\\\text{H}_2\\\\text{O}$.',
+            'contains_math RULE — this field is MANDATORY on every question object: set it to true if ANY of the fields contain even ONE LaTeX expression ($...$). Set it to false ONLY if the entire question is plain text with no formulas whatsoever.',
           ].join(' '),
         },
         {
@@ -299,7 +289,7 @@ export async function POST(request: NextRequest) {
         model: GROQ_MODEL,
         prompt_version: PROMPT_VERSION,
         status: 'failed',
-        error_message: 'AI payload could not be validated',
+        error_message: 'AI payload could not be validated due to structure or parse failure',
         request_payload: requestPayload,
         response_payload: { rawContent },
       });
@@ -325,7 +315,7 @@ export async function POST(request: NextRequest) {
         generatedBy: 'groq',
         model: GROQ_MODEL,
         promptVersion: PROMPT_VERSION,
-        containsMath: question.contains_math, // 👈 Saved inside your Supabase JSONB metadata column
+        containsMath: question.contains_math,
       },
     }));
 

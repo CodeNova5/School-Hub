@@ -63,9 +63,19 @@ export function parseGroqJsonPayload(rawContent: unknown): Record<string, unknow
     return null;
   }
 
+  // 1. Try parsing the raw string directly first (fastest path).
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // not plain JSON — fall through
+  }
+
+  // 2. Strip a single markdown code fence if present (handles ```json ... ``` wrappers).
   const withoutFence = trimmed
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
+    .replace(/^```[a-z]*\s*/i, '')
     .replace(/\s*```$/, '')
     .trim();
 
@@ -75,7 +85,23 @@ export function parseGroqJsonPayload(rawContent: unknown): Record<string, unknow
       return parsed as Record<string, unknown>;
     }
   } catch {
-    return null;
+    // fall through to extraction
+  }
+
+  // 3. Extract the first {...} block from anywhere in the string.
+  // Handles responses where the AI adds preamble text before the JSON.
+  const jsonStart = trimmed.indexOf('{');
+  const jsonEnd = trimmed.lastIndexOf('}');
+  if (jsonStart !== -1 && jsonEnd > jsonStart) {
+    try {
+      const extracted = trimmed.slice(jsonStart, jsonEnd + 1);
+      const parsed = JSON.parse(extracted);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      // could not extract valid JSON
+    }
   }
 
   return null;

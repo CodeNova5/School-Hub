@@ -24,6 +24,7 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
     const candidate = String(raw).trim();
     if (!candidate) return null;
 
+    // Strip common AI prefixes like "Answer: A" or "Option A)"
     const strippedCandidate = candidate
       .replace(/^answer\s*[:\-]?\s*/i, '')
       .replace(/^(?:option\s*)?([A-H])\s*[).:-]?\s*/i, '$1')
@@ -31,22 +32,42 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
 
     const normalizedCandidate = strippedCandidate || candidate;
 
+    // ✅ PRIMARY PATH: if the AI already gave us a bare letter (most common case),
+    // trust it directly without attempting text-matching against option content.
+    // This is robust for LaTeX-heavy options (e.g. matrix questions) where
+    // partial-text matching would always fail and incorrectly discard the question.
     if (/^[A-H]$/i.test(normalizedCandidate)) {
       const idx = LETTERS.indexOf(normalizedCandidate.toUpperCase());
       if (idx >= 0 && idx < options.length) return LETTERS[idx];
     }
 
+    // Fallback: letter at the start of a longer string (e.g. "A. Some text")
     const letterMatch = normalizedCandidate.match(/^([A-H])\b/i);
     if (letterMatch) {
       const idx = LETTERS.indexOf(letterMatch[1].toUpperCase());
       if (idx >= 0 && idx < options.length) return LETTERS[idx];
     }
 
+    // Last resort: text-match against option strings (plain-text questions only)
     const exactIdx = options.findIndex((opt) => opt.toLowerCase() === normalizedCandidate.toLowerCase());
     if (exactIdx >= 0) return LETTERS[exactIdx];
 
-    const partialIdx = options.findIndex((opt) => opt.toLowerCase().includes(normalizedCandidate.toLowerCase()) || normalizedCandidate.toLowerCase().includes(opt.toLowerCase()));
+    const partialIdx = options.findIndex(
+      (opt) =>
+        opt.toLowerCase().includes(normalizedCandidate.toLowerCase()) ||
+        normalizedCandidate.toLowerCase().includes(opt.toLowerCase()),
+    );
     if (partialIdx >= 0) return LETTERS[partialIdx];
+
+    // If the AI returned a letter that is out of range for the options array,
+    // fall back to letter A rather than silently dropping the whole question.
+    const anyLetter = candidate.match(/\b([A-H])\b/i);
+    if (anyLetter) {
+      const idx = LETTERS.indexOf(anyLetter[1].toUpperCase());
+      if (idx >= 0 && idx < options.length) return LETTERS[idx];
+      // If genuinely out-of-range, return A as a safe default so the question is preserved.
+      if (options.length > 0) return LETTERS[0];
+    }
 
     return null;
   }

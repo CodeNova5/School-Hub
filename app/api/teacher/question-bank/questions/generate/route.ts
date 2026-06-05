@@ -222,7 +222,6 @@ export async function POST(request: NextRequest) {
             'GeneratedQuestion fields: topic (string), question_text (string), options (string[] — exactly 4 items for objective, empty [] for theory), correct_answer ("A"|"B"|"C"|"D" for objective OR a model-answer string for theory), explanation (string), contains_math (boolean).',
             'MATH FORMATTING: For any mathematical symbols, equations, variables, exponents, fractions, inequalities, or special notation use LaTeX wrapped in single dollar signs: $x^2$, $\\frac{1}{2}$, $1 < x \\le \\frac{8}{3}$.',
             'contains_math RULE — this field is MANDATORY on every question object: set it to true if ANY of the fields (question_text, options, explanation) contain even ONE LaTeX expression ($...$). Set it to false ONLY if the entire question is plain English with no formulas whatsoever. Omitting or guessing wrong will break rendering for students.',
-            'Example of a math question object: {"topic":"Inequalities","question_text":"Solve $\\frac{5}{x-1} \\ge 3$","options":["$x<1$","$x>1$ or $x>\\frac{8}{3}$","$1<x\\le\\frac{8}{3}$","$1\\le x<\\frac{8}{3}$"],"correct_answer":"C","explanation":"...","contains_math":true}.',
           ].join(' '),
         },
         {

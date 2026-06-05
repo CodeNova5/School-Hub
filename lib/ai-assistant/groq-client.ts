@@ -18,12 +18,16 @@ export interface GroqChatCompletionError {
 }
 
 function getGroqApiKeys(): string[] {
+  // 1️⃣ Single key – `GROQ_API_KEY`
   const fromSingleKey = process.env.GROQ_API_KEY?.trim();
+
+  // 2️⃣ List of keys – `GROQ_API_KEYS`
   const fromList = (process.env.GROQ_API_KEYS || '')
     .split(/[\n,]/)
     .map((key) => key.trim())
     .filter((key): key is string => Boolean(key));
 
+  // 3️⃣ Indexed keys – `GROQ_API_KEY_1`, `GROQ_API_KEY_2`, …
   const fromIndexedKeys = Object.entries(process.env)
     .filter(([name, value]) => /^GROQ_API_KEY_\d+$/.test(name) && value?.trim())
     .sort(([a], [b]) => {
@@ -33,8 +37,12 @@ function getGroqApiKeys(): string[] {
     })
     .map(([, value]) => value!.trim());
 
-  return Array.from(new Set([fromSingleKey, ...fromList, ...fromIndexedKeys].filter((key): key is string => Boolean(key))));
+  // Merge everything, de‑duplicate, and return the final array
+  return Array.from(
+    new Set([fromSingleKey, ...fromList, ...fromIndexedKeys].filter((k): k is string => Boolean(k)))
+  );
 }
+
 
 function getRetryAfterSeconds(response: Response): number {
   const headerValue = response.headers.get('retry-after');
@@ -163,10 +171,10 @@ export async function fetchGroqChatCompletion(
       const groqUsageRaw = data?.usage;
       const groqUsage = groqUsageRaw
         ? {
-            prompt_tokens: Number(groqUsageRaw.prompt_tokens || 0),
-            completion_tokens: Number(groqUsageRaw.completion_tokens || 0),
-            total_tokens: Number(groqUsageRaw.total_tokens || 0),
-          }
+          prompt_tokens: Number(groqUsageRaw.prompt_tokens || 0),
+          completion_tokens: Number(groqUsageRaw.completion_tokens || 0),
+          total_tokens: Number(groqUsageRaw.total_tokens || 0),
+        }
         : undefined;
 
       return { ok: true, data, usage: groqUsage ? { groq: groqUsage } : undefined };

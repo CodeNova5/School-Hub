@@ -336,41 +336,72 @@ export default function TeacherQuestionBankDetailPage() {
     const count = Math.min(Math.max(Math.floor(parsedCount), 1), 30);
     const topics = effectiveGenerateTopics.length > 0 ? effectiveGenerateTopics : [selectedSubjectClassLabel];
 
+    const requestBody = JSON.stringify({
+      bankId,
+      subjectClassId,
+      difficulty: generateDifficulty,
+      questionType: generateQuestionType,
+      count,
+      topics,
+    });
+
+    const MAX_ATTEMPTS = 3;
+
     setIsGenerating(true);
     try {
-      const response = await fetch('/api/teacher/question-bank/questions/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bankId,
-          subjectClassId,
-          difficulty: generateDifficulty,
-          questionType: generateQuestionType,
-          count,
-          topics,
-        }),
-      });
+      let lastError = '';
 
-      const payload = await response.json();
-      if (!response.ok) {
-        toast.error(payload?.error || 'Failed to generate questions');
-        return;
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        try {
+          const response = await fetch('/api/teacher/question-bank/questions/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: requestBody,
+          });
+
+          const payload = await response.json();
+
+          // Any non-422 error (auth, server error, etc.) → bail immediately, no retry
+          if (!response.ok && response.status !== 422) {
+            toast.error(payload?.error || 'Failed to generate questions');
+            return;
+          }
+
+          // 422 means the AI response couldn't be parsed — retrying usually fixes it
+          if (response.status === 422) {
+            lastError = payload?.error || 'AI payload could not be validated';
+            if (attempt < MAX_ATTEMPTS) {
+              // Small back-off before next attempt (500ms × attempt number)
+              await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+              continue;
+            }
+            // All 3 attempts exhausted
+            break;
+          }
+
+          // Success path
+          const generatedQuestions = (payload.questions || []) as QuestionRecord[];
+          if (generatedQuestions.length === 0) {
+            toast.error('AI returned no valid questions');
+            return;
+          }
+
+          setQuestions((prev) => [...generatedQuestions, ...prev]);
+          setQuestionCount((prev) => prev + generatedQuestions.length);
+          setGenerateStep(1);
+          setIsGenerateModalOpen(false);
+          toast.success(`Generated ${generatedQuestions.length} question${generatedQuestions.length === 1 ? '' : 's'}`);
+          return;
+        } catch {
+          // Network / parse error — bail immediately
+          toast.error('Failed to generate questions');
+          return;
+        }
       }
 
-      const generatedQuestions = (payload.questions || []) as QuestionRecord[];
-      if (generatedQuestions.length === 0) {
-        toast.error('AI returned no valid questions');
-        return;
-      }
-
-      setQuestions((prev) => [...generatedQuestions, ...prev]);
-      setQuestionCount((prev) => prev + generatedQuestions.length);
-      setGenerateStep(1);
-      setIsGenerateModalOpen(false);
-      toast.success(`Generated ${generatedQuestions.length} question${generatedQuestions.length === 1 ? '' : 's'}`);
-    } catch (error) {
-      console.error(error);
-      toast.error('Failed to generate questions');
+      // Reached here only when all 3 retries returned 422
+      console.warn('[Generate] Failed after', MAX_ATTEMPTS, 'attempts:', lastError);
+      toast.error('The AI is having trouble right now. Please try again later.');
     } finally {
       setIsGenerating(false);
     }

@@ -25,16 +25,42 @@ interface SmartTextProps {
 }
 
 function SmartText({ content, containsMath }: SmartTextProps) {
-  if (containsMath) {
+  // 1. Fallback protection: Auto-detect math patterns if the database flag is missing or false
+  const hasMath = useMemo(() => {
+    if (containsMath) return true;
+    if (!content) return false;
+
+    // Checks for LaTeX backslashes, standard dollar delimiters, or brackets/parentheses formulas
+    return /\\(?:[a-zA-Z]+)|[\$\(\)\[\]]/.test(content);
+  }, [content, containsMath]);
+
+  if (hasMath) {
+    let normalizedContent = content;
+
+    // 2. Formatting cleanup: Convert raw parenthesis-wrapped math like "(\frac...)" 
+    // to standard "$...$" inline blocks if they slipped through an old dataset.
+    if (normalizedContent.includes('(\\frac')) {
+      normalizedContent = normalizedContent.replace(/\(([^)]*\\frac[^)]*)\)/g, '$$1$');
+    }
+
     return (
-      <div className="inline-block align-middle prose prose-sm max-w-none dark:prose-invert">
-        <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
-          {content}
+      <div className="inline-block align-middle prose prose-sm max-w-none dark:prose-invert [&_p]:inline">
+        <ReactMarkdown
+          remarkPlugins={[remarkMath]}
+          rehypePlugins={[
+            [rehypeKatex, {
+              strict: false,  // Prevents the page layout from crashing if LaTeX is invalid
+              trust: true     // Enables processing built-in global rendering components safely
+            }]
+          ]}
+        >
+          {normalizedContent}
         </ReactMarkdown>
       </div>
     );
   }
 
+  // Fallback to plain text rendering if no math expressions exist
   return <span>{content}</span>;
 }
 

@@ -23,13 +23,9 @@ interface SmartTextProps {
   content: string;
   containsMath: boolean;
 }
-
 /**
  * Detects LaTeX math in a string even when the `containsMath` flag was not
- * set by the AI. Matches:
- *   - Inline delimiters: $...$ or \(...\)
- *   - Display delimiters: $$...$$ or \[...\]
- *   - Bare LaTeX commands: \frac, \le, \ge, \sqrt, \sum, \int, \times, etc.
+ * set by the AI.
  */
 function hasMathContent(text: string): boolean {
   return (
@@ -37,19 +33,34 @@ function hasMathContent(text: string): boolean {
     /\$[^$\n]+?\$/.test(text) ||              // $...$
     /\\\([\s\S]+?\\\)/.test(text) ||          // \(...\)
     /\\\[[\s\S]+?\\\]/.test(text) ||          // \[...\]
-    /\\(?:frac|sqrt|sum|int|prod|lim|log|sin|cos|tan|le|ge|leq|geq|neq|pm|times|div|cdot|alpha|beta|gamma|delta|theta|lambda|mu|pi|sigma|phi|omega|infty|forall|exists|in|notin|subset|cup|cap|mathbb|mathbf|text|left|right|begin|end)\b/.test(text)
+    /\\(frac|sqrt|sum|int|prod|lim|log|sin|cos|tan|le|ge|leq|geq|neq|pm|times|div|cdot|alpha|beta|gamma|delta|theta|lambda|mu|pi|sigma|phi|omega|infty|forall|exists|in|notin|subset|cup|cap|mathbb|mathbf|text|left|right|begin|end)\b/.test(text)
   );
 }
 
-function SmartText({ content, containsMath }: SmartTextProps) {
-  // Use the explicit flag OR fall back to runtime detection
-  const shouldRenderMath = containsMath || hasMathContent(content);
+/**
+ * Replaces accidental JSON-escaped control characters back into literal LaTeX commands.
+ */
+function sanitizeLatex(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/\x0c/g, '\\f') // Converts raw Form Feed back to \f
+    .replace(/\n/g, '\\n')   // Safeguards newline characters
+    .replace(/\r/g, '\\r')   // Safeguards carriage returns
+    .replace(/\t/g, '\\t');  // Safeguards tabs
+}
+
+export function SmartText({ content, containsMath }: SmartTextProps) {
+  // 1. Sanitize the content first to convert bad hidden bytes like Form Feed back to '\f'
+  const sanitizedContent = sanitizeLatex(content);
+
+  // 2. Run your check on the sanitized string
+  const shouldRenderMath = containsMath || hasMathContent(sanitizedContent);
 
   if (shouldRenderMath) {
     return (
       <div className="inline-block align-middle prose prose-sm max-w-none dark:prose-invert">
         <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
-          {content}
+          {sanitizedContent}
         </ReactMarkdown>
       </div>
     );

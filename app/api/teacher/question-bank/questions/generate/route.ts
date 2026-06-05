@@ -61,8 +61,17 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
     const explanation = row.explanation ? String(row.explanation).trim() : '';
     const rawCorrect = row.correct_answer ? String(row.correct_answer).trim() : '';
 
-    // Read the boolean flag safely from the AI output, default to false if omitted
-    const containsMath = typeof row.contains_math === 'boolean' ? row.contains_math : false;
+    // Read the boolean flag safely from the AI output, default to false if omitted.
+    // Then run a server-side fallback: if any field contains LaTeX patterns that the
+    // AI missed, override to true so the frontend always renders math correctly.
+    const containsMathFromAI = typeof row.contains_math === 'boolean' ? row.contains_math : false;
+    const LATEX_RE = /\$[^$\n]+?\$|\$\$[\s\S]+?\$\$|\\(?:frac|sqrt|le|ge|leq|geq|times|div|sum|int|pm|cdot|alpha|beta|gamma|theta|pi|sigma|infty)\b/;
+    const allText = [
+      String(row.question_text || ''),
+      ...(Array.isArray(row.options) ? row.options.map(String) : []),
+      String(row.explanation || ''),
+    ].join(' ');
+    const containsMath = containsMathFromAI || LATEX_RE.test(allText);
 
     if (!topic || !questionText) continue;
 
@@ -209,11 +218,11 @@ export async function POST(request: NextRequest) {
           role: 'system',
           content: [
             'You are an expert teacher question author.',
-            'Return only JSON with shape {"questions": GeneratedQuestion[]}.',
-            'GeneratedQuestion fields: topic, question_text, options (string[] for objective), correct_answer (the letter A, B, C, or D for objective, or the model answer string for theory), explanation, contains_math (boolean).',
-            'CRITICAL FORMATTING DIRECTIONS FOR MATH: You are completely free to output mathematical symbols, formulas, variables, and fractions when relevant (e.g. for Mathematics, Physics, Chemistry questions). When doing so, you MUST use standard LaTeX inline notation wrapped inside single dollar signs, like $x^2 + y = 10$ or $\\frac{1}{2}$.',
-            'METADATA REQUIREMENT: If a question object contains any LaTeX notations anywhere within its text, options, or explanation fields, set "contains_math" strictly to true. Otherwise, if it is completely normal plain text, set it to false.',
-            'Do not include markdown blocks or extra commentary outside the JSON.',
+            'Return ONLY valid JSON with shape {"questions": GeneratedQuestion[]}. No markdown fences, no commentary outside the JSON.',
+            'GeneratedQuestion fields: topic (string), question_text (string), options (string[] — exactly 4 items for objective, empty [] for theory), correct_answer ("A"|"B"|"C"|"D" for objective OR a model-answer string for theory), explanation (string), contains_math (boolean).',
+            'MATH FORMATTING: For any mathematical symbols, equations, variables, exponents, fractions, inequalities, or special notation use LaTeX wrapped in single dollar signs: $x^2$, $\\frac{1}{2}$, $1 < x \\le \\frac{8}{3}$.',
+            'contains_math RULE — this field is MANDATORY on every question object: set it to true if ANY of the fields (question_text, options, explanation) contain even ONE LaTeX expression ($...$). Set it to false ONLY if the entire question is plain English with no formulas whatsoever. Omitting or guessing wrong will break rendering for students.',
+            'Example of a math question object: {"topic":"Inequalities","question_text":"Solve $\\frac{5}{x-1} \\ge 3$","options":["$x<1$","$x>1$ or $x>\\frac{8}{3}$","$1<x\\le\\frac{8}{3}$","$1\\le x<\\frac{8}{3}$"],"correct_answer":"C","explanation":"...","contains_math":true}.',
           ].join(' '),
         },
         {

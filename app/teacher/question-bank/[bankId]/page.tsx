@@ -24,8 +24,28 @@ interface SmartTextProps {
   containsMath: boolean;
 }
 
+/**
+ * Detects LaTeX math in a string even when the `containsMath` flag was not
+ * set by the AI. Matches:
+ *   - Inline delimiters: $...$ or \(...\)
+ *   - Display delimiters: $$...$$ or \[...\]
+ *   - Bare LaTeX commands: \frac, \le, \ge, \sqrt, \sum, \int, \times, etc.
+ */
+function hasMathContent(text: string): boolean {
+  return (
+    /\$\$[\s\S]+?\$\$/.test(text) ||          // $$...$$
+    /\$[^$\n]+?\$/.test(text) ||              // $...$
+    /\\\([\s\S]+?\\\)/.test(text) ||          // \(...\)
+    /\\\[[\s\S]+?\\\]/.test(text) ||          // \[...\]
+    /\\(?:frac|sqrt|sum|int|prod|lim|log|sin|cos|tan|le|ge|leq|geq|neq|pm|times|div|cdot|alpha|beta|gamma|delta|theta|lambda|mu|pi|sigma|phi|omega|infty|forall|exists|in|notin|subset|cup|cap|mathbb|mathbf|text|left|right|begin|end)\b/.test(text)
+  );
+}
+
 function SmartText({ content, containsMath }: SmartTextProps) {
-  if (containsMath) {
+  // Use the explicit flag OR fall back to runtime detection
+  const shouldRenderMath = containsMath || hasMathContent(content);
+
+  if (shouldRenderMath) {
     return (
       <div className="inline-block align-middle prose prose-sm max-w-none dark:prose-invert">
         <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>

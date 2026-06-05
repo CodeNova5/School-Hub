@@ -49,7 +49,7 @@ function sanitizeLatex(text: string): string {
     .replace(/\t/g, '\\t');  // Safeguards tabs
 }
 
-export function SmartText({ content, containsMath }: SmartTextProps) {
+function SmartText({ content, containsMath }: SmartTextProps) {
   // 1. Sanitize the content first to convert bad hidden bytes like Form Feed back to '\f'
   const sanitizedContent = sanitizeLatex(content);
 

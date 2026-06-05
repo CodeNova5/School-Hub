@@ -23,32 +23,13 @@ interface SmartTextProps {
   content: string;
   containsMath: boolean;
 }
+
 function SmartText({ content, containsMath }: SmartTextProps) {
-  // Auto-detect math patterns if the flag is missing or false
-  const hasMath = useMemo(() => {
-    if (containsMath) return true;
-    if (!content) return false;
-
-    // Checks for typical LaTeX patterns: \, $, or bracket variants
-    return /\\(?:[a-zA-Z]+)|[\$\(\)]/.test(content);
-  }, [content, containsMath]);
-
-  if (hasMath) {
-    // Normalizing parenthesis delimiters to standard dollar signs if needed
-    let normalizedContent = content;
-
-    // Optional: Convert (\frac...) to $\frac...$ on the fly if your AI outputs them
-    if (normalizedContent.includes('(\\frac')) {
-      normalizedContent = normalizedContent.replace(/\(([^)]*\\frac[^)]*)\)/g, '$$1$');
-    }
-
+  if (containsMath) {
     return (
-      <div className="inline-block align-middle prose prose-sm max-w-none dark:prose-invert [&\u200B_p]:inline">
-        <ReactMarkdown
-          remarkPlugins={[remarkMath]}
-          rehypePlugins={[[rehypeKatex, { strict: false, trust: true }]]}
-        >
-          {normalizedContent}
+      <div className="inline-block align-middle prose prose-sm max-w-none dark:prose-invert">
+        <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+          {content}
         </ReactMarkdown>
       </div>
     );
@@ -56,6 +37,7 @@ function SmartText({ content, containsMath }: SmartTextProps) {
 
   return <span>{content}</span>;
 }
+
 type SubjectClassItem = {
   id: string;
   subjects?: { id: string; name: string } | null;

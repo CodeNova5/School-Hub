@@ -11,6 +11,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ArrowLeft, GripVertical, Printer, Eye, EyeOff, Search } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
+import { useSchoolContext } from '@/hooks/use-school-context';
 
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -124,6 +126,7 @@ export default function ExamPrintPage() {
   const params = useParams<{ bankId: string }>();
   const router = useRouter();
   const bankId = typeof params?.bankId === 'string' ? params.bankId : Array.isArray(params?.bankId) ? params.bankId[0] : '';
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   const [isLoading, setIsLoading] = useState(true);
   const [bank, setBank] = useState<BankRecord | null>(null);
@@ -141,10 +144,11 @@ export default function ExamPrintPage() {
   const [questionTypeFilter, setQuestionTypeFilter] = useState<'all' | 'objective' | 'theory'>('all');
 
   // Exam Paper Config
-  const [schoolName, setSchoolName] = useState('XARIS SCHOOL');
-  const [schoolTagline, setSchoolTagline] = useState('Kindergarten, Nursery, Basic And College');
-  const [schoolAddress, setSchoolAddress] = useState('367, ojoigbede road, ilemba-awori,between Iyana corner busstop, ojo, lagos');
-  const [schoolPhone, setSchoolPhone] = useState('Tel: 08033253746, 08033747695');
+  const [schoolName, setSchoolName] = useState('');
+  const [schoolTagline, setSchoolTagline] = useState('');
+  const [schoolAddress, setSchoolAddress] = useState('');
+  const [schoolPhone, setSchoolPhone] = useState('');
+  const [schoolLogo, setSchoolLogo] = useState('');
   const [examTitle, setExamTitle] = useState('Second term examination');
   const [subjectName, setSubjectName] = useState('');
   const [className, setClassName] = useState('');
@@ -160,6 +164,34 @@ export default function ExamPrintPage() {
       loadData();
     }
   }, [bankId]);
+
+  useEffect(() => {
+    if (schoolId) {
+      fetchSchoolDetails(schoolId);
+    }
+  }, [schoolId]);
+
+  async function fetchSchoolDetails(id: string) {
+    try {
+      const { data, error } = await supabase
+        .from('schools')
+        .select('name, address, phone, logo_url')
+        .eq('id', id)
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        setSchoolName(data.name || '');
+        setSchoolAddress(data.address || '');
+        setSchoolPhone(data.phone || '');
+        setSchoolLogo(data.logo_url || '');
+      }
+    } catch (error) {
+      console.error('Error fetching school details:', error);
+      toast.error('Failed to load school details');
+    }
+  }
 
   async function loadData() {
     setIsLoading(true);
@@ -277,7 +309,7 @@ export default function ExamPrintPage() {
   };
 
 
-  if (isLoading) {
+  if (isLoading || schoolLoading) {
     return (
       <DashboardLayout role="teacher">
         <div className="flex min-h-[50vh] items-center justify-center">
@@ -551,10 +583,15 @@ export default function ExamPrintPage() {
               >
                 {/* Exam Header exactly as in the image */}
                 <div className="text-center mb-6 border-b-2 border-black pb-4">
+                  {schoolLogo && (
+                    <div className="flex justify-center mb-3">
+                      <img src={schoolLogo} alt="School Logo" className="h-16 w-auto object-contain" />
+                    </div>
+                  )}
                   <h1 className="text-3xl font-bold uppercase tracking-wider mb-1" style={{ fontFamily: 'Times New Roman, serif' }}>
                     {schoolName}
                   </h1>
-                  <div className="text-sm italic mb-1">{schoolTagline}</div>
+                  {schoolTagline && <div className="text-sm italic mb-1">{schoolTagline}</div>}
                   <div className="text-sm">{schoolAddress}</div>
                   <div className="text-sm mb-3">{schoolPhone}</div>
                   

@@ -68,12 +68,16 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
     if (!item || typeof item !== 'object') continue;
     const row = item as Record<string, unknown>;
     const topic = String(row.topic || '').trim();
-    const questionText = String(row.question_text || '').trim();
-    const explanation = row.explanation ? String(row.explanation).trim() : '';
+    let questionText = String(row.question_text || '').trim();
+    if ((questionText.match(/(?<!\\)\$/g) || []).length % 2 !== 0) questionText += '$';
+    
+    let explanation = row.explanation ? String(row.explanation).trim() : '';
+    if ((explanation.match(/(?<!\\)\$/g) || []).length % 2 !== 0) explanation += '$';
+    
     const rawCorrect = row.correct_answer ? String(row.correct_answer).trim() : '';
 
     const containsMathFromAI = typeof row.contains_math === 'boolean' ? row.contains_math : false;
-    const LATEX_RE = /\$[^$\n]+?\$|\$$[\s\S]+?\$$|\\(?:frac|sqrt|le|ge|leq|geq|times|div|sum|int|pm|cdot|alpha|beta|gamma|theta|pi|sigma|infty)\b/;
+    const LATEX_RE = /\$[^$\n]+?\$|\$\$[\s\S]+?\$\$|\\(?:frac|sqrt|le|ge|leq|geq|times|div|sum|int|pm|cdot|alpha|beta|gamma|theta|pi|sigma|infty|rightarrow|leftarrow|rightleftharpoons)\b/;
     const allText = [
       String(row.question_text || ''),
       ...(Array.isArray(row.options) ? row.options.map(String) : []),
@@ -85,7 +89,12 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
 
     if (questionType === 'objective') {
       const options = Array.isArray(row.options)
-        ? row.options.map((v) => String(v || '').trim()).filter(Boolean)
+        ? row.options.map((v) => {
+            let str = String(v || '').trim();
+            str = str.replace(/^(?:[A-H]\s*[).:-]\s*|\([A-H]\)\s*|Option\s+[A-H]\s*[:.-]?\s*)/i, '').trim();
+            if ((str.match(/(?<!\\)\$/g) || []).length % 2 !== 0) str += '$';
+            return str;
+          }).filter(Boolean)
         : [];
 
       if (options.length < 2) continue;
@@ -230,7 +239,9 @@ export async function POST(request: NextRequest) {
             'GeneratedQuestion fields: topic (string), question_text (string), options (string[] — exactly 4 items for objective, empty [] for theory), correct_answer ("A"|"B"|"C"|"D" for objective OR a model-answer string for theory), explanation (string), contains_math (boolean).',
             '',
             'CHEMISTRY & SCIENCE FORMATTING RULES:',
-            '- ALWAYS use LaTeX for chemical formulas, ions, and equations to ensure beautiful rendering. Wrap them in single dollar signs: $...$',
+            '- ALWAYS use LaTeX for chemical formulas, ions, and equations. You MUST wrap ALL LaTeX in single dollar signs: $...$',
+            '- ALWAYS verify that every opening $ has a matching closing $. Do NOT forget the closing $.',
+            '- NEVER output bare LaTeX commands (like \\\\rightarrow, \\\\text, _, ^) outside of $...$',
             '- Use standard LaTeX for subscripts and superscripts. For example: $\\\\text{H}_2\\\\text{O}$, $\\\\text{Fe}^{3+}$, $\\\\text{SO}_4^{2-}$.',
             '- For chemical equations, use $\\\\rightarrow$ or $\\\\rightleftharpoons$: $\\\\text{Fe}^{3+} + \\\\text{MnO}_4^- \\\\rightarrow \\\\text{Fe}^{2+} + \\\\text{MnO}_2$',
             '- Do NOT use plain text like H2O or Fe^3+. Always use LaTeX.',
@@ -240,6 +251,7 @@ export async function POST(request: NextRequest) {
             '2. Do NOT include trailing commas before ] or }.',
             '3. Ensure all strings are properly terminated with closing quotes.',
             '4. contains_math MUST be true if ANY field contains $...$ LaTeX. Otherwise false.',
+            '5. For objective options, DO NOT include the letter prefix (e.g., "A)", "B."). Provide ONLY the answer text.',
           ].join('\n'),
         },
         {

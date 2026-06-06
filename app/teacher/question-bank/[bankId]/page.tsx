@@ -33,7 +33,7 @@ function hasMathContent(text: string): boolean {
     /\$[^$\n]+?\$/.test(text) ||              // $...$
     /\\\([\s\S]+?\\\)/.test(text) ||          // \(...\)
     /\\\[[\s\S]+?\\\]/.test(text) ||          // \[...\]
-    /\\(frac|sqrt|sum|int|prod|lim|log|sin|cos|tan|le|ge|leq|geq|neq|pm|times|div|cdot|alpha|beta|gamma|delta|theta|lambda|mu|pi|sigma|phi|omega|infty|forall|exists|in|notin|subset|cup|cap|mathbb|mathbf|text|left|right|begin|end)\b/.test(text)
+    /\\(frac|sqrt|sum|int|prod|lim|log|sin|cos|tan|le|ge|leq|geq|neq|pm|times|div|cdot|alpha|beta|gamma|delta|theta|lambda|mu|pi|sigma|phi|omega|infty|forall|exists|in|notin|subset|cup|cap|mathbb|mathbf|text|left|right|begin|end|rightarrow|leftarrow|rightleftharpoons)\b/.test(text)
   );
 }
 

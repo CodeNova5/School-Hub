@@ -944,17 +944,19 @@ export default function TeacherQuestionBankDetailPage() {
                             <div className="font-semibold text-gray-700">Correct Answer</div>
                             {(() => {
                               const ca = question.correct_answer;
-                              let disp = 'Not specified';
-
-                              if (ca) {
-                                if (question.question_type === 'objective' && /^[A-H]$/i.test(ca)) {
-                                  disp = ca.toUpperCase();
-                                } else {
-                                  disp = ca;
-                                }
+                              if (!ca) {
+                                return <div className="text-gray-600 mt-1">Not specified</div>;
                               }
 
-                              return <div className="text-gray-600 mt-1">{disp}</div>;
+                              if (question.question_type === 'objective' && /^[A-H]$/i.test(ca)) {
+                                return <div className="text-gray-600 mt-1">{ca.toUpperCase()}</div>;
+                              }
+
+                              return (
+                                <div className="text-gray-600 mt-1">
+                                  <SmartText content={ca} containsMath={!!question.metadata?.containsMath} />
+                                </div>
+                              );
                             })()}
                           </div>
                         </div>

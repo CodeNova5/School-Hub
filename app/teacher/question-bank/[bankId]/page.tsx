@@ -465,7 +465,7 @@ export default function TeacherQuestionBankDetailPage() {
     });
   }
 
-  function addManualTopic() {
+  async function addManualTopic() {
     const value = manualTopicInput.trim();
     if (!value) return;
 
@@ -475,6 +475,39 @@ export default function TeacherQuestionBankDetailPage() {
       return [...prev, value];
     });
     setManualTopicInput('');
+
+    // If a specific term is selected, find the matching topic group and append to it
+    if (selectedTerm !== 'all') {
+      const matchingGroup = topicGroups.find((g) => inferTopicGroupTerm(g) === selectedTerm);
+      if (matchingGroup) {
+        const alreadyInGroup = (matchingGroup.topics || []).some(
+          (t) => t.toLowerCase() === value.toLowerCase()
+        );
+        if (!alreadyInGroup) {
+          const updatedTopics = [...(matchingGroup.topics || []), value];
+          try {
+            const res = await fetch(
+              `/api/teacher/question-bank/banks/${bankId}/topic-groups/${matchingGroup.id}`,
+              {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: matchingGroup.title, topics: updatedTopics }),
+              }
+            );
+            if (res.ok) {
+              const payload = await res.json();
+              const savedGroup = payload.group as TopicGroupRecord;
+              setTopicGroups((prev) =>
+                prev.map((g) => (g.id === savedGroup.id ? savedGroup : g))
+              );
+              toast.success(`"${value}" added to ${matchingGroup.title}`);
+            }
+          } catch {
+            // silently ignore — topic is still in the local selection
+          }
+        }
+      }
+    }
   }
 
   function removeGenerateTopic(topic: string) {
@@ -1347,41 +1380,131 @@ export default function TeacherQuestionBankDetailPage() {
             )}
 
             {generateStep === 2 && (
-              <div className="space-y-4 animate-in fade-in duration-200">
+              <div className="space-y-5 animate-in fade-in duration-200">
                 <div>
                   <Label className="text-sm font-semibold text-gray-900">Select Topics</Label>
-                  <p className="text-xs text-gray-600 mt-1">Choose from existing topics or add custom ones</p>
+                  <p className="text-xs text-gray-500 mt-1">Tick individual topics from your groups, or add custom ones below</p>
                 </div>
+
+                {/* ── Topic group accordion ── */}
                 {topicGroups.length > 0 && (
-                  <div className="space-y-2 rounded-lg border border-blue-100 bg-blue-50/60 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-blue-900">Saved question groups</p>
-                      <span className="text-[11px] text-blue-700">Click to load a group</span>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {topicGroups.map((group) => (
-                        <button
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">Saved groups</p>
+                    {topicGroups.map((group) => {
+                      const groupTopics = group.topics || [];
+                      const selectedInGroup = groupTopics.filter((t) =>
+                        selectedGenerateTopics.some((s) => s.toLowerCase() === t.toLowerCase())
+                      );
+                      const allSelected = groupTopics.length > 0 && selectedInGroup.length === groupTopics.length;
+                      const someSelected = selectedInGroup.length > 0 && !allSelected;
+                      return (
+                        <details
                           key={group.id}
-                          onClick={() => applyTopicGroup(group)}
-                          className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white px-3 py-1.5 text-xs font-medium text-blue-800 shadow-sm transition-colors hover:bg-blue-50"
+                          className="group/acc rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden transition-shadow duration-200 hover:shadow-md"
                         >
-                          <span>{group.title}</span>
-                          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
-                            {(group.topics || []).length}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
+                          <summary
+                            className="flex cursor-pointer select-none items-center justify-between gap-3 px-4 py-3 list-none"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              {/* mini checkbox visual showing partial/full selection */}
+                              <span
+                                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 text-white text-[10px] font-bold transition-all duration-150 ${
+                                  allSelected
+                                    ? 'border-blue-600 bg-blue-600'
+                                    : someSelected
+                                    ? 'border-blue-400 bg-blue-100'
+                                    : 'border-gray-300 bg-white'
+                                }`}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (allSelected) {
+                                    // deselect whole group
+                                    setSelectedGenerateTopics((prev) =>
+                                      prev.filter(
+                                        (s) => !groupTopics.some((t) => t.toLowerCase() === s.toLowerCase())
+                                      )
+                                    );
+                                  } else {
+                                    // select whole group (merge, no duplicates)
+                                    setSelectedGenerateTopics((prev) => {
+                                      const existing = new Set(prev.map((s) => s.toLowerCase()));
+                                      const toAdd = groupTopics.filter((t) => !existing.has(t.toLowerCase()));
+                                      return [...prev, ...toAdd];
+                                    });
+                                  }
+                                }}
+                                role="checkbox"
+                                aria-checked={allSelected ? true : someSelected ? 'mixed' : false}
+                                aria-label={`Select all in ${group.title}`}
+                              >
+                                {allSelected ? '✓' : someSelected ? '−' : ''}
+                              </span>
+                              <span className="truncate text-sm font-semibold text-gray-800">{group.title}</span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {selectedInGroup.length > 0 && (
+                                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                                  {selectedInGroup.length}/{groupTopics.length}
+                                </span>
+                              )}
+                              {selectedInGroup.length === 0 && (
+                                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500">
+                                  {groupTopics.length}
+                                </span>
+                              )}
+                              <svg
+                                className="h-4 w-4 text-gray-400 transition-transform duration-200 group-open/acc:rotate-180"
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </div>
+                          </summary>
+
+                          <div className="border-t border-gray-100 px-4 pb-3 pt-3">
+                            <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+                              {groupTopics.map((topic) => {
+                                const isChecked = selectedGenerateTopics.some(
+                                  (s) => s.toLowerCase() === topic.toLowerCase()
+                                );
+                                return (
+                                  <label
+                                    key={topic}
+                                    className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors duration-150 ${
+                                      isChecked
+                                        ? 'bg-blue-50 text-blue-800'
+                                        : 'text-gray-700 hover:bg-gray-50'
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      disabled={isGenerating}
+                                      onChange={() => toggleGenerateTopic(topic)}
+                                      className="h-4 w-4 rounded border-gray-300 accent-blue-600 disabled:cursor-not-allowed"
+                                    />
+                                    <span className="truncate leading-tight">{topic}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </details>
+                      );
+                    })}
                   </div>
                 )}
-                <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+
+                {/* ── Selected topics tray ── */}
+                <div className="rounded-xl border border-gray-200 bg-gray-50/80 p-4 space-y-3">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Selected topics</p>
-                      <p className="text-[11px] text-gray-500">
+                      <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">Selected</p>
+                      <p className="text-[11px] text-gray-500 mt-0.5">
                         {effectiveGenerateTopics.length > 0
-                          ? `${effectiveGenerateTopics.length} topic${effectiveGenerateTopics.length === 1 ? '' : 's'} selected`
-                          : 'No topics selected yet'}
+                          ? `${effectiveGenerateTopics.length} topic${effectiveGenerateTopics.length === 1 ? '' : 's'} will be used`
+                          : 'Nothing selected — will default to the subject'}
                       </p>
                     </div>
                     {effectiveGenerateTopics.length > 0 && (
@@ -1391,44 +1514,56 @@ export default function TeacherQuestionBankDetailPage() {
                         variant="ghost"
                         onClick={() => setSelectedGenerateTopics([])}
                         disabled={isGenerating}
-                        className="h-8 px-2 text-xs text-gray-500 hover:bg-white hover:text-gray-900"
+                        className="h-7 px-2 text-xs text-gray-400 hover:bg-white hover:text-red-500"
                       >
                         Clear all
                       </Button>
                     )}
                   </div>
-
-                  <div className="flex min-h-[88px] flex-wrap gap-2">
+                  <div className="flex min-h-[60px] flex-wrap gap-1.5">
                     {effectiveGenerateTopics.length > 0 ? (
                       effectiveGenerateTopics.map((topic) => (
-                        <button
+                        <span
                           key={topic}
-                          type="button"
-                          onClick={() => removeGenerateTopic(topic)}
-                          disabled={isGenerating}
-                          className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white px-3 py-1.5 text-xs font-medium text-blue-800 shadow-sm transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
-                          aria-label={`Remove topic ${topic}`}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-medium text-blue-800 shadow-sm"
                         >
-                          <span>{topic}</span>
-                          <X className="h-3 w-3" />
-                        </button>
+                          {topic}
+                          <button
+                            type="button"
+                            onClick={() => removeGenerateTopic(topic)}
+                            disabled={isGenerating}
+                            aria-label={`Remove ${topic}`}
+                            className="rounded-full text-blue-400 hover:text-red-500 transition-colors duration-150 disabled:cursor-not-allowed"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
                       ))
                     ) : (
-                      <div className="flex w-full items-center justify-center rounded-md border border-dashed border-gray-300 bg-white/70 px-4 py-6 text-center text-xs text-gray-500">
-                        Pick a saved group or add custom topics to see them here.
+                      <div className="flex w-full items-center justify-center rounded-lg border border-dashed border-gray-200 bg-white/60 py-5 text-xs text-gray-400">
+                        Tick topics above, or type a custom one below
                       </div>
                     )}
                   </div>
                 </div>
+
+                {/* ── Manual topic input ── */}
                 <div className="flex gap-2">
                   <Input
                     value={manualTopicInput}
                     onChange={(e) => setManualTopicInput(e.target.value)}
-                    placeholder="Add custom topic..."
+                    placeholder="Type a custom topic and press Enter…"
                     className="h-10 text-sm"
                     onKeyDown={(e) => e.key === 'Enter' && addManualTopic()}
+                    disabled={isGenerating}
                   />
-                  <Button size="sm" variant="outline" onClick={addManualTopic} className="h-10 px-4">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={addManualTopic}
+                    className="h-10 px-4 shrink-0"
+                    disabled={isGenerating || !manualTopicInput.trim()}
+                  >
                     Add
                   </Button>
                 </div>

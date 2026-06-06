@@ -145,7 +145,6 @@ export default function ExamPrintPage() {
 
   // Exam Paper Config
   const [schoolName, setSchoolName] = useState('XARIS SCHOOL');
-  const [schoolTagline, setSchoolTagline] = useState('Kindergarten, Nursery, Basic And College');
   const [schoolAddress, setSchoolAddress] = useState('367, ojoigbede road, ilemba-awori, between Iyana corner busstop, ojo, lagos');
   const [schoolPhone, setSchoolPhone] = useState('Tel: 08033253746, 08033747695');
   const [schoolLogo, setSchoolLogo] = useState('');
@@ -355,104 +354,6 @@ export default function ExamPrintPage() {
             <div className="space-y-8">
               {/* Configuration Cards - Full Width Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {/* School Details Card */}
-                <Card className="border-slate-200 lg:col-span-2">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg">School Details</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <Label htmlFor="schoolName" className="text-sm font-medium text-slate-700">School Name</Label>
-                      <Input
-                        id="schoolName"
-                        value={schoolName}
-                        onChange={(e) => setSchoolName(e.target.value)}
-                        placeholder="Enter school name"
-                        className="mt-1"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="schoolTagline" className="text-sm font-medium text-slate-700">Tagline</Label>
-                      <Input
-                        id="schoolTagline"
-                        value={schoolTagline}
-                        onChange={(e) => setSchoolTagline(e.target.value)}
-                        placeholder="School motto or tagline"
-                        className="mt-1"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="schoolAddress" className="text-sm font-medium text-slate-700">Address</Label>
-                      <Input
-                        id="schoolAddress"
-                        value={schoolAddress}
-                        onChange={(e) => setSchoolAddress(e.target.value)}
-                        placeholder="School address"
-                        className="mt-1"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="schoolPhone" className="text-sm font-medium text-slate-700">Phone</Label>
-                      <Input
-                        id="schoolPhone"
-                        value={schoolPhone}
-                        onChange={(e) => setSchoolPhone(e.target.value)}
-                        placeholder="School phone"
-                        className="mt-1"
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Exam Config Card */}
-                <Card className="border-slate-200 lg:col-span-2">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg">Exam Details</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <Label htmlFor="examTitle" className="text-sm font-medium text-slate-700">Exam Title</Label>
-                      <Input
-                        id="examTitle"
-                        value={examTitle}
-                        onChange={(e) => setExamTitle(e.target.value)}
-                        placeholder="e.g., Second Term Examination"
-                        className="mt-1"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label htmlFor="subject" className="text-sm font-medium text-slate-700">Subject</Label>
-                        <Input
-                          id="subject"
-                          value={subjectName}
-                          onChange={(e) => setSubjectName(e.target.value)}
-                          placeholder="Subject name"
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="className" className="text-sm font-medium text-slate-700">Class</Label>
-                        <Input
-                          id="className"
-                          value={className}
-                          onChange={(e) => setClassName(e.target.value)}
-                          placeholder="e.g., JSS 1"
-                          className="mt-1"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 p-3 bg-slate-100 rounded-lg">
-                      <button
-                        onClick={() => setShowAnswerKey(!showAnswerKey)}
-                        className="flex items-center gap-2 text-sm font-medium text-slate-700 hover:text-slate-900"
-                      >
-                        {showAnswerKey ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                        {showAnswerKey ? 'Hide' : 'Show'} Answer Key
-                      </button>
-                    </div>
-                  </CardContent>
-                </Card>
 
                 {/* Selection Stats */}
                 <Card className="border-slate-200 bg-blue-50 md:col-span-2 lg:col-span-4">
@@ -693,9 +594,6 @@ export default function ExamPrintPage() {
               <h1 className="text-3xl font-serif tracking-widest uppercase mb-1" style={{ fontFamily: 'Times New Roman, serif' }}>
                 {schoolName}
               </h1>
-              {schoolTagline && (
-                <p className="text-sm font-medium text-gray-800">{schoolTagline}</p>
-              )}
               {schoolAddress && (
                 <p className="text-sm text-gray-800">{schoolAddress}</p>
               )}

@@ -358,11 +358,11 @@ export default function ExamPrintPage() {
         </div>
 
         <div className="container mx-auto px-4 py-8">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Left Panel: Configuration & Selection */}
-            <div className="lg:col-span-1 space-y-6">
+          <div className="space-y-8">
+            {/* Configuration Cards - Full Width Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {/* School Details Card */}
-              <Card className="border-slate-200">
+              <Card className="border-slate-200 lg:col-span-2">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-lg">School Details</CardTitle>
                 </CardHeader>
@@ -419,7 +419,7 @@ export default function ExamPrintPage() {
               </Card>
 
               {/* Exam Config Card */}
-              <Card className="border-slate-200">
+              <Card className="border-slate-200 lg:col-span-2">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-lg">Exam Details</CardTitle>
                 </CardHeader>
@@ -436,31 +436,33 @@ export default function ExamPrintPage() {
                       className="mt-1"
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="subject" className="text-sm font-medium text-slate-700">
-                      Subject
-                    </Label>
-                    <Input
-                      id="subject"
-                      value={subjectName}
-                      onChange={(e) => setSubjectName(e.target.value)}
-                      placeholder="Subject name"
-                      className="mt-1"
-                      disabled
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="className" className="text-sm font-medium text-slate-700">
-                      Class
-                    </Label>
-                    <Input
-                      id="className"
-                      value={className}
-                      onChange={(e) => setClassName(e.target.value)}
-                      placeholder="e.g., JSS 1"
-                      className="mt-1"
-                      disabled
-                    />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="subject" className="text-sm font-medium text-slate-700">
+                        Subject
+                      </Label>
+                      <Input
+                        id="subject"
+                        value={subjectName}
+                        onChange={(e) => setSubjectName(e.target.value)}
+                        placeholder="Subject name"
+                        className="mt-1"
+                        disabled
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="className" className="text-sm font-medium text-slate-700">
+                        Class
+                      </Label>
+                      <Input
+                        id="className"
+                        value={className}
+                        onChange={(e) => setClassName(e.target.value)}
+                        placeholder="e.g., JSS 1"
+                        className="mt-1"
+                        disabled
+                      />
+                    </div>
                   </div>
                   <div className="flex items-center gap-3 p-3 bg-slate-100 rounded-lg">
                     <button
@@ -479,9 +481,9 @@ export default function ExamPrintPage() {
               </Card>
 
               {/* Selection Stats */}
-              <Card className="border-slate-200 bg-blue-50">
+              <Card className="border-slate-200 bg-blue-50 md:col-span-2 lg:col-span-4">
                 <CardContent className="pt-6">
-                  <div className="space-y-2">
+                  <div className="grid grid-cols-3 gap-4">
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-slate-600">Selected Questions:</span>
                       <Badge variant="default" className="bg-blue-600">
@@ -500,71 +502,67 @@ export default function ExamPrintPage() {
                 </CardContent>
               </Card>
             </div>
+            {/* Filters - Full Width */}
+            <Card className="border-slate-200 w-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Filter Questions</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Search */}
+                <div>
+                  <Label htmlFor="search" className="text-sm font-medium text-slate-700">
+                    Search
+                  </Label>
+                  <div className="relative mt-2">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Input
+                      id="search"
+                      placeholder="Search by topic or content..."
+                      value={questionSearch}
+                      onChange={(e) => setQuestionSearch(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                </div>
 
-            {/* Right Panel: Question Selection */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Filters */}
-              <Card className="border-slate-200">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">Filter Questions</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Search */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Term Filter */}
                   <div>
-                    <Label htmlFor="search" className="text-sm font-medium text-slate-700">
-                      Search
+                    <Label htmlFor="term" className="text-sm font-medium text-slate-700">
+                      Term
                     </Label>
-                    <div className="relative mt-2">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                      <Input
-                        id="search"
-                        placeholder="Search by topic or content..."
-                        value={questionSearch}
-                        onChange={(e) => setQuestionSearch(e.target.value)}
-                        className="pl-9"
-                      />
-                    </div>
+                    <select
+                      id="term"
+                      value={selectedTerm}
+                      onChange={(e) => setSelectedTerm(e.target.value as any)}
+                      className="mt-2 w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="all">All Terms</option>
+                      <option value="1">Term 1</option>
+                      <option value="2">Term 2</option>
+                      <option value="3">Term 3</option>
+                    </select>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    {/* Term Filter */}
-                    <div>
-                      <Label htmlFor="term" className="text-sm font-medium text-slate-700">
-                        Term
-                      </Label>
-                      <select
-                        id="term"
-                        value={selectedTerm}
-                        onChange={(e) => setSelectedTerm(e.target.value as any)}
-                        className="mt-2 w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      >
-                        <option value="all">All Terms</option>
-                        <option value="1">Term 1</option>
-                        <option value="2">Term 2</option>
-                        <option value="3">Term 3</option>
-                      </select>
-                    </div>
-
-                    {/* Question Type Filter */}
-                    <div>
-                      <Label htmlFor="type" className="text-sm font-medium text-slate-700">
-                        Type
-                      </Label>
-                      <select
-                        id="type"
-                        value={questionTypeFilter}
-                        onChange={(e) => setQuestionTypeFilter(e.target.value as any)}
-                        className="mt-2 w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      >
-                        <option value="all">All Types</option>
-                        <option value="objective">Objective</option>
-                        <option value="theory">Theory</option>
-                      </select>
-                    </div>
+                  {/* Question Type Filter */}
+                  <div>
+                    <Label htmlFor="type" className="text-sm font-medium text-slate-700">
+                      Type
+                    </Label>
+                    <select
+                      id="type"
+                      value={questionTypeFilter}
+                      onChange={(e) => setQuestionTypeFilter(e.target.value as any)}
+                      className="mt-2 w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="all">All Types</option>
+                      <option value="objective">Objective</option>
+                      <option value="theory">Theory</option>
+                    </select>
                   </div>
 
                   {/* Bulk Actions */}
-                  <div className="flex gap-2 pt-2">
+                  <div className="flex gap-2 mt-6">
                     <Button
                       onClick={addAllFiltered}
                       disabled={filteredAvailableQuestions.length === 0}
@@ -581,80 +579,78 @@ export default function ExamPrintPage() {
                       Clear All
                     </Button>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </CardContent>
+            </Card>
 
-              {/* Available Questions */}
-              <Card className="border-slate-200">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">
-                    Available Questions ({filteredAvailableQuestions.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 max-h-96 overflow-y-auto">
-                    {filteredAvailableQuestions.length === 0 ? (
-                      <div className="text-center py-8">
-                        <p className="text-sm text-slate-500">No questions match your filters</p>
-                      </div>
-                    ) : (
-                      filteredAvailableQuestions.map((question) => (
-                        <div
-                          key={question.id}
-                          onClick={() => toggleQuestionSelection(question)}
-                          className="p-3 border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors"
-                        >
-                          <div className="flex items-start gap-3">
-                            <input
-                              type="checkbox"
-                              checked={false}
-                              readOnly
-                              className="mt-1 w-4 h-4 rounded border-slate-300 accent-blue-600 cursor-pointer"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <Badge variant="outline" className="text-xs">
-                                  {question.topic}
-                                </Badge>
-                                <Badge
-                                  variant="secondary"
-                                  className={`text-xs ${question.question_type === 'objective'
-                                      ? 'bg-purple-100 text-purple-800'
-                                      : 'bg-orange-100 text-orange-800'
-                                    }`}
-                                >
-                                  {question.question_type}
-                                </Badge>
-                                <Badge
-                                  variant="outline"
-                                  className={`text-xs ${question.difficulty === 'easy'
-                                      ? 'text-green-700'
-                                      : question.difficulty === 'medium'
-                                        ? 'text-yellow-700'
-                                        : 'text-red-700'
-                                    }`}
-                                >
-                                  {question.difficulty}
-                                </Badge>
-                              </div>
-                              <p className="text-sm text-slate-700 mt-2 line-clamp-2">
-                                {question.question_text}
-                              </p>
+            {/* Available Questions - Full Width */}
+            <Card className="border-slate-200 w-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">
+                  Available Questions ({filteredAvailableQuestions.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {filteredAvailableQuestions.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-sm text-slate-500">No questions match your filters</p>
+                    </div>
+                  ) : (
+                    filteredAvailableQuestions.map((question) => (
+                      <div
+                        key={question.id}
+                        onClick={() => toggleQuestionSelection(question)}
+                        className="p-3 border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={false}
+                            readOnly
+                            className="mt-1 w-4 h-4 rounded border-slate-300 accent-blue-600 cursor-pointer"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge variant="outline" className="text-xs">
+                                {question.topic}
+                              </Badge>
+                              <Badge
+                                variant="secondary"
+                                className={`text-xs ${question.question_type === 'objective'
+                                  ? 'bg-purple-100 text-purple-800'
+                                  : 'bg-orange-100 text-orange-800'
+                                  }`}
+                              >
+                                {question.question_type}
+                              </Badge>
+                              <Badge
+                                variant="outline"
+                                className={`text-xs ${question.difficulty === 'easy'
+                                  ? 'text-green-700'
+                                  : question.difficulty === 'medium'
+                                    ? 'text-yellow-700'
+                                    : 'text-red-700'
+                                  }`}
+                              >
+                                {question.difficulty}
+                              </Badge>
                             </div>
+                            <p className="text-sm text-slate-700 mt-2 line-clamp-2">
+                              {question.question_text}
+                            </p>
                           </div>
                         </div>
-                      ))
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
 
-          {/* Selected Questions Order */}
-          {orderedQuestions.length > 0 && (
-            <div className="mt-8">
-              <Card className="border-slate-200">
+            {/* Selected Questions Order - Full Width */}
+            {orderedQuestions.length > 0 && (
+              <Card className="border-slate-200 w-full">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-lg">Question Order (Drag to Reorder)</CardTitle>
                   <CardDescription>Arrange questions in the order they should appear on the exam</CardDescription>
@@ -684,8 +680,8 @@ export default function ExamPrintPage() {
                               <Badge
                                 variant="secondary"
                                 className={`text-xs ${question.question_type === 'objective'
-                                    ? 'bg-purple-100 text-purple-800'
-                                    : 'bg-orange-100 text-orange-800'
+                                  ? 'bg-purple-100 text-purple-800'
+                                  : 'bg-orange-100 text-orange-800'
                                   }`}
                               >
                                 {question.question_type}
@@ -700,7 +696,7 @@ export default function ExamPrintPage() {
                           </div>
                           <button
                             onClick={() => toggleQuestionSelection(question)}
-                            className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded transition-colors"
+                            className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded transition-colors whitespace-nowrap"
                           >
                             Remove
                           </button>
@@ -710,114 +706,121 @@ export default function ExamPrintPage() {
                   </div>
                 </CardContent>
               </Card>
-            </div>
-          )}
+            )}
+          </div>
+        </div>
 
-          {/* Print Preview - Hidden from View but Shown on Print */}
-          <div className="hidden print:block mt-12 bg-white p-12 max-w-4xl mx-auto">
-            {/* School Header */}
-            <div className="text-center mb-8 border-b-2 border-slate-300 pb-6">
-              {schoolLogo && (
-                <img
-                  src={schoolLogo}
-                  alt="School Logo"
-                  className="h-16 mx-auto mb-3"
-                />
-              )}
-              <h1 className="text-2xl font-bold text-slate-900">{schoolName}</h1>
-              {schoolTagline && (
-                <p className="text-sm text-slate-600 italic mt-1">{schoolTagline}</p>
-              )}
-              <p className="text-xs text-slate-500 mt-2">{schoolAddress}</p>
-              <p className="text-xs text-slate-500">{schoolPhone}</p>
-            </div>
+        {/* Print Preview - Hidden from View but Shown on Print */}
+        <div className="hidden print:block mt-12 bg-white p-12 max-w-4xl mx-auto">
+          {/* School Header */}
+          <div className="text-center mb-4 pb-4 border-b border-slate-800">
+            {schoolLogo && (
+              <img
+                src={schoolLogo}
+                alt="School Logo"
+                className="h-12 mx-auto mb-2"
+              />
+            )}
+            <h1 className="text-xl font-bold text-slate-900">{schoolName}</h1>
+            {schoolTagline && (
+              <p className="text-xs text-slate-600 mt-1">{schoolTagline}</p>
+            )}
+            <p className="text-xs text-slate-600 mt-1">{schoolAddress}</p>
+            <p className="text-xs text-slate-600">{schoolPhone}</p>
+          </div>
 
-            {/* Exam Details */}
-            <div className="text-center mb-8">
-              <h2 className="text-xl font-semibold text-slate-900">{examTitle}</h2>
-              <p className="text-sm text-slate-600 mt-2">
-                <strong>Subject:</strong> {subjectName} | <strong>Class:</strong> {className}
-              </p>
-              <p className="text-xs text-slate-500 mt-1">
-                <strong>Total Questions:</strong> {orderedQuestions.length}
-              </p>
+          {/* Exam Title */}
+          <div className="text-center mb-6">
+            <h2 className="text-lg font-bold text-slate-900 mb-2">{examTitle}</h2>
+            <div className="flex justify-between text-sm font-semibold text-slate-900">
+              <span>SUBJECT: {subjectName.toUpperCase()}</span>
+              <span>CLASS: {className.toUpperCase()}</span>
             </div>
+          </div>
 
-            {/* Objectives Section */}
-            {objectives.length > 0 && (
-              <div className="mb-8">
-                <h3 className="text-lg font-bold text-slate-900 mb-4 pb-2 border-b-2 border-slate-300">
-                  Section A: Objective Questions ({objectives.length})
-                </h3>
-                <div className="space-y-4">
-                  {objectives.map((question, index) => (
-                    <div key={question.id} className="mb-4">
-                      <p className="text-sm font-semibold text-slate-900">
-                        {index + 1}. <SmartText
+          {/* Objectives Section */}
+          {objectives.length > 0 && (
+            <div className="mb-8">
+              <div className="text-lg font-bold text-slate-900 mb-4 pb-2 border-b border-slate-400">
+                Objectives
+              </div>
+              <div className="space-y-3">
+                {objectives.map((question, index) => (
+                  <div key={question.id} className="text-sm">
+                    <div className="mb-2">
+                      <span className="font-bold">{index + 1}.</span>
+                      <span className="ml-2">
+                        <SmartText
                           content={question.question_text}
                           containsMath={question.metadata?.containsMath || false}
                         />
-                      </p>
-                      <div className="mt-2 ml-4 space-y-1">
-                        {question.options.map((option, optIndex) => (
-                          <p key={optIndex} className="text-sm text-slate-700">
-                            {String.fromCharCode(65 + optIndex)})&nbsp;
+                      </span>
+                    </div>
+                    <div className="ml-6 space-y-1">
+                      {question.options.map((option, optIndex) => (
+                        <div key={optIndex} className="text-sm text-slate-800">
+                          <span className="font-semibold">({String.fromCharCode(97 + optIndex)})</span>
+                          <span className="ml-2">
                             <SmartText
                               content={option}
                               containsMath={question.metadata?.containsMath || false}
                             />
-                          </p>
-                        ))}
-                      </div>
-
-                      {showAnswerKey && (
-                        <div className="mt-3 ml-4 p-2 bg-green-50 border-l-4 border-green-500">
-                          <p className="text-xs font-semibold text-green-700">
-                            Answer: {question.correct_answer}
-                          </p>
+                          </span>
                         </div>
-                      )}
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
-            {/* Theory Section */}
-            {theory.length > 0 && (
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 mb-4 pb-2 border-b-2 border-slate-300">
-                  Section B: Theory Questions ({theory.length})
-                </h3>
-                <div className="space-y-6">
-                  {theory.map((question, index) => (
-                    <div key={question.id}>
-                      <p className="text-sm font-semibold text-slate-900">
-                        {objectives.length + index + 1}. <SmartText
+                    {showAnswerKey && question.correct_answer && (
+                      <div className="mt-2 ml-6 p-2 bg-green-50 border-l-4 border-green-500 text-xs">
+                        <p className="font-semibold text-green-700">
+                          Answer: {question.correct_answer}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Theory Section */}
+          {theory.length > 0 && (
+            <div>
+              <div className="text-lg font-bold text-slate-900 mb-4 pb-2 border-b border-slate-400">
+                Theory
+              </div>
+              <div className="space-y-6">
+                {theory.map((question, index) => (
+                  <div key={question.id} className="text-sm">
+                    <div className="mb-3">
+                      <span className="font-bold">{objectives.length + index + 1}.</span>
+                      <span className="ml-2">
+                        <SmartText
                           content={question.question_text}
                           containsMath={question.metadata?.containsMath || false}
                         />
-                      </p>
-
-                      {showAnswerKey && question.explanation && (
-                        <div className="mt-3 ml-4 p-3 bg-green-50 border-l-4 border-green-500">
-                          <p className="text-xs font-semibold text-green-700 mb-1">Solution:</p>
-                          <div className="text-xs text-green-700">
-                            <SmartText
-                              content={question.explanation}
-                              containsMath={question.metadata?.containsMath || false}
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="mt-4 ml-4 border-t border-dashed border-slate-300 pt-4 min-h-24" />
+                      </span>
                     </div>
-                  ))}
-                </div>
+
+                    {showAnswerKey && question.explanation && (
+                      <div className="ml-6 p-2 bg-green-50 border-l-4 border-green-500 mb-3 text-xs">
+                        <p className="font-semibold text-green-700 mb-1">Solution:</p>
+                        <div className="text-green-700">
+                          <SmartText
+                            content={question.explanation}
+                            containsMath={question.metadata?.containsMath || false}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Space for students to write */}
+                    <div className="ml-6 mt-4 border-t border-dashed border-slate-400 pt-4 min-h-32" />
+                  </div>
+                ))}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </DashboardLayout>

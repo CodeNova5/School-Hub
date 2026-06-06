@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useSchoolContext } from '@/hooks/use-school-context';
-import { ArrowLeft, BookOpen, FolderKanban, Globe2, Lock, Save, Search, Settings2, Sparkles, X, AlertCircle, CheckCircle, PencilLine, Trash2, Plus } from 'lucide-react';
+import { ArrowLeft, BookOpen, FolderKanban, Globe2, Lock, Save, Search, Settings2, Sparkles, X, AlertCircle, CheckCircle, PencilLine, Trash2, Plus, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 
 import ReactMarkdown from 'react-markdown';
@@ -813,6 +813,15 @@ export default function TeacherQuestionBankDetailPage() {
                 >
                   <Settings2 className="h-4 w-4 mr-2" />
                   Bank Settings
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-slate-200"
+                  onClick={() => router.push(`/teacher/question-bank/${bankId}/print`)}
+                >
+                  <Printer className="h-4 w-4 mr-2" />
+                  Print Exam
                 </Button>
               </div>
             </div>

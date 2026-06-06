@@ -218,8 +218,9 @@ export async function POST(request: NextRequest) {
 
     const groqResponse = await fetchGroqChatCompletion({
       model: GROQ_MODEL,
-      temperature: 0.3, // 💡 Slightly lowered temperature to improve schema adherence
-      max_tokens: 3000,
+      temperature: 0.3,
+      max_tokens: 6000,
+      response_format: { type: 'json_object' },
       messages: [
         {
           role: 'system',
@@ -227,13 +228,20 @@ export async function POST(request: NextRequest) {
             'You are an expert teacher question author.',
             'Return ONLY valid JSON with shape {"questions": GeneratedQuestion[]}. No markdown fences, no commentary outside the JSON.',
             'GeneratedQuestion fields: topic (string), question_text (string), options (string[] — exactly 4 items for objective, empty [] for theory), correct_answer ("A"|"B"|"C"|"D" for objective OR a model-answer string for theory), explanation (string), contains_math (boolean).',
-            'CRITICAL JSON ESCAPING RULES FOR LATEX:',
-            '1. Because you are outputting raw text inside a JSON string property, you MUST double-escape all backslashes.',
-            '2. Write "\\\\frac{1}{2}" instead of "\\frac{1}{2}". Write "\\\\times" instead of "\\times". Write "\\\\delta" instead of "\\delta".',
-            '3. Ensure all curly brackets used in LaTeX are safely contained inside the quoted JSON string properties.',
-            'MATH FORMATTING: For any mathematical symbols, equations, variables, exponents, fractions, inequalities, or chemical formulas, use LaTeX wrapped in single dollar signs: $x^2$, $\\\\frac{1}{2}$, $1 < x \\\\le \\\\frac{8}{3}$, $\\\\text{H}_2\\\\text{O}$.',
-            'contains_math RULE — this field is MANDATORY on every question object: set it to true if ANY of the fields contain even ONE LaTeX expression ($...$). Set it to false ONLY if the entire question is plain text with no formulas whatsoever.',
-          ].join(' '),
+            '',
+            'CHEMISTRY & SCIENCE FORMATTING RULES:',
+            '- For simple chemical formulas, prefer plain-text Unicode subscripts/superscripts or just write them plainly: H2O, CO2, Fe2O3, NaOH, H2SO4, Ca(OH)2.',
+            '- For chemical equations, use plain-text arrows: → for forward, ⇌ for equilibrium.',
+            '- Only use LaTeX ($...$) when you truly need complex mathematical expressions like fractions, integrals, or elaborate equations.',
+            '- Example good chemistry question text: "What is the product when H2SO4 reacts with NaOH?"',
+            '- Example bad chemistry question text: "What is the product when $\\text{H}_2\\text{SO}_4$ reacts with $\\text{NaOH}$?"',
+            '',
+            'CRITICAL JSON RULES:',
+            '1. All backslashes in JSON string values MUST be double-escaped: use \\\\ not \\.',
+            '2. Do NOT include trailing commas before ] or }.',
+            '3. Ensure all strings are properly terminated with closing quotes.',
+            '4. contains_math MUST be true if ANY field contains $...$ LaTeX. Otherwise false.',
+          ].join('\n'),
         },
         {
           role: 'user',
@@ -244,6 +252,7 @@ export async function POST(request: NextRequest) {
             questionType === 'objective'
               ? 'Each objective question must include exactly 4 options. The correct_answer must strictly be only the letter index of the correct option: "A", "B", "C", or "D".'
               : 'For theory questions include a concise model answer in correct_answer and marking guidance in explanation.',
+            'Use plain text for chemical formulas (H2O, CO2, NaOH) — do NOT use LaTeX for simple chemistry notation.',
             'Output valid JSON only.',
           ].join('\n'),
         },

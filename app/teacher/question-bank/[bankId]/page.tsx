@@ -43,11 +43,32 @@ function hasMathContent(text: string): boolean {
 
 function sanitizeLatex(text: string): string {
   if (!text) return '';
-  return text
+  let sanitized = text
     .replace(/\x0c/g, '\\f') // Converts raw Form Feed back to \f
     .replace(/\r\n/g, '\n')  // Standardizes Windows newlines to standard newlines
     .replace(/\r/g, '\n');   // Standardizes carriage returns to standard newlines
-  // REMOVED: .replace(/\n/g, '\\n') which was causing the visual '\n' bug
+
+  // Auto-close missing dollar sign for LaTeX math (safe for all browsers)
+  let unescapedDollarCount = 0;
+  for (let i = 0; i < sanitized.length; i++) {
+    if (sanitized[i] === '$') {
+      let backslashCount = 0;
+      let j = i - 1;
+      while (j >= 0 && sanitized[j] === '\\') {
+        backslashCount++;
+        j--;
+      }
+      if (backslashCount % 2 === 0) {
+        unescapedDollarCount++;
+      }
+    }
+  }
+  
+  if (unescapedDollarCount % 2 !== 0) {
+    sanitized += '$';
+  }
+
+  return sanitized;
 }
 
 function SmartText({ content, containsMath }: SmartTextProps) {

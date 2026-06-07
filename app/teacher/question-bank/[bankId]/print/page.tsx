@@ -234,6 +234,8 @@ export default function ExamPrintPage() {
   const [questionSearch, setQuestionSearch] = useState('');
   const [selectedTerm, setSelectedTerm] = useState<'all' | '1' | '2' | '3'>('all');
   const [questionTypeFilter, setQuestionTypeFilter] = useState<'all' | 'objective' | 'theory'>('all');
+  const [topicFilter, setTopicFilter] = useState<string>('all');
+  const [difficultyFilter, setDifficultyFilter] = useState<'all' | 'easy' | 'medium' | 'hard'>('all');
 
   // Exam Paper Config
   const [schoolName, setSchoolName] = useState('XARIS SCHOOL');
@@ -317,6 +319,12 @@ export default function ExamPrintPage() {
     }
   }
 
+  // Get unique topics from list for filter dropdown options
+  const uniqueTopics = useMemo(() => {
+    const list = questions.map((q) => q.topic.trim());
+    return Array.from(new Set(list)).sort();
+  }, [questions]);
+
   // Filtering Logic
   const termTopics = useMemo(() => {
     if (selectedTerm === 'all') return [];
@@ -330,16 +338,25 @@ export default function ExamPrintPage() {
     const query = questionSearch.trim().toLowerCase();
     return questions.filter((question) => {
       if (selectedQuestionIds.includes(question.id)) return false;
+
+      // Strict Content Search match against content text only
       const matchesSearch =
         !query ||
-        question.topic.toLowerCase().includes(query) ||
         question.question_text.toLowerCase().includes(query);
+
       const matchesType = questionTypeFilter === 'all' || question.question_type === questionTypeFilter;
       const matchesTerm =
         selectedTerm === 'all' || termTopics.includes(question.topic.trim().toLowerCase());
-      return matchesSearch && matchesType && matchesTerm;
+
+      // Added Topic filter check
+      const matchesTopic = topicFilter === 'all' || question.topic.trim() === topicFilter;
+
+      // Added Difficulty filter check
+      const matchesDifficulty = difficultyFilter === 'all' || question.difficulty === difficultyFilter;
+
+      return matchesSearch && matchesType && matchesTerm && matchesTopic && matchesDifficulty;
     });
-  }, [questions, questionSearch, questionTypeFilter, selectedTerm, termTopics, selectedQuestionIds]);
+  }, [questions, questionSearch, questionTypeFilter, selectedTerm, termTopics, topicFilter, difficultyFilter, selectedQuestionIds]);
 
   // Handlers
   function toggleQuestionSelection(question: QuestionRecord) {
@@ -473,12 +490,12 @@ export default function ExamPrintPage() {
               <CardContent className="space-y-4">
                 {/* Search */}
                 <div>
-                  <Label htmlFor="search" className="text-sm font-medium text-slate-700">Search</Label>
+                  <Label htmlFor="search" className="text-sm font-medium text-slate-700">Search Content</Label>
                   <div className="relative mt-2">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <Input
                       id="search"
-                      placeholder="Search by topic or content..."
+                      placeholder="Search by text content only..."
                       value={questionSearch}
                       onChange={(e) => setQuestionSearch(e.target.value)}
                       className="pl-9"
@@ -486,7 +503,7 @@ export default function ExamPrintPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
                   {/* Term Filter */}
                   <div>
                     <Label htmlFor="term" className="text-sm font-medium text-slate-700">Term</Label>
@@ -500,6 +517,22 @@ export default function ExamPrintPage() {
                       <option value="1">Term 1</option>
                       <option value="2">Term 2</option>
                       <option value="3">Term 3</option>
+                    </select>
+                  </div>
+
+                  {/* Topic Filter */}
+                  <div>
+                    <Label htmlFor="topic" className="text-sm font-medium text-slate-700">Topic</Label>
+                    <select
+                      id="topic"
+                      value={topicFilter}
+                      onChange={(e) => setTopicFilter(e.target.value)}
+                      className="mt-2 w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="all">All Topics</option>
+                      {uniqueTopics.map((topic) => (
+                        <option key={topic} value={topic}>{topic}</option>
+                      ))}
                     </select>
                   </div>
 
@@ -518,8 +551,24 @@ export default function ExamPrintPage() {
                     </select>
                   </div>
 
+                  {/* Difficulty Filter */}
+                  <div>
+                    <Label htmlFor="difficulty" className="text-sm font-medium text-slate-700">Difficulty</Label>
+                    <select
+                      id="difficulty"
+                      value={difficultyFilter}
+                      onChange={(e) => setDifficultyFilter(e.target.value as any)}
+                      className="mt-2 w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="all">All Difficulties</option>
+                      <option value="easy">Easy</option>
+                      <option value="medium">Medium</option>
+                      <option value="hard">Hard</option>
+                    </select>
+                  </div>
+
                   {/* Bulk Actions */}
-                  <div className="flex gap-2 mt-6">
+                  <div className="flex gap-2 w-full">
                     <Button
                       onClick={addAllFiltered}
                       disabled={filteredAvailableQuestions.length === 0}
@@ -577,8 +626,8 @@ export default function ExamPrintPage() {
                               <Badge
                                 variant="secondary"
                                 className={`text-xs ${question.question_type === 'objective'
-                                    ? 'bg-purple-100 text-purple-800'
-                                    : 'bg-orange-100 text-orange-800'
+                                  ? 'bg-purple-100 text-purple-800'
+                                  : 'bg-orange-100 text-orange-800'
                                   }`}
                               >
                                 {question.question_type}
@@ -586,10 +635,10 @@ export default function ExamPrintPage() {
                               <Badge
                                 variant="outline"
                                 className={`text-xs ${question.difficulty === 'easy'
-                                    ? 'text-green-700'
-                                    : question.difficulty === 'medium'
-                                      ? 'text-yellow-700'
-                                      : 'text-red-700'
+                                  ? 'text-green-700'
+                                  : question.difficulty === 'medium'
+                                    ? 'text-yellow-700'
+                                    : 'text-red-700'
                                   }`}
                               >
                                 {question.difficulty}
@@ -713,8 +762,8 @@ export default function ExamPrintPage() {
                               <Badge
                                 variant="secondary"
                                 className={`text-xs ${question.question_type === 'objective'
-                                    ? 'bg-purple-100 text-purple-800'
-                                    : 'bg-orange-100 text-orange-800'
+                                  ? 'bg-purple-100 text-purple-800'
+                                  : 'bg-orange-100 text-orange-800'
                                   }`}
                               >
                                 {question.question_type}
@@ -775,8 +824,8 @@ export default function ExamPrintPage() {
                 <button
                   onClick={() => setShowAnswerKey(!showAnswerKey)}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-all ${showAnswerKey
-                      ? 'border-green-400 bg-green-50 text-green-700'
-                      : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
+                    ? 'border-green-400 bg-green-50 text-green-700'
+                    : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
                     }`}
                 >
                   {showAnswerKey ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}

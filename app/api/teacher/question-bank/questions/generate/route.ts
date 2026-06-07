@@ -70,10 +70,10 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
     const topic = String(row.topic || '').trim();
     let questionText = String(row.question_text || '').trim();
     if ((questionText.match(/(?<!\\)\$/g) || []).length % 2 !== 0) questionText += '$';
-    
+
     let explanation = row.explanation ? String(row.explanation).trim() : '';
     if ((explanation.match(/(?<!\\)\$/g) || []).length % 2 !== 0) explanation += '$';
-    
+
     const rawCorrect = row.correct_answer ? String(row.correct_answer).trim() : '';
 
     const containsMathFromAI = typeof row.contains_math === 'boolean' ? row.contains_math : false;
@@ -90,11 +90,11 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
     if (questionType === 'objective') {
       const options = Array.isArray(row.options)
         ? row.options.map((v) => {
-            let str = String(v || '').trim();
-            str = str.replace(/^(?:[A-H]\s*[).:-]\s*|\([A-H]\)\s*|Option\s+[A-H]\s*[:.-]?\s*)/i, '').trim();
-            if ((str.match(/(?<!\\)\$/g) || []).length % 2 !== 0) str += '$';
-            return str;
-          }).filter(Boolean)
+          let str = String(v || '').trim();
+          str = str.replace(/^(?:[A-H]\s*[).:-]\s*|\([A-H]\)\s*|Option\s+[A-H]\s*[:.-]?\s*)/i, '').trim();
+          if ((str.match(/(?<!\\)\$/g) || []).length % 2 !== 0) str += '$';
+          return str;
+        }).filter(Boolean)
         : [];
 
       if (options.length < 2) continue;
@@ -261,7 +261,7 @@ export async function POST(request: NextRequest) {
             `Difficulty level: ${difficulty}.`,
             `Topics to cover: ${topics.join(', ')}.`,
             questionType === 'objective'
-              ? 'Each objective question must include exactly 4 options. The correct_answer must strictly be only the letter index of the correct option: "A", "B", "C", or "D".'
+              ? 'Each objective question must include exactly 4 options. The correct_answer must strictly be only the letter index of the correct option: "A", "B", "C", or "D", Make sure the correct answer is accurate.'
               : 'For theory questions include a concise model answer in correct_answer and marking guidance in explanation.',
             'Use LaTeX for all chemical formulas and equations.',
             'Output valid JSON only.',

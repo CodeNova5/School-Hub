@@ -157,6 +157,11 @@ type QuestionRecord = {
   difficulty: 'easy' | 'medium' | 'hard';
 };
 
+type OrderedQuestionRecord = QuestionRecord & {
+  custom_number?: string;
+};
+
+
 type BankRecord = {
   id: string;
   title: string;
@@ -288,7 +293,7 @@ export default function ExamPrintPage() {
 
   // Selection & Ordering
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([]);
-  const [orderedQuestions, setOrderedQuestions] = useState<QuestionRecord[]>([]);
+  const [orderedQuestions, setOrderedQuestions] = useState<OrderedQuestionRecord[]>([]);
 
   // Filters
   const [questionSearch, setQuestionSearch] = useState('');
@@ -520,6 +525,13 @@ export default function ExamPrintPage() {
     q.options = newOptions;
     q.correct_answer = calculateNewCorrectAnswer(newOptions, correctText, q.correct_answer);
     newQuestions[qIndex] = q;
+    setOrderedQuestions(newQuestions);
+  };
+
+  // Add this handler near your other arrangement handlers (e.g., above shuffleQuestionsList)
+  const updateCustomNumber = (index: number, value: string) => {
+    const newQuestions = [...orderedQuestions];
+    newQuestions[index] = { ...newQuestions[index], custom_number: value };
     setOrderedQuestions(newQuestions);
   };
 
@@ -769,9 +781,11 @@ export default function ExamPrintPage() {
                                 {question.difficulty}
                               </Badge>
                             </div>
-                            <p className="text-sm text-slate-700 mt-2 line-clamp-2">
-                              {question.question_text}
-                            </p>
+                            <SmartText
+                              content={question.question_text}
+                              containsMath={question.metadata?.containsMath || false}
+                            />
+
                           </div>
                         </div>
                       </div>
@@ -920,6 +934,7 @@ export default function ExamPrintPage() {
                           </div>
 
                           <div className="flex-1 min-w-0">
+                            {/* Inside the orderedQuestions.map in the arrange tab */}
                             <div className="flex items-center gap-2 flex-wrap mb-1">
                               <Badge variant="outline" className="text-xs">{question.topic}</Badge>
                               <Badge
@@ -931,6 +946,22 @@ export default function ExamPrintPage() {
                               >
                                 {question.question_type}
                               </Badge>
+
+                              {/* NEW: Custom Number Input for Theory Questions (or all questions) */}
+                              {question.question_type === 'theory' && (
+                                <div className="ml-auto flex items-center gap-2">
+                                  <Label htmlFor={`custom-num-${index}`} className="text-[11px] text-slate-500 uppercase tracking-wider font-bold">
+                                    Custom No.
+                                  </Label>
+                                  <Input
+                                    id={`custom-num-${index}`}
+                                    value={question.custom_number || ''}
+                                    onChange={(e) => updateCustomNumber(index, e.target.value)}
+                                    placeholder={String(index + 1)} // Or calculate actual theory index here
+                                    className="h-6 w-16 text-xs px-2"
+                                  />
+                                </div>
+                              )}
                             </div>
                             <div className="text-sm text-slate-700 line-clamp-3 mb-2">
                               <SmartText
@@ -1155,7 +1186,12 @@ export default function ExamPrintPage() {
                   <div className="space-y-6">
                     {theory.map((question, index) => (
                       <div key={question.id} className="text-base text-black flex items-start gap-2">
-                        <span className="font-bold shrink-0">{objectives.length + index + 1}.</span>
+
+                        {/* UPDATED: Check for custom_number, fallback to fresh sequential index */}
+                        <span className="font-bold shrink-0">
+                          {question.custom_number ? `${question.custom_number}.` : `${index + 1}.`}
+                        </span>
+
                         <div className="flex-1">
                           <div className="inline">
                             <SmartText

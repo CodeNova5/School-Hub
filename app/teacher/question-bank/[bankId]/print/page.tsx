@@ -8,7 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, GripVertical, Printer, Eye, EyeOff, Search, CheckSquare, Shuffle, FileText, X, Trash2 } from 'lucide-react';
+import {
+  ArrowLeft, GripVertical, Printer, Eye, EyeOff, Search,
+  CheckSquare, Shuffle, FileText, X, Trash2, ArrowUp, ArrowDown, Dices
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useSchoolContext } from '@/hooks/use-school-context';
@@ -80,6 +83,63 @@ function SmartText({ content, containsMath }: SmartTextProps) {
 
   return <span>{content}</span>;
 }
+
+// Option Resync Helpers
+function getCorrectOptionText(options: string[], correct_answer?: string | null): string | null {
+  if (!correct_answer) return null;
+  const ans = correct_answer.trim();
+
+  // Match exact letter formats: "A", "b"
+  if (/^[a-zA-Z]$/.test(ans)) {
+    const index = ans.toLowerCase().charCodeAt(0) - 97;
+    if (index >= 0 && index < options.length) {
+      return options[index];
+    }
+  }
+
+  // Match format: "Option A"
+  const match = ans.match(/^option\s+([a-zA-Z])$/i);
+  if (match) {
+    const index = match[1].toLowerCase().charCodeAt(0) - 97;
+    if (index >= 0 && index < options.length) {
+      return options[index];
+    }
+  }
+
+  // Fallback: the answer is likely stored as the exact string text
+  return ans;
+}
+
+function calculateNewCorrectAnswer(newOptions: string[], correctOptionText: string | null, oldCorrectAnswer?: string | null): string | null | undefined {
+  if (!oldCorrectAnswer || !correctOptionText) return oldCorrectAnswer;
+
+  const newIndex = newOptions.findIndex(opt => opt === correctOptionText);
+  if (newIndex === -1) return oldCorrectAnswer; // Fallback if string not found
+
+  const ans = oldCorrectAnswer.trim();
+
+  // Preserve "a", "b", "c" format
+  if (/^[a-z]$/.test(ans)) {
+    return String.fromCharCode(97 + newIndex);
+  }
+
+  // Preserve "A", "B", "C" format
+  if (/^[A-Z]$/.test(ans)) {
+    return String.fromCharCode(65 + newIndex);
+  }
+
+  // Preserve "Option A" format
+  const match = ans.match(/^(option\s+)([a-zA-Z])$/i);
+  if (match) {
+    const isUpper = match[2] === match[2].toUpperCase();
+    const newLetter = String.fromCharCode((isUpper ? 65 : 97) + newIndex);
+    return `${match[1]}${newLetter}`;
+  }
+
+  // If answer was the pure text string itself, return it unchanged
+  return oldCorrectAnswer;
+}
+
 
 type QuestionRecord = {
   id: string;
@@ -252,6 +312,7 @@ export default function ExamPrintPage() {
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [dragEnabledIndex, setDragEnabledIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (bankId) loadData();
@@ -339,7 +400,6 @@ export default function ExamPrintPage() {
     return questions.filter((question) => {
       if (selectedQuestionIds.includes(question.id)) return false;
 
-      // Strict Content Search match against content text only
       const matchesSearch =
         !query ||
         question.question_text.toLowerCase().includes(query);
@@ -347,18 +407,14 @@ export default function ExamPrintPage() {
       const matchesType = questionTypeFilter === 'all' || question.question_type === questionTypeFilter;
       const matchesTerm =
         selectedTerm === 'all' || termTopics.includes(question.topic.trim().toLowerCase());
-
-      // Added Topic filter check
       const matchesTopic = topicFilter === 'all' || question.topic.trim() === topicFilter;
-
-      // Added Difficulty filter check
       const matchesDifficulty = difficultyFilter === 'all' || question.difficulty === difficultyFilter;
 
       return matchesSearch && matchesType && matchesTerm && matchesTopic && matchesDifficulty;
     });
   }, [questions, questionSearch, questionTypeFilter, selectedTerm, termTopics, topicFilter, difficultyFilter, selectedQuestionIds]);
 
-  // Handlers
+  // General Handlers
   function toggleQuestionSelection(question: QuestionRecord) {
     if (selectedQuestionIds.includes(question.id)) {
       setSelectedQuestionIds((prev) => prev.filter((id) => id !== question.id));
@@ -380,7 +436,7 @@ export default function ExamPrintPage() {
     setOrderedQuestions([]);
   }
 
-  // Drag and Drop reordering
+  // Question Drag and Drop reordering
   const handleSort = () => {
     if (dragItem.current === null || dragOverItem.current === null) return;
     let _orderedQuestions = [...orderedQuestions];
@@ -391,6 +447,83 @@ export default function ExamPrintPage() {
     setDragOverIndex(null);
     setOrderedQuestions(_orderedQuestions);
   };
+
+  // --- Sorting & Arrangement Handlers ---
+
+  const shuffleQuestionsList = () => {
+    setOrderedQuestions((prev) => {
+      const newArr = [...prev];
+      for (let i = newArr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+      }
+      return newArr;
+    });
+    toast.success("Questions shuffled successfully");
+  };
+
+  const shuffleAllQuestionsOptions = () => {
+    setOrderedQuestions((prev) => prev.map(q => {
+      if (q.question_type !== 'objective' || !q.options || q.options.length <= 1) return q;
+
+      const correctText = getCorrectOptionText(q.options, q.correct_answer);
+      const newOptions = [...q.options];
+      for (let i = newOptions.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newOptions[i], newOptions[j]] = [newOptions[j], newOptions[i]];
+      }
+
+      return {
+        ...q,
+        options: newOptions,
+        correct_answer: calculateNewCorrectAnswer(newOptions, correctText, q.correct_answer)
+      };
+    }));
+    toast.success("All options shuffled successfully");
+  };
+
+  const shuffleSingleQuestionOptions = (qIndex: number) => {
+    const newQuestions = [...orderedQuestions];
+    const q = { ...newQuestions[qIndex] };
+
+    if (!q.options || q.options.length <= 1) return;
+
+    const correctText = getCorrectOptionText(q.options, q.correct_answer);
+    const newOptions = [...q.options];
+    for (let i = newOptions.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [newOptions[i], newOptions[j]] = [newOptions[j], newOptions[i]];
+    }
+
+    q.options = newOptions;
+    q.correct_answer = calculateNewCorrectAnswer(newOptions, correctText, q.correct_answer);
+    newQuestions[qIndex] = q;
+    setOrderedQuestions(newQuestions);
+  };
+
+  const moveOption = (qIndex: number, optIndex: number, direction: 'up' | 'down') => {
+    const newQuestions = [...orderedQuestions];
+    const q = { ...newQuestions[qIndex] };
+    if (!q.options) return;
+
+    const newOptions = [...q.options];
+
+    if (direction === 'up' && optIndex > 0) {
+      [newOptions[optIndex - 1], newOptions[optIndex]] = [newOptions[optIndex], newOptions[optIndex - 1]];
+    } else if (direction === 'down' && optIndex < newOptions.length - 1) {
+      [newOptions[optIndex + 1], newOptions[optIndex]] = [newOptions[optIndex], newOptions[optIndex + 1]];
+    } else {
+      return;
+    }
+
+    const correctText = getCorrectOptionText(q.options, q.correct_answer);
+    q.options = newOptions;
+    q.correct_answer = calculateNewCorrectAnswer(newOptions, correctText, q.correct_answer);
+    newQuestions[qIndex] = q;
+    setOrderedQuestions(newQuestions);
+  };
+
+  // --- End Handlers ---
 
   if (isLoading || schoolLoading) {
     return (
@@ -429,7 +562,6 @@ export default function ExamPrintPage() {
                   <p className="text-sm text-slate-500">{bank?.title || 'Question Bank'}</p>
                 </div>
               </div>
-              {/* Compact stats always visible in header */}
               <StatsBanner
                 total={orderedQuestions.length}
                 objectives={objectives.length}
@@ -475,7 +607,6 @@ export default function ExamPrintPage() {
         {activeTab === 'select' && (
           <div className="print:hidden container mx-auto px-4 py-8 space-y-6">
 
-            {/* Full Stats Banner */}
             <StatsBanner
               total={orderedQuestions.length}
               objectives={objectives.length}
@@ -488,7 +619,6 @@ export default function ExamPrintPage() {
                 <CardTitle className="text-lg">Filter Questions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Search */}
                 <div>
                   <Label htmlFor="search" className="text-sm font-medium text-slate-700">Search Content</Label>
                   <div className="relative mt-2">
@@ -504,7 +634,6 @@ export default function ExamPrintPage() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-                  {/* Term Filter */}
                   <div>
                     <Label htmlFor="term" className="text-sm font-medium text-slate-700">Term</Label>
                     <select
@@ -520,7 +649,6 @@ export default function ExamPrintPage() {
                     </select>
                   </div>
 
-                  {/* Topic Filter */}
                   <div>
                     <Label htmlFor="topic" className="text-sm font-medium text-slate-700">Topic</Label>
                     <select
@@ -536,7 +664,6 @@ export default function ExamPrintPage() {
                     </select>
                   </div>
 
-                  {/* Question Type Filter */}
                   <div>
                     <Label htmlFor="type" className="text-sm font-medium text-slate-700">Type</Label>
                     <select
@@ -551,7 +678,6 @@ export default function ExamPrintPage() {
                     </select>
                   </div>
 
-                  {/* Difficulty Filter */}
                   <div>
                     <Label htmlFor="difficulty" className="text-sm font-medium text-slate-700">Difficulty</Label>
                     <select
@@ -567,7 +693,6 @@ export default function ExamPrintPage() {
                     </select>
                   </div>
 
-                  {/* Bulk Actions */}
                   <div className="flex gap-2 w-full">
                     <Button
                       onClick={addAllFiltered}
@@ -678,14 +803,37 @@ export default function ExamPrintPage() {
           <div className="print:hidden container mx-auto px-4 py-8 space-y-6">
 
             {/* Compact stats + quick actions */}
-            <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center justify-between flex-wrap gap-4">
               <StatsBanner
                 total={orderedQuestions.length}
                 objectives={objectives.length}
                 theory={theory.length}
                 compact
               />
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                <Button
+                  onClick={shuffleQuestionsList}
+                  disabled={orderedQuestions.length === 0}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
+                >
+                  <Shuffle className="w-4 h-4" />
+                  Shuffle Questions
+                </Button>
+                <Button
+                  onClick={shuffleAllQuestionsOptions}
+                  disabled={objectives.length === 0}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50 border-purple-200"
+                >
+                  <Dices className="w-4 h-4" />
+                  Shuffle All Options
+                </Button>
+
+                <div className="w-px h-6 bg-slate-200 mx-1 hidden sm:block"></div>
+
                 <Button
                   onClick={() => setActiveTab('select')}
                   variant="outline"
@@ -712,7 +860,7 @@ export default function ExamPrintPage() {
             <Card className="border-slate-200 w-full">
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg">Question Order</CardTitle>
-                <CardDescription>Drag questions to reorder how they appear on the exam</CardDescription>
+                <CardDescription>Drag questions via the handle to reorder how they appear. Adjust options locally inside each question.</CardDescription>
               </CardHeader>
               <CardContent>
                 {orderedQuestions.length === 0 ? (
@@ -728,12 +876,18 @@ export default function ExamPrintPage() {
                     </Button>
                   </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {orderedQuestions.map((question, index) => (
                       <div
-                        key={question.id}
-                        draggable
-                        onDragStart={() => { dragItem.current = index; }}
+                        key={`${question.id}-${index}`}
+                        draggable={dragEnabledIndex === index}
+                        onDragStart={(e) => {
+                          if (dragEnabledIndex !== index) {
+                            e.preventDefault();
+                            return;
+                          }
+                          dragItem.current = index;
+                        }}
                         onDragEnter={() => {
                           dragOverItem.current = index;
                           setDragOverIndex(index);
@@ -744,18 +898,27 @@ export default function ExamPrintPage() {
                         }}
                         onDragOver={(e) => e.preventDefault()}
                         className={`
-                          p-4 border rounded-lg transition-all cursor-grab active:cursor-grabbing select-none
+                          p-4 border rounded-lg transition-all
                           ${dragOverIndex === index
                             ? 'border-blue-400 bg-blue-50 scale-[1.01] shadow-md'
-                            : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
+                            : 'border-slate-200 bg-slate-50'
                           }
                         `}
                       >
                         <div className="flex items-start gap-4">
-                          <div className="flex items-center gap-3 pt-1 shrink-0">
-                            <GripVertical className="w-5 h-5 text-slate-400" />
-                            <span className="font-bold text-slate-400 w-6 text-center">{index + 1}</span>
+
+                          {/* Secure Drag Handle */}
+                          <div className="flex flex-col items-center shrink-0">
+                            <div
+                              onMouseEnter={() => setDragEnabledIndex(index)}
+                              onMouseLeave={() => setDragEnabledIndex(null)}
+                              className="p-1 -ml-1 cursor-grab active:cursor-grabbing hover:bg-slate-200 rounded-md transition-colors"
+                            >
+                              <GripVertical className="w-5 h-5 text-slate-400" />
+                            </div>
+                            <span className="font-bold text-slate-400 w-6 text-center mt-1">{index + 1}</span>
                           </div>
+
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap mb-1">
                               <Badge variant="outline" className="text-xs">{question.topic}</Badge>
@@ -769,16 +932,79 @@ export default function ExamPrintPage() {
                                 {question.question_type}
                               </Badge>
                             </div>
-                            <div className="text-sm text-slate-700 line-clamp-2">
+                            <div className="text-sm text-slate-700 line-clamp-3 mb-2">
                               <SmartText
                                 content={question.question_text}
                                 containsMath={question.metadata?.containsMath || false}
                               />
                             </div>
+
+                            {/* Internal Options Configurator for Objectives */}
+                            {question.question_type === 'objective' && question.options && question.options.length > 0 && (
+                              <div className="mt-4 pl-4 border-l-2 border-slate-200 space-y-2 max-w-2xl">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Arrange Options</span>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => shuffleSingleQuestionOptions(index)}
+                                    className="h-6 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                  >
+                                    <Shuffle className="w-3 h-3 mr-1" /> Shuffle Options
+                                  </Button>
+                                </div>
+                                <div className="space-y-1.5">
+                                  {question.options.map((opt, optIndex) => {
+                                    const isCorrect = getCorrectOptionText(question.options, question.correct_answer) === opt;
+                                    return (
+                                      <div
+                                        key={optIndex}
+                                        className={`flex items-center gap-3 p-2 rounded-md border ${isCorrect ? 'border-green-300 bg-green-50 shadow-sm' : 'border-slate-200 bg-white'}`}
+                                      >
+                                        <div className="flex flex-col gap-1 shrink-0">
+                                          <button
+                                            type="button"
+                                            onClick={() => moveOption(index, optIndex, 'up')}
+                                            disabled={optIndex === 0}
+                                            className="text-slate-300 hover:text-blue-600 disabled:opacity-30 disabled:hover:text-slate-300 transition-colors"
+                                            title="Move option up"
+                                          >
+                                            <ArrowUp className="w-3.5 h-3.5" />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => moveOption(index, optIndex, 'down')}
+                                            disabled={optIndex === question.options.length - 1}
+                                            className="text-slate-300 hover:text-blue-600 disabled:opacity-30 disabled:hover:text-slate-300 transition-colors"
+                                            title="Move option down"
+                                          >
+                                            <ArrowDown className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                        <div className="text-sm font-semibold text-slate-400 shrink-0 w-6 text-center">
+                                          ({String.fromCharCode(97 + optIndex)})
+                                        </div>
+                                        <div className="text-sm text-slate-700 flex-1">
+                                          <SmartText content={opt} containsMath={question.metadata?.containsMath || false} />
+                                        </div>
+                                        {isCorrect && (
+                                          <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 text-[10px] shrink-0 uppercase tracking-wide">
+                                            Correct
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
                           </div>
+
                           <button
+                            type="button"
                             onClick={() => toggleQuestionSelection(question)}
-                            className="shrink-0 p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            className="shrink-0 p-1.5 mt-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                             title="Remove question"
                           >
                             <X className="w-4 h-4" />
@@ -793,7 +1019,7 @@ export default function ExamPrintPage() {
 
             {/* CTA to proceed */}
             {orderedQuestions.length > 0 && (
-              <div className="flex justify-end">
+              <div className="flex justify-end mt-6">
                 <Button
                   onClick={() => setActiveTab('preview')}
                   className="bg-blue-600 hover:bg-blue-700 text-white gap-2"

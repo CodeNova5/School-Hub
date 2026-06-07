@@ -441,16 +441,83 @@ export default function ExamPrintPage() {
     setOrderedQuestions([]);
   }
 
-  // Question Drag and Drop reordering
+  // --- Drag & Drop State ---
+  const dragItemId = useRef<string | null>(null);
+  const dragOverItemId = useRef<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [dragEnabledId, setDragEnabledId] = useState<string | null>(null);
+
+  // --- Sorting & Arrangement Handlers ---
+
   const handleSort = () => {
-    if (dragItem.current === null || dragOverItem.current === null) return;
+    if (!dragItemId.current || !dragOverItemId.current) return;
+
+    const fromIndex = orderedQuestions.findIndex(q => q.id === dragItemId.current);
+    const toIndex = orderedQuestions.findIndex(q => q.id === dragOverItemId.current);
+
+    if (fromIndex === -1 || toIndex === -1) return;
+
     let _orderedQuestions = [...orderedQuestions];
-    const draggedItemContent = _orderedQuestions.splice(dragItem.current, 1)[0];
-    _orderedQuestions.splice(dragOverItem.current, 0, draggedItemContent);
-    dragItem.current = null;
-    dragOverItem.current = null;
-    setDragOverIndex(null);
+    const draggedItemContent = _orderedQuestions.splice(fromIndex, 1)[0];
+    _orderedQuestions.splice(toIndex, 0, draggedItemContent);
+
+    dragItemId.current = null;
+    dragOverItemId.current = null;
+    setDragOverId(null);
     setOrderedQuestions(_orderedQuestions);
+  };
+
+  const updateCustomNumber = (qId: string, value: string) => {
+    setOrderedQuestions(prev => prev.map(q =>
+      q.id === qId ? { ...q, custom_number: value } : q
+    ));
+  };
+
+  const shuffleSingleQuestionOptions = (qId: string) => {
+    const qIndex = orderedQuestions.findIndex(q => q.id === qId);
+    if (qIndex === -1) return;
+
+    const newQuestions = [...orderedQuestions];
+    const q = { ...newQuestions[qIndex] };
+
+    if (!q.options || q.options.length <= 1) return;
+
+    const correctText = getCorrectOptionText(q.options, q.correct_answer);
+    const newOptions = [...q.options];
+    for (let i = newOptions.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [newOptions[i], newOptions[j]] = [newOptions[j], newOptions[i]];
+    }
+
+    q.options = newOptions;
+    q.correct_answer = calculateNewCorrectAnswer(newOptions, correctText, q.correct_answer);
+    newQuestions[qIndex] = q;
+    setOrderedQuestions(newQuestions);
+  };
+
+  const moveOption = (qId: string, optIndex: number, direction: 'up' | 'down') => {
+    const qIndex = orderedQuestions.findIndex(q => q.id === qId);
+    if (qIndex === -1) return;
+
+    const newQuestions = [...orderedQuestions];
+    const q = { ...newQuestions[qIndex] };
+    if (!q.options) return;
+
+    const newOptions = [...q.options];
+
+    if (direction === 'up' && optIndex > 0) {
+      [newOptions[optIndex - 1], newOptions[optIndex]] = [newOptions[optIndex], newOptions[optIndex - 1]];
+    } else if (direction === 'down' && optIndex < newOptions.length - 1) {
+      [newOptions[optIndex + 1], newOptions[optIndex]] = [newOptions[optIndex], newOptions[optIndex + 1]];
+    } else {
+      return;
+    }
+
+    const correctText = getCorrectOptionText(q.options, q.correct_answer);
+    q.options = newOptions;
+    q.correct_answer = calculateNewCorrectAnswer(newOptions, correctText, q.correct_answer);
+    newQuestions[qIndex] = q;
+    setOrderedQuestions(newQuestions);
   };
 
   // --- Sorting & Arrangement Handlers ---
@@ -487,53 +554,7 @@ export default function ExamPrintPage() {
     toast.success("All options shuffled successfully");
   };
 
-  const shuffleSingleQuestionOptions = (qIndex: number) => {
-    const newQuestions = [...orderedQuestions];
-    const q = { ...newQuestions[qIndex] };
 
-    if (!q.options || q.options.length <= 1) return;
-
-    const correctText = getCorrectOptionText(q.options, q.correct_answer);
-    const newOptions = [...q.options];
-    for (let i = newOptions.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [newOptions[i], newOptions[j]] = [newOptions[j], newOptions[i]];
-    }
-
-    q.options = newOptions;
-    q.correct_answer = calculateNewCorrectAnswer(newOptions, correctText, q.correct_answer);
-    newQuestions[qIndex] = q;
-    setOrderedQuestions(newQuestions);
-  };
-
-  const moveOption = (qIndex: number, optIndex: number, direction: 'up' | 'down') => {
-    const newQuestions = [...orderedQuestions];
-    const q = { ...newQuestions[qIndex] };
-    if (!q.options) return;
-
-    const newOptions = [...q.options];
-
-    if (direction === 'up' && optIndex > 0) {
-      [newOptions[optIndex - 1], newOptions[optIndex]] = [newOptions[optIndex], newOptions[optIndex - 1]];
-    } else if (direction === 'down' && optIndex < newOptions.length - 1) {
-      [newOptions[optIndex + 1], newOptions[optIndex]] = [newOptions[optIndex], newOptions[optIndex + 1]];
-    } else {
-      return;
-    }
-
-    const correctText = getCorrectOptionText(q.options, q.correct_answer);
-    q.options = newOptions;
-    q.correct_answer = calculateNewCorrectAnswer(newOptions, correctText, q.correct_answer);
-    newQuestions[qIndex] = q;
-    setOrderedQuestions(newQuestions);
-  };
-
-  // Add this handler near your other arrangement handlers (e.g., above shuffleQuestionsList)
-  const updateCustomNumber = (index: number, value: string) => {
-    const newQuestions = [...orderedQuestions];
-    newQuestions[index] = { ...newQuestions[index], custom_number: value };
-    setOrderedQuestions(newQuestions);
-  };
 
   // --- End Handlers ---
 
@@ -881,168 +902,211 @@ export default function ExamPrintPage() {
                   <div className="text-center py-16 space-y-3">
                     <Shuffle className="w-12 h-12 text-slate-200 mx-auto" />
                     <p className="text-slate-500 text-sm">No questions selected yet.</p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setActiveTab('select')}
-                    >
+                    <Button variant="outline" size="sm" onClick={() => setActiveTab('select')}>
                       Go to Select Questions
                     </Button>
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    {orderedQuestions.map((question, index) => (
-                      <div
-                        key={`${question.id}-${index}`}
-                        draggable={dragEnabledIndex === index}
-                        onDragStart={(e) => {
-                          if (dragEnabledIndex !== index) {
-                            e.preventDefault();
-                            return;
-                          }
-                          dragItem.current = index;
-                        }}
-                        onDragEnter={() => {
-                          dragOverItem.current = index;
-                          setDragOverIndex(index);
-                        }}
-                        onDragEnd={() => {
-                          handleSort();
-                          setDragOverIndex(null);
-                        }}
-                        onDragOver={(e) => e.preventDefault()}
-                        className={`
-                          p-4 border rounded-lg transition-all
-                          ${dragOverIndex === index
-                            ? 'border-blue-400 bg-blue-50 scale-[1.01] shadow-md'
-                            : 'border-slate-200 bg-slate-50'
-                          }
-                        `}
-                      >
-                        <div className="flex items-start gap-4">
+                  <div className="space-y-8">
 
-                          {/* Secure Drag Handle */}
-                          <div className="flex flex-col items-center shrink-0">
-                            <div
-                              onMouseEnter={() => setDragEnabledIndex(index)}
-                              onMouseLeave={() => setDragEnabledIndex(null)}
-                              className="p-1 -ml-1 cursor-grab active:cursor-grabbing hover:bg-slate-200 rounded-md transition-colors"
-                            >
-                              <GripVertical className="w-5 h-5 text-slate-400" />
-                            </div>
-                            <span className="font-bold text-slate-400 w-6 text-center mt-1">{index + 1}</span>
-                          </div>
+                    {/* ── OBJECTIVES SECTION ── */}
+                    {objectives.length > 0 && (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                          <h3 className="font-bold text-slate-800">Objectives</h3>
+                          <Badge variant="secondary">{objectives.length}</Badge>
+                        </div>
 
-                          <div className="flex-1 min-w-0">
-                            {/* Inside the orderedQuestions.map in the arrange tab */}
-                            <div className="flex items-center gap-2 flex-wrap mb-1">
-                              <Badge variant="outline" className="text-xs">{question.topic}</Badge>
-                              <Badge
-                                variant="secondary"
-                                className={`text-xs ${question.question_type === 'objective'
-                                  ? 'bg-purple-100 text-purple-800'
-                                  : 'bg-orange-100 text-orange-800'
-                                  }`}
-                              >
-                                {question.question_type}
-                              </Badge>
-
-                              {/* NEW: Custom Number Input for Theory Questions (or all questions) */}
-                              {question.question_type === 'theory' && (
-                                <div className="ml-auto flex items-center gap-2">
-                                  <Label htmlFor={`custom-num-${index}`} className="text-[11px] text-slate-500 uppercase tracking-wider font-bold">
-                                    Custom No.
-                                  </Label>
-                                  <Input
-                                    id={`custom-num-${index}`}
-                                    value={question.custom_number || ''}
-                                    onChange={(e) => updateCustomNumber(index, e.target.value)}
-                                    placeholder={String(index + 1)} // Or calculate actual theory index here
-                                    className="h-6 w-16 text-xs px-2"
-                                  />
+                        {objectives.map((question, index) => (
+                          <div
+                            key={`obj-${question.id}`}
+                            draggable={dragEnabledId === question.id}
+                            onDragStart={(e) => {
+                              if (dragEnabledId !== question.id) {
+                                e.preventDefault();
+                                return;
+                              }
+                              dragItemId.current = question.id;
+                            }}
+                            onDragEnter={() => {
+                              dragOverItemId.current = question.id;
+                              setDragOverId(question.id);
+                            }}
+                            onDragEnd={() => {
+                              handleSort();
+                              setDragOverId(null);
+                            }}
+                            onDragOver={(e) => e.preventDefault()}
+                            className={`
+                p-4 border rounded-lg transition-all
+                ${dragOverId === question.id
+                                ? 'border-blue-400 bg-blue-50 scale-[1.01] shadow-md'
+                                : 'border-slate-200 bg-slate-50'
+                              }
+              `}
+                          >
+                            <div className="flex items-start gap-4">
+                              {/* Drag Handle */}
+                              <div className="flex flex-col items-center shrink-0">
+                                <div
+                                  onMouseEnter={() => setDragEnabledId(question.id)}
+                                  onMouseLeave={() => setDragEnabledId(null)}
+                                  className="p-1 -ml-1 cursor-grab active:cursor-grabbing hover:bg-slate-200 rounded-md transition-colors"
+                                >
+                                  <GripVertical className="w-5 h-5 text-slate-400" />
                                 </div>
-                              )}
-                            </div>
-                            <div className="text-sm text-slate-700 line-clamp-3 mb-2">
-                              <SmartText
-                                content={question.question_text}
-                                containsMath={question.metadata?.containsMath || false}
-                              />
-                            </div>
+                                <span className="font-bold text-slate-400 w-6 text-center mt-1">{index + 1}</span>
+                              </div>
 
-                            {/* Internal Options Configurator for Objectives */}
-                            {question.question_type === 'objective' && question.options && question.options.length > 0 && (
-                              <div className="mt-4 pl-4 border-l-2 border-slate-200 space-y-2 max-w-2xl">
-                                <div className="flex items-center justify-between mb-2">
-                                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Arrange Options</span>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => shuffleSingleQuestionOptions(index)}
-                                    className="h-6 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                  >
-                                    <Shuffle className="w-3 h-3 mr-1" /> Shuffle Options
-                                  </Button>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap mb-1">
+                                  <Badge variant="outline" className="text-xs">{question.topic}</Badge>
+                                  <Badge variant="secondary" className="text-xs bg-purple-100 text-purple-800">
+                                    {question.question_type}
+                                  </Badge>
                                 </div>
-                                <div className="space-y-1.5">
-                                  {question.options.map((opt, optIndex) => {
-                                    const isCorrect = getCorrectOptionText(question.options, question.correct_answer) === opt;
-                                    return (
-                                      <div
-                                        key={optIndex}
-                                        className={`flex items-center gap-3 p-2 rounded-md border ${isCorrect ? 'border-green-300 bg-green-50 shadow-sm' : 'border-slate-200 bg-white'}`}
+                                <div className="text-sm text-slate-700 line-clamp-3 mb-2">
+                                  <SmartText content={question.question_text} containsMath={question.metadata?.containsMath || false} />
+                                </div>
+
+                                {/* Options Configurator */}
+                                {question.options && question.options.length > 0 && (
+                                  <div className="mt-4 pl-4 border-l-2 border-slate-200 space-y-2 max-w-2xl">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Arrange Options</span>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => shuffleSingleQuestionOptions(question.id)}
+                                        className="h-6 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                                       >
-                                        <div className="flex flex-col gap-1 shrink-0">
-                                          <button
-                                            type="button"
-                                            onClick={() => moveOption(index, optIndex, 'up')}
-                                            disabled={optIndex === 0}
-                                            className="text-slate-300 hover:text-blue-600 disabled:opacity-30 disabled:hover:text-slate-300 transition-colors"
-                                            title="Move option up"
-                                          >
-                                            <ArrowUp className="w-3.5 h-3.5" />
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => moveOption(index, optIndex, 'down')}
-                                            disabled={optIndex === question.options.length - 1}
-                                            className="text-slate-300 hover:text-blue-600 disabled:opacity-30 disabled:hover:text-slate-300 transition-colors"
-                                            title="Move option down"
-                                          >
-                                            <ArrowDown className="w-3.5 h-3.5" />
-                                          </button>
-                                        </div>
-                                        <div className="text-sm font-semibold text-slate-400 shrink-0 w-6 text-center">
-                                          ({String.fromCharCode(97 + optIndex)})
-                                        </div>
-                                        <div className="text-sm text-slate-700 flex-1">
-                                          <SmartText content={opt} containsMath={question.metadata?.containsMath || false} />
-                                        </div>
-                                        {isCorrect && (
-                                          <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 text-[10px] shrink-0 uppercase tracking-wide">
-                                            Correct
-                                          </Badge>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
+                                        <Shuffle className="w-3 h-3 mr-1" /> Shuffle Options
+                                      </Button>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      {question.options.map((opt, optIndex) => {
+                                        const isCorrect = getCorrectOptionText(question.options, question.correct_answer) === opt;
+                                        return (
+                                          <div key={optIndex} className={`flex items-center gap-3 p-2 rounded-md border ${isCorrect ? 'border-green-300 bg-green-50 shadow-sm' : 'border-slate-200 bg-white'}`}>
+                                            <div className="flex flex-col gap-1 shrink-0">
+                                              <button type="button" onClick={() => moveOption(question.id, optIndex, 'up')} disabled={optIndex === 0} className="text-slate-300 hover:text-blue-600 disabled:opacity-30">
+                                                <ArrowUp className="w-3.5 h-3.5" />
+                                              </button>
+                                              <button type="button" onClick={() => moveOption(question.id, optIndex, 'down')} disabled={optIndex === question.options.length - 1} className="text-slate-300 hover:text-blue-600 disabled:opacity-30">
+                                                <ArrowDown className="w-3.5 h-3.5" />
+                                              </button>
+                                            </div>
+                                            <div className="text-sm font-semibold text-slate-400 shrink-0 w-6 text-center">
+                                              ({String.fromCharCode(97 + optIndex)})
+                                            </div>
+                                            <div className="text-sm text-slate-700 flex-1">
+                                              <SmartText content={opt} containsMath={question.metadata?.containsMath || false} />
+                                            </div>
+                                            {isCorrect && (
+                                              <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 text-[10px] shrink-0 uppercase tracking-wide">
+                                                Correct
+                                              </Badge>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                              <button type="button" onClick={() => toggleQuestionSelection(question)} className="shrink-0 p-1.5 mt-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* ── THEORY SECTION ── */}
+                    {theory.length > 0 && (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                          <h3 className="font-bold text-slate-800">Theory</h3>
+                          <Badge variant="secondary">{theory.length}</Badge>
+                        </div>
+
+                        {theory.map((question, index) => (
+                          <div
+                            key={`theory-${question.id}`}
+                            draggable={dragEnabledId === question.id}
+                            onDragStart={(e) => {
+                              if (dragEnabledId !== question.id) {
+                                e.preventDefault();
+                                return;
+                              }
+                              dragItemId.current = question.id;
+                            }}
+                            onDragEnter={() => {
+                              dragOverItemId.current = question.id;
+                              setDragOverId(question.id);
+                            }}
+                            onDragEnd={() => {
+                              handleSort();
+                              setDragOverId(null);
+                            }}
+                            onDragOver={(e) => e.preventDefault()}
+                            className={`
+                p-4 border rounded-lg transition-all
+                ${dragOverId === question.id
+                                ? 'border-orange-400 bg-orange-50 scale-[1.01] shadow-md'
+                                : 'border-slate-200 bg-slate-50'
+                              }
+              `}
+                          >
+                            <div className="flex items-start gap-4">
+                              {/* Drag Handle */}
+                              <div className="flex flex-col items-center shrink-0">
+                                <div
+                                  onMouseEnter={() => setDragEnabledId(question.id)}
+                                  onMouseLeave={() => setDragEnabledId(null)}
+                                  className="p-1 -ml-1 cursor-grab active:cursor-grabbing hover:bg-slate-200 rounded-md transition-colors"
+                                >
+                                  <GripVertical className="w-5 h-5 text-slate-400" />
+                                </div>
+                                <span className="font-bold text-slate-400 w-6 text-center mt-1">
+                                  {question.custom_number || index + 1}
+                                </span>
+                              </div>
+
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap mb-1">
+                                  <Badge variant="outline" className="text-xs">{question.topic}</Badge>
+                                  <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-800">
+                                    {question.question_type}
+                                  </Badge>
+                                  <div className="ml-auto flex items-center gap-2">
+                                    <Label htmlFor={`custom-num-${question.id}`} className="text-[11px] text-slate-500 uppercase tracking-wider font-bold">
+                                      Custom No.
+                                    </Label>
+                                    <Input
+                                      id={`custom-num-${question.id}`}
+                                      value={question.custom_number || ''}
+                                      onChange={(e) => updateCustomNumber(question.id, e.target.value)}
+                                      placeholder={String(index + 1)}
+                                      className="h-6 w-16 text-xs px-2"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="text-sm text-slate-700 line-clamp-3 mb-2">
+                                  <SmartText content={question.question_text} containsMath={question.metadata?.containsMath || false} />
                                 </div>
                               </div>
-                            )}
+                              <button type="button" onClick={() => toggleQuestionSelection(question)} className="shrink-0 p-1.5 mt-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
-
-                          <button
-                            type="button"
-                            onClick={() => toggleQuestionSelection(question)}
-                            className="shrink-0 p-1.5 mt-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Remove question"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
+
                   </div>
                 )}
               </CardContent>

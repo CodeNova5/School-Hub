@@ -313,11 +313,22 @@ export default function ExamPrintPage() {
 
   const [showAnswerKey, setShowAnswerKey] = useState(false);
 
-  // Drag & Drop State
-  const dragItem = useRef<number | null>(null);
-  const dragOverItem = useRef<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-  const [dragEnabledIndex, setDragEnabledIndex] = useState<number | null>(null);
+  // Sub-tab state for Arrange & Order
+  const [arrangeSubTab, setArrangeSubTab] = useState<'objectives' | 'theory'>('objectives');
+
+  const objectives = useMemo(() => orderedQuestions.filter((q) => q.question_type === 'objective'), [orderedQuestions]);
+  const theory = useMemo(() => orderedQuestions.filter((q) => q.question_type === 'theory'), [orderedQuestions]);
+
+  // Auto-switch sub-tab if one category is empty
+  useEffect(() => {
+    if (activeTab === 'arrange') {
+      if (objectives.length === 0 && theory.length > 0) {
+        setArrangeSubTab('theory');
+      } else if (theory.length === 0 && objectives.length > 0) {
+        setArrangeSubTab('objectives');
+      }
+    }
+  }, [activeTab, objectives.length, theory.length]);
 
   useEffect(() => {
     if (bankId) loadData();
@@ -570,9 +581,6 @@ export default function ExamPrintPage() {
       </DashboardLayout>
     );
   }
-
-  const objectives = orderedQuestions.filter((q) => q.question_type === 'objective');
-  const theory = orderedQuestions.filter((q) => q.question_type === 'theory');
 
   return (
     <DashboardLayout role="teacher">
@@ -907,203 +915,252 @@ export default function ExamPrintPage() {
                     </Button>
                   </div>
                 ) : (
-                  <div className="space-y-8">
+                  <div className="space-y-6">
+                    {/* Sub-tabs switcher */}
+                    <div className="flex bg-slate-100/80 p-1 rounded-xl w-fit border border-slate-200/60 mb-6">
+                      <button
+                        type="button"
+                        onClick={() => setArrangeSubTab('objectives')}
+                        className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${arrangeSubTab === 'objectives'
+                            ? 'bg-white text-purple-700 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50/50'
+                          }`}
+                      >
+                        <CheckSquare className="w-4 h-4 text-purple-500" />
+                        Objectives
+                        <Badge
+                          variant={arrangeSubTab === 'objectives' ? 'default' : 'secondary'}
+                          className={arrangeSubTab === 'objectives' ? 'bg-purple-600 hover:bg-purple-700 text-white' : ''}
+                        >
+                          {objectives.length}
+                        </Badge>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setArrangeSubTab('theory')}
+                        className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${arrangeSubTab === 'theory'
+                            ? 'bg-white text-orange-700 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50/50'
+                          }`}
+                      >
+                        <FileText className="w-4 h-4 text-orange-500" />
+                        Theory
+                        <Badge
+                          variant={arrangeSubTab === 'theory' ? 'default' : 'secondary'}
+                          className={arrangeSubTab === 'theory' ? 'bg-orange-600 hover:bg-orange-700 text-white' : ''}
+                        >
+                          {theory.length}
+                        </Badge>
+                      </button>
+                    </div>
 
                     {/* ── OBJECTIVES SECTION ── */}
-                    {objectives.length > 0 && (
+                    {arrangeSubTab === 'objectives' && (
                       <div className="space-y-3">
                         <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
                           <h3 className="font-bold text-slate-800">Objectives</h3>
                           <Badge variant="secondary">{objectives.length}</Badge>
                         </div>
 
-                        {objectives.map((question, index) => (
-                          <div
-                            key={`obj-${question.id}`}
-                            draggable={dragEnabledId === question.id}
-                            onDragStart={(e) => {
-                              if (dragEnabledId !== question.id) {
-                                e.preventDefault();
-                                return;
-                              }
-                              dragItemId.current = question.id;
-                            }}
-                            onDragEnter={() => {
-                              dragOverItemId.current = question.id;
-                              setDragOverId(question.id);
-                            }}
-                            onDragEnd={() => {
-                              handleSort();
-                              setDragOverId(null);
-                            }}
-                            onDragOver={(e) => e.preventDefault()}
-                            className={`
-                p-4 border rounded-lg transition-all
-                ${dragOverId === question.id
-                                ? 'border-blue-400 bg-blue-50 scale-[1.01] shadow-md'
-                                : 'border-slate-200 bg-slate-50'
-                              }
-              `}
-                          >
-                            <div className="flex items-start gap-4">
-                              {/* Drag Handle */}
-                              <div className="flex flex-col items-center shrink-0">
-                                <div
-                                  onMouseEnter={() => setDragEnabledId(question.id)}
-                                  onMouseLeave={() => setDragEnabledId(null)}
-                                  className="p-1 -ml-1 cursor-grab active:cursor-grabbing hover:bg-slate-200 rounded-md transition-colors"
-                                >
-                                  <GripVertical className="w-5 h-5 text-slate-400" />
-                                </div>
-                                <span className="font-bold text-slate-400 w-6 text-center mt-1">{index + 1}</span>
-                              </div>
-
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap mb-1">
-                                  <Badge variant="outline" className="text-xs">{question.topic}</Badge>
-                                  <Badge variant="secondary" className="text-xs bg-purple-100 text-purple-800">
-                                    {question.question_type}
-                                  </Badge>
-                                </div>
-                                <div className="text-sm text-slate-700 line-clamp-3 mb-2">
-                                  <SmartText content={question.question_text} containsMath={question.metadata?.containsMath || false} />
-                                </div>
-
-                                {/* Options Configurator */}
-                                {question.options && question.options.length > 0 && (
-                                  <div className="mt-4 pl-4 border-l-2 border-slate-200 space-y-2 max-w-2xl">
-                                    <div className="flex items-center justify-between mb-2">
-                                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Arrange Options</span>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => shuffleSingleQuestionOptions(question.id)}
-                                        className="h-6 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                      >
-                                        <Shuffle className="w-3 h-3 mr-1" /> Shuffle Options
-                                      </Button>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                      {question.options.map((opt, optIndex) => {
-                                        const isCorrect = getCorrectOptionText(question.options, question.correct_answer) === opt;
-                                        return (
-                                          <div key={optIndex} className={`flex items-center gap-3 p-2 rounded-md border ${isCorrect ? 'border-green-300 bg-green-50 shadow-sm' : 'border-slate-200 bg-white'}`}>
-                                            <div className="flex flex-col gap-1 shrink-0">
-                                              <button type="button" onClick={() => moveOption(question.id, optIndex, 'up')} disabled={optIndex === 0} className="text-slate-300 hover:text-blue-600 disabled:opacity-30">
-                                                <ArrowUp className="w-3.5 h-3.5" />
-                                              </button>
-                                              <button type="button" onClick={() => moveOption(question.id, optIndex, 'down')} disabled={optIndex === question.options.length - 1} className="text-slate-300 hover:text-blue-600 disabled:opacity-30">
-                                                <ArrowDown className="w-3.5 h-3.5" />
-                                              </button>
-                                            </div>
-                                            <div className="text-sm font-semibold text-slate-400 shrink-0 w-6 text-center">
-                                              ({String.fromCharCode(97 + optIndex)})
-                                            </div>
-                                            <div className="text-sm text-slate-700 flex-1">
-                                              <SmartText content={opt} containsMath={question.metadata?.containsMath || false} />
-                                            </div>
-                                            {isCorrect && (
-                                              <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 text-[10px] shrink-0 uppercase tracking-wide">
-                                                Correct
-                                              </Badge>
-                                            )}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                              <button type="button" onClick={() => toggleQuestionSelection(question)} className="shrink-0 p-1.5 mt-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
+                        {objectives.length === 0 ? (
+                          <div className="text-center py-12 text-slate-400 border border-dashed border-slate-200 rounded-lg">
+                            No objective questions selected.
                           </div>
-                        ))}
+                        ) : (
+                          objectives.map((question, index) => (
+                            <div
+                              key={`obj-${question.id}`}
+                              draggable={dragEnabledId === question.id}
+                              onDragStart={(e) => {
+                                if (dragEnabledId !== question.id) {
+                                  e.preventDefault();
+                                  return;
+                                }
+                                dragItemId.current = question.id;
+                              }}
+                              onDragEnter={() => {
+                                dragOverItemId.current = question.id;
+                                setDragOverId(question.id);
+                              }}
+                              onDragEnd={() => {
+                                handleSort();
+                                setDragOverId(null);
+                              }}
+                              onDragOver={(e) => e.preventDefault()}
+                              className={`
+                  p-4 border rounded-lg transition-all
+                  ${dragOverId === question.id
+                                  ? 'border-blue-400 bg-blue-50 scale-[1.01] shadow-md'
+                                  : 'border-slate-200 bg-slate-50'
+                                }
+                `}
+                            >
+                              <div className="flex items-start gap-4">
+                                {/* Drag Handle */}
+                                <div className="flex flex-col items-center shrink-0">
+                                  <div
+                                    onMouseEnter={() => setDragEnabledId(question.id)}
+                                    onMouseLeave={() => setDragEnabledId(null)}
+                                    className="p-1 -ml-1 cursor-grab active:cursor-grabbing hover:bg-slate-200 rounded-md transition-colors"
+                                  >
+                                    <GripVertical className="w-5 h-5 text-slate-400" />
+                                  </div>
+                                  <span className="font-bold text-slate-400 w-6 text-center mt-1">{index + 1}</span>
+                                </div>
+
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                                    <Badge variant="outline" className="text-xs">{question.topic}</Badge>
+                                    <Badge variant="secondary" className="text-xs bg-purple-100 text-purple-800">
+                                      {question.question_type}
+                                    </Badge>
+                                  </div>
+                                  <div className="text-sm text-slate-700 line-clamp-3 mb-2">
+                                    <SmartText content={question.question_text} containsMath={question.metadata?.containsMath || false} />
+                                  </div>
+
+                                  {/* Options Configurator */}
+                                  {question.options && question.options.length > 0 && (
+                                    <div className="mt-4 pl-4 border-l-2 border-slate-200 space-y-2 max-w-2xl">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Arrange Options</span>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => shuffleSingleQuestionOptions(question.id)}
+                                          className="h-6 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                        >
+                                          <Shuffle className="w-3 h-3 mr-1" /> Shuffle Options
+                                        </Button>
+                                      </div>
+                                      <div className="space-y-1.5">
+                                        {question.options.map((opt, optIndex) => {
+                                          const isCorrect = getCorrectOptionText(question.options, question.correct_answer) === opt;
+                                          return (
+                                            <div key={optIndex} className={`flex items-center gap-3 p-2 rounded-md border ${isCorrect ? 'border-green-300 bg-green-50 shadow-sm' : 'border-slate-200 bg-white'}`}>
+                                              <div className="flex flex-col gap-1 shrink-0">
+                                                <button type="button" onClick={() => moveOption(question.id, optIndex, 'up')} disabled={optIndex === 0} className="text-slate-300 hover:text-blue-600 disabled:opacity-30">
+                                                  <ArrowUp className="w-3.5 h-3.5" />
+                                                </button>
+                                                <button type="button" onClick={() => moveOption(question.id, optIndex, 'down')} disabled={optIndex === question.options.length - 1} className="text-slate-300 hover:text-blue-600 disabled:opacity-30">
+                                                  <ArrowDown className="w-3.5 h-3.5" />
+                                                </button>
+                                              </div>
+                                              <div className="text-sm font-semibold text-slate-400 shrink-0 w-6 text-center">
+                                                ({String.fromCharCode(97 + optIndex)})
+                                              </div>
+                                              <div className="text-sm text-slate-700 flex-1">
+                                                <SmartText content={opt} containsMath={question.metadata?.containsMath || false} />
+                                              </div>
+                                              {isCorrect && (
+                                                <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 text-[10px] shrink-0 uppercase tracking-wide">
+                                                  Correct
+                                                </Badge>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                                <button type="button" onClick={() => toggleQuestionSelection(question)} className="shrink-0 p-1.5 mt-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                        )}
                       </div>
                     )}
 
                     {/* ── THEORY SECTION ── */}
-                    {theory.length > 0 && (
+                    {arrangeSubTab === 'theory' && (
                       <div className="space-y-3">
                         <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
                           <h3 className="font-bold text-slate-800">Theory</h3>
                           <Badge variant="secondary">{theory.length}</Badge>
                         </div>
 
-                        {theory.map((question, index) => (
-                          <div
-                            key={`theory-${question.id}`}
-                            draggable={dragEnabledId === question.id}
-                            onDragStart={(e) => {
-                              if (dragEnabledId !== question.id) {
-                                e.preventDefault();
-                                return;
-                              }
-                              dragItemId.current = question.id;
-                            }}
-                            onDragEnter={() => {
-                              dragOverItemId.current = question.id;
-                              setDragOverId(question.id);
-                            }}
-                            onDragEnd={() => {
-                              handleSort();
-                              setDragOverId(null);
-                            }}
-                            onDragOver={(e) => e.preventDefault()}
-                            className={`
-                p-4 border rounded-lg transition-all
-                ${dragOverId === question.id
-                                ? 'border-orange-400 bg-orange-50 scale-[1.01] shadow-md'
-                                : 'border-slate-200 bg-slate-50'
-                              }
-              `}
-                          >
-                            <div className="flex items-start gap-4">
-                              {/* Drag Handle */}
-                              <div className="flex flex-col items-center shrink-0">
-                                <div
-                                  onMouseEnter={() => setDragEnabledId(question.id)}
-                                  onMouseLeave={() => setDragEnabledId(null)}
-                                  className="p-1 -ml-1 cursor-grab active:cursor-grabbing hover:bg-slate-200 rounded-md transition-colors"
-                                >
-                                  <GripVertical className="w-5 h-5 text-slate-400" />
+                        {theory.length === 0 ? (
+                          <div className="text-center py-12 text-slate-400 border border-dashed border-slate-200 rounded-lg">
+                            No theory questions selected.
+                          </div>
+                        ) : (
+                          theory.map((question, index) => (
+                            <div
+                              key={`theory-${question.id}`}
+                              draggable={dragEnabledId === question.id}
+                              onDragStart={(e) => {
+                                if (dragEnabledId !== question.id) {
+                                  e.preventDefault();
+                                  return;
+                                }
+                                dragItemId.current = question.id;
+                              }}
+                              onDragEnter={() => {
+                                dragOverItemId.current = question.id;
+                                setDragOverId(question.id);
+                              }}
+                              onDragEnd={() => {
+                                handleSort();
+                                setDragOverId(null);
+                              }}
+                              onDragOver={(e) => e.preventDefault()}
+                              className={`
+                  p-4 border rounded-lg transition-all
+                  ${dragOverId === question.id
+                                  ? 'border-orange-400 bg-orange-50 scale-[1.01] shadow-md'
+                                  : 'border-slate-200 bg-slate-50'
+                                }
+                `}
+                            >
+                              <div className="flex items-start gap-4">
+                                {/* Drag Handle */}
+                                <div className="flex flex-col items-center shrink-0">
+                                  <div
+                                    onMouseEnter={() => setDragEnabledId(question.id)}
+                                    onMouseLeave={() => setDragEnabledId(null)}
+                                    className="p-1 -ml-1 cursor-grab active:cursor-grabbing hover:bg-slate-200 rounded-md transition-colors"
+                                  >
+                                    <GripVertical className="w-5 h-5 text-slate-400" />
+                                  </div>
+                                  <span className="font-bold text-slate-400 w-6 text-center mt-1">
+                                    {question.custom_number || index + 1}
+                                  </span>
                                 </div>
-                                <span className="font-bold text-slate-400 w-6 text-center mt-1">
-                                  {question.custom_number || index + 1}
-                                </span>
-                              </div>
 
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap mb-1">
-                                  <Badge variant="outline" className="text-xs">{question.topic}</Badge>
-                                  <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-800">
-                                    {question.question_type}
-                                  </Badge>
-                                  <div className="ml-auto flex items-center gap-2">
-                                    <Label htmlFor={`custom-num-${question.id}`} className="text-[11px] text-slate-500 uppercase tracking-wider font-bold">
-                                      Custom No.
-                                    </Label>
-                                    <Input
-                                      id={`custom-num-${question.id}`}
-                                      value={question.custom_number || ''}
-                                      onChange={(e) => updateCustomNumber(question.id, e.target.value)}
-                                      placeholder={String(index + 1)}
-                                      className="h-6 w-16 text-xs px-2"
-                                    />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                                    <Badge variant="outline" className="text-xs">{question.topic}</Badge>
+                                    <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-800">
+                                      {question.question_type}
+                                    </Badge>
+                                    <div className="ml-auto flex items-center gap-2">
+                                      <Label htmlFor={`custom-num-${question.id}`} className="text-[11px] text-slate-500 uppercase tracking-wider font-bold">
+                                        Custom No.
+                                      </Label>
+                                      <Input
+                                        id={`custom-num-${question.id}`}
+                                        value={question.custom_number || ''}
+                                        onChange={(e) => updateCustomNumber(question.id, e.target.value)}
+                                        placeholder={String(index + 1)}
+                                        className="h-6 w-16 text-xs px-2"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="text-sm text-slate-700 line-clamp-3 mb-2">
+                                    <SmartText content={question.question_text} containsMath={question.metadata?.containsMath || false} />
                                   </div>
                                 </div>
-                                <div className="text-sm text-slate-700 line-clamp-3 mb-2">
-                                  <SmartText content={question.question_text} containsMath={question.metadata?.containsMath || false} />
-                                </div>
+                                <button type="button" onClick={() => toggleQuestionSelection(question)} className="shrink-0 p-1.5 mt-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                                  <X className="w-4 h-4" />
+                                </button>
                               </div>
-                              <button type="button" onClick={() => toggleQuestionSelection(question)} className="shrink-0 p-1.5 mt-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
-                                <X className="w-4 h-4" />
-                              </button>
                             </div>
-                          </div>
-                        ))}
+                          ))
+                        )}
                       </div>
                     )}
 

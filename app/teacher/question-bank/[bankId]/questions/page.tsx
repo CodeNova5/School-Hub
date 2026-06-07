@@ -281,7 +281,7 @@ export default function TeacherQuestionManualCreatePage() {
 
       // Dynamically alternate endpoint method URL structure
       const url = isEditingMode
-        ? `/api/teacher/question-bank/banks/${bankId}/questions/${questionId}` // Edit route
+        ? `/api/teacher/question-bank/questions/${questionId}` // Edit route
         : `/api/teacher/question-bank/banks/${bankId}/questions`;             // Create route
 
       const method = isEditingMode ? 'PATCH' : 'POST';

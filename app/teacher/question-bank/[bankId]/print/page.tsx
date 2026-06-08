@@ -307,7 +307,6 @@ export default function ExamPrintPage() {
   const [schoolName, setSchoolName] = useState('XARIS SCHOOL');
   const [schoolAddress, setSchoolAddress] = useState('367, ojoigbede road, ilemba-awori, between Iyana corner busstop, ojo, lagos');
   const [schoolPhone, setSchoolPhone] = useState('Tel: 08033253746, 08033747695');
-  const [schoolLogo, setSchoolLogo] = useState('');
   const [examTitle, setExamTitle] = useState('Second term examination');
   const [subjectName, setSubjectName] = useState('SOCIAL STUDIES');
   const [className, setClassName] = useState('J S S 3');
@@ -343,7 +342,7 @@ export default function ExamPrintPage() {
     try {
       const { data, error } = await supabase
         .from('schools')
-        .select('name, address, phone, logo_url')
+        .select('name, address, phone')
         .eq('id', id)
         .single();
       if (error) throw error;
@@ -351,7 +350,7 @@ export default function ExamPrintPage() {
         if (data.name) setSchoolName(data.name);
         if (data.address) setSchoolAddress(data.address);
         if (data.phone) setSchoolPhone(data.phone);
-        if (data.logo_url) setSchoolLogo(data.logo_url);
+
       }
     } catch (error) {
       console.error('Error fetching school details:', error);
@@ -923,8 +922,8 @@ export default function ExamPrintPage() {
                         type="button"
                         onClick={() => setArrangeSubTab('objectives')}
                         className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${arrangeSubTab === 'objectives'
-                            ? 'bg-white text-purple-700 shadow-sm'
-                            : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50/50'
+                          ? 'bg-white text-purple-700 shadow-sm'
+                          : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50/50'
                           }`}
                       >
                         <CheckSquare className="w-4 h-4 text-purple-500" />
@@ -940,8 +939,8 @@ export default function ExamPrintPage() {
                         type="button"
                         onClick={() => setArrangeSubTab('theory')}
                         className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${arrangeSubTab === 'theory'
-                            ? 'bg-white text-orange-700 shadow-sm'
-                            : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50/50'
+                          ? 'bg-white text-orange-700 shadow-sm'
+                          : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50/50'
                           }`}
                       >
                         <FileText className="w-4 h-4 text-orange-500" />
@@ -1256,20 +1255,51 @@ export default function ExamPrintPage() {
             <div className="bg-white p-10 md:p-16 max-w-[210mm] mx-auto shadow-2xl border border-slate-200 min-h-[297mm] print:shadow-none print:border-none print:p-0 print:max-w-none print:w-full">
 
               {/* School Header */}
-              <div className="text-center mb-6">
-                {schoolLogo && (
-                  <img src={schoolLogo} alt="School Logo" className="h-16 mx-auto mb-2 object-contain" />
-                )}
-                <h1 className="text-3xl font-serif tracking-widest uppercase mb-1" style={{ fontFamily: 'Times New Roman, serif' }}>
+              <div className="text-center mb-6 font-serif" style={{ fontFamily: 'Times New Roman, serif' }}>
+                <h1 className="text-3xl md:text-4xl font-bold uppercase mb-1 tracking-normal">
                   {schoolName}
                 </h1>
                 {schoolAddress && (
-                  <p className="text-sm text-gray-800">{schoolAddress}</p>
+                  <p className="text-sm md:text-base italic text-gray-800 font-medium">
+                    {schoolAddress}
+                  </p>
                 )}
                 {schoolPhone && (
-                  <p className="text-sm text-gray-800">{schoolPhone}</p>
+                  <p className="text-sm md:text-base italic text-gray-800 font-medium">
+                    {schoolPhone}
+                  </p>
                 )}
-                <h2 className="text-xl font-bold mt-4 mb-6">{examTitle}</h2>
+                <h2 className="text-lg md:text-xl font-bold uppercase mt-3 tracking-wide">
+                  {examTitle}
+                </h2>
+              </div>
+
+              {/* Student & Exam Details Header */}
+              <div className="flex flex-col gap-4 text-[15px] font-bold text-black uppercase mb-8">
+                {/* Row 1: Name and Class */}
+                <div className="flex items-end justify-between gap-6">
+                  <div className="flex items-end flex-1 gap-2">
+                    <span className="whitespace-nowrap pb-0.5">NAME:</span>
+                    <div className="flex-1 border-b border-black"></div>
+                  </div>
+                  <div className="flex items-end gap-2 whitespace-nowrap min-w-[120px]">
+                    <span className="pb-0.5">CLASS:</span>
+                    <span className="pb-0.5">{className}</span>
+                  </div>
+                </div>
+
+                {/* Row 2: Subject and Time */}
+                <div className="flex items-end justify-between gap-6">
+                  <div className="flex items-end flex-1 gap-2">
+                    <span className="whitespace-nowrap pb-0.5">SUBJECT:</span>
+                    <span className="pb-0.5">{subjectName}</span>
+                  </div>
+                  <div className="flex items-end gap-2 whitespace-nowrap min-w-[120px]">
+                    <span className="pb-0.5">TIME:</span>
+                    {/* Empty line for time, similar to the name field */}
+                    <div className="w-24 border-b border-black"></div>
+                  </div>
+                </div>
               </div>
 
               {/* Subject and Class line */}

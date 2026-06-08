@@ -304,12 +304,12 @@ export default function ExamPrintPage() {
   const [difficultyFilter, setDifficultyFilter] = useState<'all' | 'easy' | 'medium' | 'hard'>('all');
 
   // Exam Paper Config
-  const [schoolName, setSchoolName] = useState('XARIS SCHOOL');
-  const [schoolAddress, setSchoolAddress] = useState('367, ojoigbede road, ilemba-awori, between Iyana corner busstop, ojo, lagos');
-  const [schoolPhone, setSchoolPhone] = useState('Tel: 08033253746, 08033747695');
-  const [examTitle, setExamTitle] = useState('Second term examination');
-  const [subjectName, setSubjectName] = useState('SOCIAL STUDIES');
-  const [className, setClassName] = useState('J S S 3');
+  const [schoolName, setSchoolName] = useState('');
+  const [schoolAddress, setSchoolAddress] = useState('');
+  const [schoolPhone, setSchoolPhone] = useState('');
+  const [examTitle, setExamTitle] = useState('');
+  const [subjectName, setSubjectName] = useState('');
+  const [className, setClassName] = useState('');
 
   const [showAnswerKey, setShowAnswerKey] = useState(false);
 
@@ -350,7 +350,34 @@ export default function ExamPrintPage() {
         if (data.name) setSchoolName(data.name);
         if (data.address) setSchoolAddress(data.address);
         if (data.phone) setSchoolPhone(data.phone);
+      }
 
+      // Fetch current session and current term names to set the exam title
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('sessions')
+        .select('id, name')
+        .eq('is_current', true)
+        .eq('school_id', id)
+        .maybeSingle();
+
+      if (sessionError) {
+        console.error('Error fetching current session:', sessionError);
+      } else if (sessionData) {
+        const { data: termData, error: termError } = await supabase
+          .from('terms')
+          .select('name')
+          .eq('is_current', true)
+          .eq('session_id', sessionData.id)
+          .eq('school_id', id)
+          .maybeSingle();
+
+        if (termError) {
+          console.error('Error fetching current term:', termError);
+        } else if (termData) {
+          setExamTitle(`${termData.name} examination ${sessionData.name} session`);
+        } else {
+          setExamTitle(`examination ${sessionData.name} session`);
+        }
       }
     } catch (error) {
       console.error('Error fetching school details:', error);
@@ -1302,11 +1329,6 @@ export default function ExamPrintPage() {
                 </div>
               </div>
 
-              {/* Subject and Class line */}
-              <div className="flex justify-between text-base font-bold text-black border-b border-black pb-2 mb-4">
-                <span>SUBJECT: {subjectName.toUpperCase()}</span>
-                <span>CLASS: {className.toUpperCase()}</span>
-              </div>
 
               {/* Empty state */}
               {orderedQuestions.length === 0 && (

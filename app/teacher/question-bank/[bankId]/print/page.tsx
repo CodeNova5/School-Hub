@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { DashboardLayout } from '@/components/dashboard-layout';
@@ -11,7 +11,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   ArrowLeft, GripVertical, Printer, Eye, EyeOff, Search,
-  CheckSquare, Shuffle, FileText, X, Trash2, ArrowUp, ArrowDown, Dices, Edit, Settings
+  CheckSquare, Shuffle, FileText, X, Trash2, ArrowUp, ArrowDown, Dices, Edit, Settings,
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -298,10 +299,21 @@ export default function ExamPrintPage() {
 
   // Filters
   const [questionSearch, setQuestionSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Debounce search input by 200ms to avoid filtering on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(questionSearch), 200);
+    return () => clearTimeout(timer);
+  }, [questionSearch]);
   const [selectedTerm, setSelectedTerm] = useState<'all' | '1' | '2' | '3'>('all');
   const [questionTypeFilter, setQuestionTypeFilter] = useState<'all' | 'objective' | 'theory'>('all');
   const [topicFilter, setTopicFilter] = useState<string>('all');
   const [difficultyFilter, setDifficultyFilter] = useState<'all' | 'easy' | 'medium' | 'hard'>('all');
+
+  // Pagination
+  const QUESTIONS_PER_PAGE = 20;
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Exam Paper Config
   const [schoolName, setSchoolName] = useState('');
@@ -309,7 +321,7 @@ export default function ExamPrintPage() {
   const [examTitle, setExamTitle] = useState('');
   const [subjectName, setSubjectName] = useState('');
   const [className, setClassName] = useState('');
-  const [examTime, setExamTime] = useState('');
+  const [examTime, setExamTime] = useState('2HRS');
   const [objectiveInstructions, setObjectiveInstructions] = useState('');
   const [theoryInstructions, setTheoryInstructions] = useState('');
 
@@ -424,6 +436,11 @@ export default function ExamPrintPage() {
     }
   }
 
+  // Reset to first page whenever any filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, questionTypeFilter, selectedTerm, topicFilter, difficultyFilter]);
+
   // Get unique topics from list for filter dropdown options
   const uniqueTopics = useMemo(() => {
     const list = questions.map((q) => q.topic.trim());
@@ -440,7 +457,7 @@ export default function ExamPrintPage() {
   }, [topicGroups, selectedTerm]);
 
   const filteredAvailableQuestions = useMemo(() => {
-    const query = questionSearch.trim().toLowerCase();
+    const query = debouncedSearch.trim().toLowerCase();
     return questions.filter((question) => {
       if (selectedQuestionIds.includes(question.id)) return false;
 
@@ -456,7 +473,17 @@ export default function ExamPrintPage() {
 
       return matchesSearch && matchesType && matchesTerm && matchesTopic && matchesDifficulty;
     });
-  }, [questions, questionSearch, questionTypeFilter, selectedTerm, termTopics, topicFilter, difficultyFilter, selectedQuestionIds]);
+  }, [questions, debouncedSearch, questionTypeFilter, selectedTerm, termTopics, topicFilter, difficultyFilter, selectedQuestionIds]);
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredAvailableQuestions.length / QUESTIONS_PER_PAGE)),
+    [filteredAvailableQuestions.length, QUESTIONS_PER_PAGE]
+  );
+
+  const paginatedQuestions = useMemo(() => {
+    const start = (currentPage - 1) * QUESTIONS_PER_PAGE;
+    return filteredAvailableQuestions.slice(start, start + QUESTIONS_PER_PAGE);
+  }, [filteredAvailableQuestions, currentPage, QUESTIONS_PER_PAGE]);
 
   // General Handlers
   function toggleQuestionSelection(question: QuestionRecord) {
@@ -793,67 +820,155 @@ export default function ExamPrintPage() {
             {/* Available Questions List */}
             <Card className="border-slate-200 w-full">
               <CardHeader className="pb-3">
-                <CardTitle className="text-lg">
-                  Available Questions ({filteredAvailableQuestions.length})
-                </CardTitle>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <CardTitle className="text-lg">
+                    Available Questions ({filteredAvailableQuestions.length})
+                  </CardTitle>
+                  {filteredAvailableQuestions.length > 0 && (
+                    <span className="text-xs text-slate-500 font-medium">
+                      Page {currentPage} of {totalPages} · showing {paginatedQuestions.length} of {filteredAvailableQuestions.length}
+                    </span>
+                  )}
+                </div>
                 {filteredAvailableQuestions.length === 0 && orderedQuestions.length > 0 && (
                   <CardDescription>All matching questions have been selected.</CardDescription>
                 )}
               </CardHeader>
               <CardContent>
-                <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2">
+                <div className="space-y-2">
                   {filteredAvailableQuestions.length === 0 ? (
                     <div className="text-center py-12">
                       <Search className="w-10 h-10 text-slate-300 mx-auto mb-3" />
                       <p className="text-sm text-slate-500">No questions match your filters</p>
                     </div>
                   ) : (
-                    filteredAvailableQuestions.map((question) => (
-                      <div
-                        key={question.id}
-                        onClick={() => toggleQuestionSelection(question)}
-                        className="p-3 border border-slate-200 rounded-lg hover:bg-slate-50 hover:border-blue-300 cursor-pointer transition-all group"
-                      >
-                        <div className="flex items-start gap-3">
-                          <input
-                            type="checkbox"
-                            checked={false}
-                            readOnly
-                            className="mt-1 w-4 h-4 rounded border-slate-300 accent-blue-600 cursor-pointer"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <Badge variant="outline" className="text-xs">{question.topic}</Badge>
-                              <Badge
-                                variant="secondary"
-                                className={`text-xs ${question.question_type === 'objective'
-                                  ? 'bg-purple-100 text-purple-800'
-                                  : 'bg-orange-100 text-orange-800'
-                                  }`}
-                              >
-                                {question.question_type}
-                              </Badge>
-                              <Badge
-                                variant="outline"
-                                className={`text-xs ${question.difficulty === 'easy'
-                                  ? 'text-green-700'
-                                  : question.difficulty === 'medium'
-                                    ? 'text-yellow-700'
-                                    : 'text-red-700'
-                                  }`}
-                              >
-                                {question.difficulty}
-                              </Badge>
+                    <>
+                      <div className="space-y-2">
+                        {paginatedQuestions.map((question) => (
+                          <div
+                            key={question.id}
+                            onClick={() => toggleQuestionSelection(question)}
+                            className="p-3 border border-slate-200 rounded-lg hover:bg-slate-50 hover:border-blue-300 cursor-pointer transition-all group"
+                          >
+                            <div className="flex items-start gap-3">
+                              <input
+                                type="checkbox"
+                                checked={false}
+                                readOnly
+                                className="mt-1 w-4 h-4 rounded border-slate-300 accent-blue-600 cursor-pointer"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <Badge variant="outline" className="text-xs">{question.topic}</Badge>
+                                  <Badge
+                                    variant="secondary"
+                                    className={`text-xs ${question.question_type === 'objective'
+                                      ? 'bg-purple-100 text-purple-800'
+                                      : 'bg-orange-100 text-orange-800'
+                                      }`}
+                                  >
+                                    {question.question_type}
+                                  </Badge>
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-xs ${question.difficulty === 'easy'
+                                      ? 'text-green-700'
+                                      : question.difficulty === 'medium'
+                                        ? 'text-yellow-700'
+                                        : 'text-red-700'
+                                      }`}
+                                  >
+                                    {question.difficulty}
+                                  </Badge>
+                                </div>
+                                <SmartText
+                                  content={question.question_text}
+                                  containsMath={question.metadata?.containsMath || false}
+                                />
+                              </div>
                             </div>
-                            <SmartText
-                              content={question.question_text}
-                              containsMath={question.metadata?.containsMath || false}
-                            />
+                          </div>
+                        ))}
+                      </div>
 
+                      {/* ── Pagination Controls ── */}
+                      {totalPages > 1 && (
+                        <div className="flex items-center justify-between pt-4 border-t border-slate-100 mt-4">
+                          <p className="text-xs text-slate-500">
+                            {((currentPage - 1) * QUESTIONS_PER_PAGE) + 1}–{Math.min(currentPage * QUESTIONS_PER_PAGE, filteredAvailableQuestions.length)} of {filteredAvailableQuestions.length} questions
+                          </p>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => setCurrentPage(1)}
+                              disabled={currentPage === 1}
+                              title="First page"
+                              className="p-1.5 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            >
+                              <ChevronsLeft className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                              disabled={currentPage === 1}
+                              title="Previous page"
+                              className="p-1.5 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            >
+                              <ChevronLeft className="w-4 h-4" />
+                            </button>
+
+                            {/* Page number pills */}
+                            <div className="flex items-center gap-1 mx-1">
+                              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                .filter((page) => {
+                                  if (totalPages <= 7) return true;
+                                  if (page === 1 || page === totalPages) return true;
+                                  if (Math.abs(page - currentPage) <= 1) return true;
+                                  return false;
+                                })
+                                .reduce<(number | 'ellipsis')[]>((acc, page, idx, arr) => {
+                                  if (idx > 0 && (page as number) - (arr[idx - 1] as number) > 1) {
+                                    acc.push('ellipsis');
+                                  }
+                                  acc.push(page);
+                                  return acc;
+                                }, [])
+                                .map((item, idx) =>
+                                  item === 'ellipsis' ? (
+                                    <span key={`ellipsis-${idx}`} className="px-1 text-slate-400 text-sm select-none">…</span>
+                                  ) : (
+                                    <button
+                                      key={item}
+                                      onClick={() => setCurrentPage(item as number)}
+                                      className={`min-w-[32px] h-8 px-2 rounded-md text-sm font-semibold transition-colors ${currentPage === item
+                                          ? 'bg-blue-600 text-white border border-blue-600'
+                                          : 'border border-slate-200 text-slate-600 hover:bg-slate-100'
+                                        }`}
+                                    >
+                                      {item}
+                                    </button>
+                                  )
+                                )}
+                            </div>
+
+                            <button
+                              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                              disabled={currentPage === totalPages}
+                              title="Next page"
+                              className="p-1.5 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            >
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => setCurrentPage(totalPages)}
+                              disabled={currentPage === totalPages}
+                              title="Last page"
+                              className="p-1.5 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            >
+                              <ChevronsRight className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
-                      </div>
-                    ))
+                      )}
+                    </>
                   )}
                 </div>
               </CardContent>

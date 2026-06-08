@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   ArrowLeft, GripVertical, Printer, Eye, EyeOff, Search,
-  CheckSquare, Shuffle, FileText, X, Trash2, ArrowUp, ArrowDown, Dices, Edit
+  CheckSquare, Shuffle, FileText, X, Trash2, ArrowUp, ArrowDown, Dices, Edit, Settings
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -176,7 +176,7 @@ type TopicGroupRecord = {
   term?: '1' | '2' | '3';
 };
 
-type ActiveTab = 'select' | 'arrange' | 'preview';
+type ActiveTab = 'select' | 'arrange' | 'customize' | 'preview';
 
 function inferTopicGroupTerm(group: TopicGroupRecord) {
   if (group.term) return group.term;
@@ -306,10 +306,12 @@ export default function ExamPrintPage() {
   // Exam Paper Config
   const [schoolName, setSchoolName] = useState('');
   const [schoolAddress, setSchoolAddress] = useState('');
-  const [schoolPhone, setSchoolPhone] = useState('');
   const [examTitle, setExamTitle] = useState('');
   const [subjectName, setSubjectName] = useState('');
   const [className, setClassName] = useState('');
+  const [examTime, setExamTime] = useState('');
+  const [objectiveInstructions, setObjectiveInstructions] = useState('');
+  const [theoryInstructions, setTheoryInstructions] = useState('');
 
   const [showAnswerKey, setShowAnswerKey] = useState(false);
 
@@ -342,14 +344,13 @@ export default function ExamPrintPage() {
     try {
       const { data, error } = await supabase
         .from('schools')
-        .select('name, address, phone')
+        .select('name, address')
         .eq('id', id)
         .single();
       if (error) throw error;
       if (data) {
         if (data.name) setSchoolName(data.name);
         if (data.address) setSchoolAddress(data.address);
-        if (data.phone) setSchoolPhone(data.phone);
       }
 
       // Fetch current session and current term names to set the exam title
@@ -657,6 +658,13 @@ export default function ExamPrintPage() {
                 icon={<Shuffle className="w-4 h-4" />}
                 label="Arrange & Order"
                 badge={orderedQuestions.length}
+              />
+              <TabButton
+                tab="customize"
+                activeTab={activeTab}
+                onClick={setActiveTab}
+                icon={<Settings className="w-4 h-4" />}
+                label="Customize"
               />
               <TabButton
                 tab="preview"
@@ -1232,11 +1240,11 @@ export default function ExamPrintPage() {
             {orderedQuestions.length > 0 && (
               <div className="flex justify-end mt-6">
                 <Button
-                  onClick={() => setActiveTab('preview')}
+                  onClick={() => setActiveTab('customize')}
                   className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
                 >
-                  Preview Paper
-                  <FileText className="w-4 h-4" />
+                  Customize Paper
+                  <Settings className="w-4 h-4" />
                 </Button>
               </div>
             )}
@@ -1244,7 +1252,72 @@ export default function ExamPrintPage() {
         )}
 
         {/* ════════════════════════════════════════
-            TAB 3 — PRINT PREVIEW
+            TAB 3 — CUSTOMIZE
+        ════════════════════════════════════════ */}
+        {activeTab === 'customize' && (
+          <div className="print:hidden container mx-auto px-4 py-8 space-y-6 max-w-3xl">
+            <Card className="border-slate-200 w-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Customize Exam Details</CardTitle>
+                <CardDescription>Adjust the title, time, and instructions for your question paper.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="examTitle" className="text-sm font-medium text-slate-700">Exam Title</Label>
+                  <Input
+                    id="examTitle"
+                    value={examTitle}
+                    onChange={(e) => setExamTitle(e.target.value)}
+                    className="mt-2"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="examTime" className="text-sm font-medium text-slate-700">Time</Label>
+                  <Input
+                    id="examTime"
+                    value={examTime}
+                    onChange={(e) => setExamTime(e.target.value)}
+                    className="mt-2"
+                    placeholder="e.g. 2 Hours"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="objectiveInstructions" className="text-sm font-medium text-slate-700">Instructions (Objectives)</Label>
+                  <Input
+                    id="objectiveInstructions"
+                    value={objectiveInstructions}
+                    onChange={(e) => setObjectiveInstructions(e.target.value)}
+                    className="mt-2"
+                    placeholder="e.g. Answer all questions in this section"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="theoryInstructions" className="text-sm font-medium text-slate-700">Instructions (Theory)</Label>
+                  <Input
+                    id="theoryInstructions"
+                    value={theoryInstructions}
+                    onChange={(e) => setTheoryInstructions(e.target.value)}
+                    className="mt-2"
+                    placeholder="e.g. Answer any 3 questions"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="flex justify-end mt-6">
+              <Button
+                onClick={() => setActiveTab('preview')}
+                className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+              >
+                Preview Paper
+                <FileText className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* ════════════════════════════════════════
+            TAB 4 — PRINT PREVIEW
         ════════════════════════════════════════ */}
         {activeTab === 'preview' && (
           <div className="container mx-auto px-4 py-8">
@@ -1291,11 +1364,6 @@ export default function ExamPrintPage() {
                     {schoolAddress}
                   </p>
                 )}
-                {schoolPhone && (
-                  <p className="text-sm md:text-base italic text-gray-800 font-medium">
-                    {schoolPhone}
-                  </p>
-                )}
                 <h2 className="text-lg md:text-xl font-bold uppercase mt-3 tracking-wide">
                   {examTitle}
                 </h2>
@@ -1324,7 +1392,7 @@ export default function ExamPrintPage() {
                   <div className="flex items-end gap-2 whitespace-nowrap min-w-[120px]">
                     <span className="pb-0.5">TIME:</span>
                     {/* Empty line for time, similar to the name field */}
-                    <div className="w-24 border-b border-black"></div>
+                    {examTime ? <span className="pb-0.5">{examTime}</span> : <div className="w-24 border-b border-black"></div>}
                   </div>
                 </div>
               </div>
@@ -1349,7 +1417,8 @@ export default function ExamPrintPage() {
               {/* Objectives Section */}
               {objectives.length > 0 && (
                 <div className="mb-8">
-                  <div className="text-center font-bold text-lg mb-4">Objectives</div>
+                  <div className={`text-center font-bold text-lg ${objectiveInstructions ? '' : 'mb-4'}`}>Objectives</div>
+                  {objectiveInstructions && <div className="text-center italic mb-4 text-[15px] text-gray-800">{objectiveInstructions}</div>}
                   <div className="space-y-4">
                     {objectives.map((question, index) => (
                       <div key={question.id} className="text-base text-black flex items-start gap-2">
@@ -1388,7 +1457,8 @@ export default function ExamPrintPage() {
               {/* Theory Section */}
               {theory.length > 0 && (
                 <div className="mt-8">
-                  <div className="text-center font-bold text-lg mb-4">Theory</div>
+                  <div className={`text-center font-bold text-lg ${theoryInstructions ? '' : 'mb-4'}`}>Theory</div>
+                  {theoryInstructions && <div className="text-center italic mb-4 text-[15px] text-gray-800">{theoryInstructions}</div>}
                   <div className="space-y-6">
                     {theory.map((question, index) => (
                       <div key={question.id} className="text-base text-black flex items-start gap-2">

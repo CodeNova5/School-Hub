@@ -1352,7 +1352,7 @@ export default function ExamPrintPage() {
             </div>
 
             {/* A4 Document */}
-            <div className="bg-white p-10 md:p-16 max-w-4xl mx-auto shadow-2xl border border-slate-200 min-h-[297mm] print:shadow-none print:border-none print:p-0 print:max-w-none print:w-full">
+            <div className="bg-white p-10 md:p-16 max-w-5xl mx-auto shadow-2xl border border-slate-200 min-h-[297mm] print:shadow-none print:border-none print:p-0 print:max-w-none print:w-full">
 
               {/* School Header */}
               <div className="text-center mb-6 font-serif" style={{ fontFamily: 'Times New Roman, serif' }}>

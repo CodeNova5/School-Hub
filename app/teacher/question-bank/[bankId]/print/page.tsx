@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   ArrowLeft, GripVertical, Printer, Eye, EyeOff, Search,
-  CheckSquare, Shuffle, FileText, X, Trash2, ArrowUp, ArrowDown, Dices
+  CheckSquare, Shuffle, FileText, X, Trash2, ArrowUp, ArrowDown, Dices, Edit
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -1065,9 +1066,25 @@ export default function ExamPrintPage() {
                                     </div>
                                   )}
                                 </div>
-                                <button type="button" onClick={() => toggleQuestionSelection(question)} className="shrink-0 p-1.5 mt-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
-                                  <X className="w-4 h-4" />
-                                </button>
+                                <div className="flex items-center gap-1 shrink-0 mt-1">
+                                  <Link
+                                    href={`/teacher/question-bank/${bankId}/questions?questionId=${question.id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                    title="Edit question"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </Link>
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleQuestionSelection(question)}
+                                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Remove question"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           ))
@@ -1154,9 +1171,25 @@ export default function ExamPrintPage() {
                                     <SmartText content={question.question_text} containsMath={question.metadata?.containsMath || false} />
                                   </div>
                                 </div>
-                                <button type="button" onClick={() => toggleQuestionSelection(question)} className="shrink-0 p-1.5 mt-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
-                                  <X className="w-4 h-4" />
-                                </button>
+                                <div className="flex items-center gap-1 shrink-0 mt-1">
+                                  <Link
+                                    href={`/teacher/question-bank/${bankId}/questions?questionId=${question.id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                    title="Edit question"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </Link>
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleQuestionSelection(question)}
+                                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Remove question"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           ))

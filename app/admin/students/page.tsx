@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { exportToCSV } from '@/lib/student-utils';
+import { getCurrentDateStringWAT } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -302,7 +303,7 @@ export default function AdminStudentsPage() {
       'Parent Email': s.parent_email, 'Parent Phone': s.parent_phone,
       'Average Attendance': s.average_attendance + '%', Status: s.status,
     }));
-    exportToCSV(data, `students_export_${new Date().toISOString().split('T')[0]}`);
+    exportToCSV(data, `students_export_${getCurrentDateStringWAT()}`);
     toast.success('Students exported successfully');
   }
 

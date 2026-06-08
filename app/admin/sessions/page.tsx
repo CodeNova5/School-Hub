@@ -8,7 +8,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSchoolContext } from '@/hooks/use-school-context';
 import { Session, Term } from '@/lib/types';
-import { formatDateLong } from '@/lib/utils';
+import { formatDateLong, getCurrentDateStringWAT } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -29,21 +29,21 @@ const NIGERIAN_TERM_DEFAULTS = [
     name: 'First Term',
     hint: 'Sep – Dec',
     monthStart: 8, dayStart: 11,   // September 11
-    monthEnd: 11,  dayEnd: 13,      // December 13
+    monthEnd: 11, dayEnd: 13,      // December 13
   },
   {
     label: 'Second Term',
     name: 'Second Term',
     hint: 'Jan – Mar',
     monthStart: 0, dayStart: 13,   // January 13
-    monthEnd: 2,   dayEnd: 28,      // March 28
+    monthEnd: 2, dayEnd: 28,      // March 28
   },
   {
     label: 'Third Term',
     name: 'Third Term',
     hint: 'Apr – Jul',
     monthStart: 3, dayStart: 22,   // April 22
-    monthEnd: 6,   dayEnd: 18,      // July 18
+    monthEnd: 6, dayEnd: 18,      // July 18
   },
 ];
 
@@ -57,17 +57,17 @@ function getDefaultTermDates(sessionName: string) {
     {
       name: NIGERIAN_TERM_DEFAULTS[0].name,
       start: `${year1}-${String(NIGERIAN_TERM_DEFAULTS[0].monthStart + 1).padStart(2, '0')}-${String(NIGERIAN_TERM_DEFAULTS[0].dayStart).padStart(2, '0')}`,
-      end:   `${year1}-${String(NIGERIAN_TERM_DEFAULTS[0].monthEnd  + 1).padStart(2, '0')}-${String(NIGERIAN_TERM_DEFAULTS[0].dayEnd).padStart(2, '0')}`,
+      end: `${year1}-${String(NIGERIAN_TERM_DEFAULTS[0].monthEnd + 1).padStart(2, '0')}-${String(NIGERIAN_TERM_DEFAULTS[0].dayEnd).padStart(2, '0')}`,
     },
     {
       name: NIGERIAN_TERM_DEFAULTS[1].name,
       start: `${year2}-${String(NIGERIAN_TERM_DEFAULTS[1].monthStart + 1).padStart(2, '0')}-${String(NIGERIAN_TERM_DEFAULTS[1].dayStart).padStart(2, '0')}`,
-      end:   `${year2}-${String(NIGERIAN_TERM_DEFAULTS[1].monthEnd  + 1).padStart(2, '0')}-${String(NIGERIAN_TERM_DEFAULTS[1].dayEnd).padStart(2, '0')}`,
+      end: `${year2}-${String(NIGERIAN_TERM_DEFAULTS[1].monthEnd + 1).padStart(2, '0')}-${String(NIGERIAN_TERM_DEFAULTS[1].dayEnd).padStart(2, '0')}`,
     },
     {
       name: NIGERIAN_TERM_DEFAULTS[2].name,
       start: `${year2}-${String(NIGERIAN_TERM_DEFAULTS[2].monthStart + 1).padStart(2, '0')}-${String(NIGERIAN_TERM_DEFAULTS[2].dayStart).padStart(2, '0')}`,
-      end:   `${year2}-${String(NIGERIAN_TERM_DEFAULTS[2].monthEnd  + 1).padStart(2, '0')}-${String(NIGERIAN_TERM_DEFAULTS[2].dayEnd).padStart(2, '0')}`,
+      end: `${year2}-${String(NIGERIAN_TERM_DEFAULTS[2].monthEnd + 1).padStart(2, '0')}-${String(NIGERIAN_TERM_DEFAULTS[2].dayEnd).padStart(2, '0')}`,
     },
   ];
 }
@@ -94,11 +94,10 @@ type BannerProps = { message: string; type: 'error' | 'success'; onDismiss: () =
 function Banner({ message, type, onDismiss }: BannerProps) {
   const isError = type === 'error';
   return (
-    <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
-      isError
-        ? 'bg-red-50 border-red-200 text-red-700'
-        : 'bg-green-50 border-green-200 text-green-700'
-    }`}>
+    <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${isError
+      ? 'bg-red-50 border-red-200 text-red-700'
+      : 'bg-green-50 border-green-200 text-green-700'
+      }`}>
       {isError
         ? <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
         : <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />}
@@ -113,8 +112,8 @@ function DurationChip({ weeks }: { weeks: number }) {
   const color = weeks < 8
     ? 'bg-amber-50 text-amber-700 border-amber-200'
     : weeks > 14
-    ? 'bg-blue-50 text-blue-700 border-blue-200'
-    : 'bg-green-50 text-green-700 border-green-200';
+      ? 'bg-blue-50 text-blue-700 border-blue-200'
+      : 'bg-green-50 text-green-700 border-green-200';
   return (
     <span className={`inline-flex items-center gap-1 text-xs border rounded-full px-2 py-0.5 ${color}`}>
       <Clock className="h-3 w-3" />
@@ -218,8 +217,8 @@ function CreateSessionDialog({
   // Build prefilled dates when copying from a previous session
   const copySourceTerms = copyFromId
     ? sessions
-        .filter(s => s.id === copyFromId)
-        .flatMap(() => []) // will be filled via prop — see note below
+      .filter(s => s.id === copyFromId)
+      .flatMap(() => []) // will be filled via prop — see note below
     : null;
 
   return (
@@ -341,7 +340,7 @@ type TermCardProps = {
   onDelete: (id: string) => void;
 };
 function TermCard({ term, isFirst, prevTerm, isLoading, onSetCurrent, onEdit, onDelete }: TermCardProps) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getCurrentDateStringWAT();
   const isPast = today > term.end_date;
   const isFuture = today < term.start_date;
   const isActive = !isPast && !isFuture;
@@ -365,8 +364,8 @@ function TermCard({ term, isFirst, prevTerm, isLoading, onSetCurrent, onEdit, on
         ${term.is_current
           ? 'border-green-200 bg-green-50 ring-1 ring-green-200'
           : isPast
-          ? 'border-gray-100 bg-gray-50 opacity-70'
-          : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'}
+            ? 'border-gray-100 bg-gray-50 opacity-70'
+            : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'}
       `}>
         <div className="space-y-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -450,7 +449,6 @@ export default function SessionsPage() {
       const init = async () => {
         await fetchSessions();
         await fetchTerms();
-        await syncAllSessionsEndDates();
       };
       init();
     }
@@ -523,11 +521,11 @@ export default function SessionsPage() {
       if (existing && existing.length > 0) { setError('A session with this name already exists.'); return; }
 
       const t1Start = formData.get("t1_start") as string;
-      const t1End   = formData.get("t1_end") as string;
+      const t1End = formData.get("t1_end") as string;
       const t2Start = formData.get("t2_start") as string;
-      const t2End   = formData.get("t2_end") as string;
+      const t2End = formData.get("t2_end") as string;
       const t3Start = formData.get("t3_start") as string;
-      const t3End   = formData.get("t3_end") as string;
+      const t3End = formData.get("t3_end") as string;
 
       if (new Date(t1Start) >= new Date(t1End)) { setError('First Term: Start date must be before end date'); return; }
       if (new Date(t2Start) >= new Date(t2End)) { setError('Second Term: Start date must be before end date'); return; }
@@ -536,9 +534,9 @@ export default function SessionsPage() {
       if (new Date(t2End) >= new Date(t3Start)) { setError('Second Term must end before Third Term starts'); return; }
 
       const termsPayload = [
-        { name: 'First Term',  start: t1Start, end: t1End },
+        { name: 'First Term', start: t1Start, end: t1End },
         { name: 'Second Term', start: t2Start, end: t2End },
-        { name: 'Third Term',  start: t3Start, end: t3End },
+        { name: 'Third Term', start: t3Start, end: t3End },
       ];
 
       const { error: rpcError } = await supabase.rpc('create_session_with_terms', {
@@ -551,8 +549,8 @@ export default function SessionsPage() {
 
       if (rpcError) {
         const msg = rpcError.message || '';
-        if (msg.includes('session_overlap'))       setError('This session overlaps with an existing session.');
-        else if (msg.includes('term_overlap'))      setError('One or more terms overlap.');
+        if (msg.includes('session_overlap')) setError('This session overlaps with an existing session.');
+        else if (msg.includes('term_overlap')) setError('One or more terms overlap.');
         else if (msg.includes('term_invalid_dates')) setError('A term has invalid dates.');
         else setError('Failed to create session: ' + rpcError.message);
         return;
@@ -561,46 +559,6 @@ export default function SessionsPage() {
       setIsSessionDialogOpen(false);
       await fetchSessions();
       await fetchTerms();
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  async function handleCreateTerm(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setError(null);
-    try {
-      setIsLoading(true);
-      const formData = new FormData(e.currentTarget);
-      if (!selectedSession) { setError('Please select a session'); return; }
-
-      const startDate = formData.get('start_date') as string;
-      const endDate   = formData.get('end_date') as string;
-      if (new Date(startDate) >= new Date(endDate)) { setError('Start date must be before end date'); return; }
-
-      const overlap = await isTermOverlapping(selectedSession, startDate, endDate);
-      if (overlap) { setError('This term overlaps with an existing term. Please adjust the dates.'); return; }
-
-      const { error } = await supabase.from('terms').insert({
-        school_id: schoolId,
-        session_id: selectedSession,
-        name: formData.get('name') as string,
-        start_date: startDate,
-        end_date: endDate,
-        is_current: false,
-      });
-
-      if (error) {
-        if (error.message?.includes('terms_no_overlap')) setError('This term overlaps with an existing term.');
-        else setError('Failed to create term: ' + error.message);
-        return;
-      }
-
-      await syncSessionEndDate(selectedSession);
-      setIsTermDialogOpen(false);
-      setSelectedSession('');
-      await fetchTerms();
-      await fetchSessions();
     } finally {
       setIsLoading(false);
     }
@@ -651,7 +609,7 @@ export default function SessionsPage() {
       setIsLoading(true);
       const formData = new FormData(e.currentTarget);
       const startDate = formData.get("start_date") as string;
-      const endDate   = formData.get("end_date") as string;
+      const endDate = formData.get("end_date") as string;
       if (new Date(startDate) >= new Date(endDate)) { setError('Start date must be before end date'); return; }
 
       const overlap = await isTermOverlapping(editingTerm.session_id, startDate, endDate, editingTerm.id);
@@ -660,7 +618,6 @@ export default function SessionsPage() {
       const { error } = await supabase.from('terms').update({ name: formData.get("name"), start_date: startDate, end_date: endDate }).eq('id', editingTerm.id);
       if (error) { setError('Failed to update term: ' + error.message); return; }
 
-      await syncSessionEndDate(editingTerm.session_id);
       setIsEditTermDialogOpen(false);
       setEditingTerm(null);
       await fetchTerms();
@@ -709,7 +666,7 @@ export default function SessionsPage() {
       setError(null);
       const term = terms.find(t => t.id === termId);
       if (term) {
-        const today = new Date().toISOString().split('T')[0];
+        const today = getCurrentDateStringWAT();
         if (today < term.start_date || today > term.end_date) {
           const confirmed = confirm(
             `⚠️ Today (${formatDateLong(today)}) is not within this term's dates.\n\n` +
@@ -729,12 +686,12 @@ export default function SessionsPage() {
   }
 
   function isDateInTerm(term: Term) {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getCurrentDateStringWAT();
     return today >= term.start_date && today <= term.end_date;
   }
 
   function isDateInSession(session: Session) {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getCurrentDateStringWAT();
     return today >= session.start_date && today <= session.end_date;
   }
 
@@ -746,31 +703,10 @@ export default function SessionsPage() {
     return (data?.length || 0) > 0;
   }
 
-  async function syncSessionEndDate(sessionId: string) {
-    try {
-      const { data: sessionTerms } = await supabase.from('terms').select('end_date').eq('session_id', sessionId).order('end_date', { ascending: false }).limit(1);
-      if (sessionTerms && sessionTerms.length > 0) {
-        await supabase.from('sessions').update({ end_date: sessionTerms[0].end_date }).eq('id', sessionId);
-      }
-    } catch (error) {
-      console.error('Error syncing session end date:', error);
-    }
-  }
-
-  async function syncAllSessionsEndDates() {
-    if (!schoolId) return;
-    try {
-      const { data: allSessions } = await supabase.from('sessions').select('id').eq('school_id', schoolId);
-      if (allSessions) for (const s of allSessions) await syncSessionEndDate(s.id);
-    } catch (error) {
-      console.error('Error syncing all sessions end dates:', error);
-    }
-  }
-
   async function updateCurrentSessionAndTerm(sessionId?: string) {
     try {
       const targetSessionId = sessionId || currentSessionId;
-      const today = new Date().toISOString().split('T')[0];
+      const today = getCurrentDateStringWAT();
 
       if (targetSessionId) {
         const { data: sessionData } = await supabase.from('sessions').select('*').eq('school_id', schoolId).eq('id', targetSessionId).single();
@@ -1005,46 +941,7 @@ export default function SessionsPage() {
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="font-semibold text-sm text-gray-700">Terms</h3>
-                    <Dialog open={isTermDialogOpen} onOpenChange={setIsTermDialogOpen}>
-                      <DialogTrigger asChild>
-                        <Button size="sm" variant="outline" disabled={isLoading} className="h-8 text-xs">
-                          <Plus className="mr-1 h-3.5 w-3.5" />
-                          Add term
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Add Term to {viewingSession.name}</DialogTitle>
-                          <p className="text-sm text-gray-500 mt-1">Create an additional term for this session.</p>
-                        </DialogHeader>
-                        {error && <Banner message={error} type="error" onDismiss={() => setError(null)} />}
-                        <form onSubmit={handleCreateTerm} className="space-y-4 mt-2">
-                          <input type="hidden" value={viewingSession.id} />
-                          <div>
-                            <Label className="text-sm">Term Name</Label>
-                            <Input name="name" placeholder="e.g., First Term, Second Term" required className="mt-1" />
-                          </div>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <Label className="text-sm">Start Date</Label>
-                              <Input name="start_date" type="date" required className="mt-1" />
-                            </div>
-                            <div>
-                              <Label className="text-sm">End Date</Label>
-                              <Input name="end_date" type="date" required className="mt-1" />
-                            </div>
-                          </div>
-                          <Button
-                            type="submit"
-                            className="w-full"
-                            disabled={isLoading}
-                            onClick={() => setSelectedSession(viewingSession.id)}
-                          >
-                            {isLoading ? 'Creating…' : 'Create Term'}
-                          </Button>
-                        </form>
-                      </DialogContent>
-                    </Dialog>
+
                   </div>
 
                   {viewingSessionTerms.length > 0 ? (

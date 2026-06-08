@@ -28,3 +28,8 @@ export function formatDateLong(dateString: string): string {
   
   return `${dayOfWeek} ${day}${ordinalSuffix(day)} ${month} ${year}`;
 }
+
+export function getCurrentDateStringWAT(): string {
+  // Returns 'YYYY-MM-DD' formatted date in West Africa Time
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
+}

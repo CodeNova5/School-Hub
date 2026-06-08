@@ -5,6 +5,7 @@
 
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { getCurrentDateStringWAT } from './utils';
 
 /**
  * Exports a teacher ID card as a PDF file
@@ -103,7 +104,7 @@ export async function exportMultipleTeacherCardsToPDF(
 
     // Generate filename
     const sanitizedSchoolName = schoolName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    const filename = `${sanitizedSchoolName}_teacher_id_cards_${new Date().toISOString().split('T')[0]}.pdf`;
+    const filename = `${sanitizedSchoolName}_teacher_id_cards_${getCurrentDateStringWAT()}.pdf`;
 
     // Save the PDF
     pdf.save(filename);

@@ -12,6 +12,7 @@ import { StudentDetailsModal } from '@/components/student-details-modal';
 import { Search, Download, Users, UserCheck, UserX, Calendar as CalendarIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { exportToCSV } from '@/lib/student-utils';
+import { getCurrentDateStringWAT } from '@/lib/utils';
 import { getCurrentUser, getTeacherByUserId } from '@/lib/auth';
 import { useSchoolContext } from '@/hooks/use-school-context';
 
@@ -228,7 +229,7 @@ export default function TeacherStudentsPage() {
       Status: s.status,
     }));
 
-    exportToCSV(exportData, `students_export_${new Date().toISOString().split('T')[0]}`);
+    exportToCSV(exportData, `students_export_${getCurrentDateStringWAT()}`);
     toast.success('Students exported successfully');
   }
 

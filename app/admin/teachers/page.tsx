@@ -51,6 +51,7 @@ import { toast } from 'sonner';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { TeachersSkeleton } from '@/components/skeletons';
 import { exportToCSV } from '@/lib/student-utils';
+import { getCurrentDateStringWAT } from '@/lib/utils';
 
 type SubjectAssignment = {
   classId: string;
@@ -544,7 +545,7 @@ export default function TeachersPage() {
       Subjects: teacher.subjectCount || 0,
     }));
 
-    exportToCSV(data, `teachers_export_${new Date().toISOString().split('T')[0]}`);
+    exportToCSV(data, `teachers_export_${getCurrentDateStringWAT()}`);
     toast.success('Teachers exported successfully');
   }
 

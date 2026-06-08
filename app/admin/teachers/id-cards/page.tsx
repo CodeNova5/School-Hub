@@ -13,6 +13,7 @@ import { Loader2, Download, Search, Palette, Clock, CheckCircle, XCircle, AlertC
 import { useSchoolContext } from '@/hooks/use-school-context';
 import TeacherIDCardTemplate from '@/components/teacher-id-card-template';
 import { exportTeacherCardToPDF, exportMultipleTeacherCardsToPDF } from '@/lib/pdf-export-teacher-card';
+import { getCurrentDateStringWAT } from '@/lib/utils';
 
 interface TeacherData {
   id: string;
@@ -145,7 +146,7 @@ export default function TeacherIDCardGeneratorPage() {
   async function fetchTodayAttendance(teacherId: string) {
     if (!schoolId) return;
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getCurrentDateStringWAT();
       const { data, error } = await supabase
         .from('teacher_attendance')
         .select('*')
@@ -193,7 +194,7 @@ export default function TeacherIDCardGeneratorPage() {
 
     try {
       setMarkingAttendance(true);
-      const today = new Date().toISOString().split('T')[0];
+      const today = getCurrentDateStringWAT();
 
       if (attendanceData) {
         // Update existing

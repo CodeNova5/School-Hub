@@ -96,7 +96,7 @@ const [formData, setFormData] = useState({
   parent_name: '',
   parent_email: '',
   parent_phone: '',
-  admission_date: new Date().toISOString().split('T')[0],
+  admission_date: getCurrentDateStringWAT(),
 });
 ```
 

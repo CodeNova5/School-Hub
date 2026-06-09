@@ -68,16 +68,12 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
     if (!item || typeof item !== 'object') continue;
     const row = item as Record<string, unknown>;
     const topic = String(row.topic || '').trim();
-    let questionText = String(row.question_text || '').trim();
-    if ((questionText.match(/(?<!\\)\$/g) || []).length % 2 !== 0) questionText += '$';
-
-    let explanation = row.explanation ? String(row.explanation).trim() : '';
-    if ((explanation.match(/(?<!\\)\$/g) || []).length % 2 !== 0) explanation += '$';
-
+    const questionText = String(row.question_text || '').trim();
+    const explanation = row.explanation ? String(row.explanation).trim() : '';
     const rawCorrect = row.correct_answer ? String(row.correct_answer).trim() : '';
 
     const containsMathFromAI = typeof row.contains_math === 'boolean' ? row.contains_math : false;
-    const LATEX_RE = /\$[^$\n]+?\$|\$\$[\s\S]+?\$\$|\\(?:frac|sqrt|le|ge|leq|geq|times|div|sum|int|pm|cdot|alpha|beta|gamma|theta|pi|sigma|infty|rightarrow|leftarrow|rightleftharpoons)\b/;
+    const LATEX_RE = /\$[^$\n]+?\$|\$$[\s\S]+?\$$|\\(?:frac|sqrt|le|ge|leq|geq|times|div|sum|int|pm|cdot|alpha|beta|gamma|theta|pi|sigma|infty)\b/;
     const allText = [
       String(row.question_text || ''),
       ...(Array.isArray(row.options) ? row.options.map(String) : []),
@@ -89,12 +85,7 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
 
     if (questionType === 'objective') {
       const options = Array.isArray(row.options)
-        ? row.options.map((v) => {
-          let str = String(v || '').trim();
-          str = str.replace(/^(?:[A-H]\s*[).:-]\s*|\([A-H]\)\s*|Option\s+[A-H]\s*[:.-]?\s*)/i, '').trim();
-          if ((str.match(/(?<!\\)\$/g) || []).length % 2 !== 0) str += '$';
-          return str;
-        }).filter(Boolean)
+        ? row.options.map((v) => String(v || '').trim()).filter(Boolean)
         : [];
 
       if (options.length < 2) continue;
@@ -227,9 +218,8 @@ export async function POST(request: NextRequest) {
 
     const groqResponse = await fetchGroqChatCompletion({
       model: GROQ_MODEL,
-      temperature: 0.3,
-      max_tokens: 6000,
-      response_format: { type: 'json_object' },
+      temperature: 0.3, // 💡 Slightly lowered temperature to improve schema adherence
+      max_tokens: 3000,
       messages: [
         {
           role: 'system',
@@ -237,22 +227,13 @@ export async function POST(request: NextRequest) {
             'You are an expert teacher question author.',
             'Return ONLY valid JSON with shape {"questions": GeneratedQuestion[]}. No markdown fences, no commentary outside the JSON.',
             'GeneratedQuestion fields: topic (string), question_text (string), options (string[] — exactly 4 items for objective, empty [] for theory), correct_answer ("A"|"B"|"C"|"D" for objective OR a model-answer string for theory), explanation (string), contains_math (boolean).',
-            '',
-            'CHEMISTRY & SCIENCE FORMATTING RULES:',
-            '- ALWAYS use LaTeX for chemical formulas, ions, and equations. You MUST wrap ALL LaTeX in single dollar signs: $...$',
-            '- ALWAYS verify that every opening $ has a matching closing $. Do NOT forget the closing $.',
-            '- NEVER output bare LaTeX commands (like \\\\rightarrow, \\\\text, _, ^) outside of $...$',
-            '- Use standard LaTeX for subscripts and superscripts. For example: $\\\\text{H}_2\\\\text{O}$, $\\\\text{Fe}^{3+}$, $\\\\text{SO}_4^{2-}$.',
-            '- For chemical equations, use $\\\\rightarrow$ or $\\\\rightleftharpoons$: $\\\\text{Fe}^{3+} + \\\\text{MnO}_4^- \\\\rightarrow \\\\text{Fe}^{2+} + \\\\text{MnO}_2$',
-            '- Do NOT use plain text like H2O or Fe^3+. Always use LaTeX.',
-            '',
-            'CRITICAL JSON RULES:',
-            '1. All backslashes in JSON string values MUST be double-escaped: use \\\\ not \\.',
-            '2. Do NOT include trailing commas before ] or }.',
-            '3. Ensure all strings are properly terminated with closing quotes.',
-            '4. contains_math MUST be true if ANY field contains $...$ LaTeX. Otherwise false.',
-            '5. For objective options, DO NOT include the letter prefix (e.g., "A)", "B."). Provide ONLY the answer text.',
-          ].join('\n'),
+            'CRITICAL JSON ESCAPING RULES FOR LATEX:',
+            '1. Because you are outputting raw text inside a JSON string property, you MUST double-escape all backslashes.',
+            '2. Write "\\\\frac{1}{2}" instead of "\\frac{1}{2}". Write "\\\\times" instead of "\\times". Write "\\\\delta" instead of "\\delta".',
+            '3. Ensure all curly brackets used in LaTeX are safely contained inside the quoted JSON string properties.',
+            'MATH FORMATTING: For any mathematical symbols, equations, variables, exponents, fractions, inequalities, or chemical formulas, use LaTeX wrapped in single dollar signs: $x^2$, $\\\\frac{1}{2}$, $1 < x \\\\le \\\\frac{8}{3}$, $\\\\text{H}_2\\\\text{O}$.',
+            'contains_math RULE — this field is MANDATORY on every question object: set it to true if ANY of the fields contain even ONE LaTeX expression ($...$). Set it to false ONLY if the entire question is plain text with no formulas whatsoever.',
+          ].join(' '),
         },
         {
           role: 'user',
@@ -263,7 +244,6 @@ export async function POST(request: NextRequest) {
             questionType === 'objective'
               ? 'Each objective question must include exactly 4 options. The correct_answer must strictly be only the letter index of the correct option: "A", "B", "C", or "D".'
               : 'For theory questions include a concise model answer in correct_answer and marking guidance in explanation.',
-            'Use LaTeX for all chemical formulas and equations.',
             'Output valid JSON only.',
           ].join('\n'),
         },

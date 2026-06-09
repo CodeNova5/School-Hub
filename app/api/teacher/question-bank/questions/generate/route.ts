@@ -261,7 +261,7 @@ export async function POST(request: NextRequest) {
             `Difficulty level: ${difficulty}.`,
             `Topics to cover: ${topics.join(', ')}.`,
             questionType === 'objective'
-              ? 'Each objective question must include exactly 4 options. The correct_answer must strictly be only the letter index of the correct option: "A", "B", "C", or "D", Make sure the correct answer is accurate.'
+              ? 'Each objective question must include exactly 4 options. The correct_answer must strictly be only the letter index of the correct option: "A", "B", "C", or "D".'
               : 'For theory questions include a concise model answer in correct_answer and marking guidance in explanation.',
             'Use LaTeX for all chemical formulas and equations.',
             'Output valid JSON only.',

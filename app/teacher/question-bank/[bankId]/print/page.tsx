@@ -36,11 +36,10 @@ function hasMathContent(text: string): boolean {
     /\$[^$\n]+?\$/.test(text) ||
     /\\\([\s\S]+?\\\)/.test(text) ||
     /\\\[[\s\S]+?\\\]/.test(text) ||
-    // Detects raw superscripts/subscripts like ^{2+} or _{min}
-    /[\^_]\{[\s\S]+?\}/.test(text) ||
     /\\(frac|sqrt|sum|int|prod|lim|log|sin|cos|tan|le|ge|leq|geq|neq|pm|times|div|cdot|alpha|beta|gamma|delta|theta|lambda|mu|pi|sigma|phi|omega|infty|forall|exists|in|notin|subset|cup|cap|mathbb|mathbf|text|left|right|begin|end|rightarrow|leftarrow|rightleftharpoons)\b/.test(text)
   );
 }
+
 function sanitizeLatex(text: string): string {
   if (!text) return '';
   let sanitized = text
@@ -70,18 +69,11 @@ function sanitizeLatex(text: string): string {
   return sanitized;
 }
 
-
 function SmartText({ content, containsMath }: SmartTextProps) {
-  let sanitizedContent = sanitizeLatex(content);
+  const sanitizedContent = sanitizeLatex(content);
   const shouldRenderMath = containsMath || hasMathContent(sanitizedContent);
 
   if (shouldRenderMath) {
-    // If it contains math symbols but lacks explicit markdown math wrappers ($ or $$), 
-    // wrap the entire block in inline math delimiters so KaTeX registers it.
-    if (!/\$[^\n]+?\$/.test(sanitizedContent) && !/\$\$[\s\S]+?\$\$/.test(sanitizedContent)) {
-      sanitizedContent = `$${sanitizedContent}$`;
-    }
-
     return (
       <div className="inline-block align-middle prose prose-sm max-w-none dark:prose-invert">
         <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>

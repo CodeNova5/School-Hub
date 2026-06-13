@@ -1,13 +1,13 @@
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { QuestionBankOverview } from '@/components/question-bank-overview';
 
-export default function TeacherQuestionBankPage() {
+export default function AdminQuestionBankPage() {
   return (
-    <DashboardLayout role="teacher">
+    <DashboardLayout role="admin">
       <QuestionBankOverview 
-        role="teacher" 
-        apiEndpointPrefix="/api/teacher/question-bank" 
-        routePrefix="/teacher/question-bank" 
+        role="admin" 
+        apiEndpointPrefix="/api/admin/question-bank" 
+        routePrefix="/admin/question-bank" 
       />
     </DashboardLayout>
   );

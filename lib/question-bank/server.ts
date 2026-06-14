@@ -1,4 +1,5 @@
-import { createSupabaseClient } from '@/lib/supabase';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
 
 export type AuthRoleContext = {
   ok: true;
@@ -17,7 +18,11 @@ type AuthRoleError = {
 };
 
 export async function getQuestionBankAuthContext(rolePath: string): Promise<AuthRoleContext | AuthRoleError> {
-  const supabase = createSupabaseClient();
+  if (rolePath !== 'admin' && rolePath !== 'teacher') {
+    return { ok: false, error: 'Invalid workspace path segment', status: 400 };
+  }
+
+  const supabase = createRouteHandlerClient({ cookies });
 
   // 1. Check user session
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -25,28 +30,20 @@ export async function getQuestionBankAuthContext(rolePath: string): Promise<Auth
     return { ok: false, error: 'Unauthorized access', status: 401 };
   }
 
-  // 2. Resolve school context from meta or user profile
-  // Adjust this query based on how school_id is linked to your authenticated users
+  // 2. Resolve school context from role-specific table
+  const table = rolePath === 'admin' ? 'admins' : 'teachers';
   const { data: profile, error: profileError } = await supabase
-    .from('profiles') 
-    .select('school_id, role')
-    .eq('id', user.id)
+    .from(table)
+    .select('school_id, is_active')
+    .eq('user_id', user.id)
     .single();
 
   if (profileError || !profile?.school_id) {
-    return { ok: false, error: 'School context not found', status: 404 };
+    return { ok: false, error: `${rolePath === 'admin' ? 'Admin' : 'Teacher'} profile not found`, status: 404 };
   }
 
-  const schoolId = profile.school_id;
-
-  // 3. Verify path role aligns with user profile role permissions
-  // If your routing path is '/api/admin/...' but they are a teacher, reject it
-  if (rolePath !== 'admin' && rolePath !== 'teacher') {
-    return { ok: false, error: 'Invalid workspace path segment', status: 400 };
-  }
-
-  if (profile.role !== rolePath) {
-    return { ok: false, error: 'Forbidden: Role mismatch', status: 403 };
+  if (!profile.is_active) {
+    return { ok: false, error: 'Account is inactive', status: 403 };
   }
 
   return {
@@ -54,8 +51,8 @@ export async function getQuestionBankAuthContext(rolePath: string): Promise<Auth
     context: {
       supabase,
       userId: user.id,
-      schoolId,
-      role: profile.role as 'admin' | 'teacher',
+      schoolId: profile.school_id,
+      role: rolePath as 'admin' | 'teacher',
     },
   };
 }

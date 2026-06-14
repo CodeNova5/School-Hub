@@ -13,8 +13,19 @@ export type TeacherQuestionBankContextResult =
   | { ok: false; status: number; error: string };
 
 export async function getTeacherQuestionBankContext(): Promise<TeacherQuestionBankContextResult> {
-  const supabase = createRouteHandlerClient({ cookies });
+  const cookieStore = cookies();
+  const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
 
+  // 1. Guard against null client initialization
+  if (!supabase) {
+    return {
+      ok: false,
+      status: 500,
+      error: 'Failed to initialize Supabase client',
+    };
+  }
+
+  // 2. Safe destructuring now that supabase is validated
   const {
     data: { user },
     error: userError,

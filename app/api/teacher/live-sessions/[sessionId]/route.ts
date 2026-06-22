@@ -4,6 +4,8 @@ import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import { initializeAdminSDK, sendNotificationsToMultiple } from "@/lib/firebase-admin";
 import { deactivateToken } from "@/lib/notification-utils";
+import { encryptLiveSessionSecret } from "@/lib/live-session-crypto";
+import { parseZoomJoinUrl } from "@/lib/zoom-deeplink";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -294,7 +296,7 @@ export async function PATCH(
     const body = await req.json();
     const action = String(body.action || "").trim();
 
-    if (!sessionId || !["start", "end", "cancel"].includes(action)) {
+    if (!sessionId || !["start", "end", "cancel", "update"].includes(action)) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
 
@@ -367,6 +369,28 @@ export async function PATCH(
       updates.status = "cancelled";
       updates.ended_at = new Date().toISOString();
     }
+    // Handle update action (edit title, zoom url, times)
+    if (action === "update") {
+      const title = body.title ? String(body.title).trim() : null;
+      const zoomUrl = body.zoomUrl ? String(body.zoomUrl).trim() : null;
+      const scheduledForRaw = body.scheduledFor ? String(body.scheduledFor) : null;
+      const scheduledEndRaw = body.scheduledEndAt ? String(body.scheduledEndAt) : null;
+
+      if (title) updates.title = title;
+      if (scheduledForRaw) updates.scheduled_for = new Date(scheduledForRaw).toISOString();
+      if (scheduledEndRaw) updates.scheduled_end_at = new Date(scheduledEndRaw).toISOString();
+
+      // If zoom URL changed, re-parse and update meeting details
+      if (zoomUrl) {
+        const { meetingId, password, webUrl } = parseZoomJoinUrl(zoomUrl);
+        updates.zoom_join_url_original = webUrl;
+        updates.meeting_id = meetingId;
+        if (password) {
+          updates.meeting_password_encrypted = encryptLiveSessionSecret(password);
+        }
+      }
+    }
+
     console.log(`\\n=== SESSION ACTION: ${action.toUpperCase()} ===`);
     console.log(`Session ID: ${sessionId}`);
     console.log(`New Status: ${updates.status}`);

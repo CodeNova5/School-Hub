@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getQuestionBankAuthContext } from '@/lib/question-bank/server';
+import { insertAuditLog } from '@/lib/question-bank/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,7 +70,7 @@ export async function PATCH(
     return NextResponse.json({ error: ctxResult.error }, { status: ctxResult.status });
   }
 
-  const { supabase, userId, schoolId } = ctxResult.context;
+  const { supabase, userId, userName, schoolId } = ctxResult.context;
 
   try {
     const body = await request.json();
@@ -122,6 +123,13 @@ export async function PATCH(
     if (!data) {
       return NextResponse.json({ error: 'Question bank not found or not editable' }, { status: 404 });
     }
+
+    // Audit log for bank update
+    await insertAuditLog(supabase, bankId, schoolId, 'bank_updated', userId, role as 'teacher' | 'admin', {
+      title: data.title,
+      subjectClassId: data.subject_class_id,
+      visibility: data.visibility,
+    }, userName);
 
     return NextResponse.json({ bank: data });
   } catch {

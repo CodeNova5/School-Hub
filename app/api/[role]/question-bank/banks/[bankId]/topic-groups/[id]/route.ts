@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getQuestionBankAuthContext } from '@/lib/question-bank/server';
+import { insertAuditLog } from '@/lib/question-bank/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +27,7 @@ export async function PATCH(
     return NextResponse.json({ error: ctxResult.error }, { status: ctxResult.status });
   }
 
-  const { supabase, userId, schoolId } = ctxResult.context;
+  const { supabase, userId, userName, schoolId } = ctxResult.context;
 
   try {
     const body = await request.json();
@@ -91,6 +92,14 @@ export async function PATCH(
       return NextResponse.json({ error: 'Failed to update topic group' }, { status: 400 });
     }
 
+    // Audit log for group update
+    const changedFields = Object.keys(updates).filter(k => k !== 'updated_at');
+    await insertAuditLog(supabase, bankId, schoolId, 'group_updated', userId, role as 'teacher' | 'admin', {
+      groupId: data.id,
+      changedFields,
+      title: data.name,
+    }, userName);
+
     return NextResponse.json({
       group: {
         id: data.id,
@@ -118,7 +127,7 @@ export async function DELETE(
     return NextResponse.json({ error: ctxResult.error }, { status: ctxResult.status });
   }
 
-  const { supabase, userId, schoolId } = ctxResult.context;
+  const { supabase, userId, userName, schoolId } = ctxResult.context;
 
   const { data: bank, error: bankError } = await supabase
     .from('teacher_question_banks')
@@ -137,7 +146,7 @@ export async function DELETE(
 
   const { data: existing, error: existingError } = await supabase
     .from('teacher_question_topic_sets')
-    .select('id, subject_class_id, created_by_teacher_id, created_by_admin_id')
+    .select('id, name, subject_class_id, created_by_teacher_id, created_by_admin_id')
     .eq('id', id)
     .eq('school_id', schoolId)
     .maybeSingle();
@@ -162,6 +171,12 @@ export async function DELETE(
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
+
+  // Audit log for group deletion
+  await insertAuditLog(supabase, bankId, schoolId, 'group_deleted', userId, role as 'teacher' | 'admin', {
+    groupId: id,
+    title: existing.name,
+  }, userName);
 
   return NextResponse.json({});
 }

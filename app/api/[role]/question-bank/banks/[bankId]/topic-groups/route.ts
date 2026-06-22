@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getQuestionBankAuthContext } from '@/lib/question-bank/server';
+import { insertAuditLog } from '@/lib/question-bank/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -91,7 +92,7 @@ export async function POST(
     return NextResponse.json({ error: ctxResult.error }, { status: ctxResult.status });
   }
 
-  const { supabase, userId, schoolId } = ctxResult.context;
+  const { supabase, userId, userName, schoolId } = ctxResult.context;
 
   try {
     const body = await request.json();
@@ -148,6 +149,13 @@ export async function POST(
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
+
+    // Audit log for group creation
+    await insertAuditLog(supabase, bankId, schoolId, 'group_created', userId, role as 'teacher' | 'admin', {
+      groupId: data.id,
+      title: data.name,
+      topicCount: (data.topics || []).length,
+    }, userName);
 
     return NextResponse.json({
       group: {

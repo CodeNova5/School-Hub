@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getQuestionBankAuthContext } from '@/lib/question-bank/server';
 import { createClient } from '@supabase/supabase-js';
+import { insertAuditLog } from '@/lib/question-bank/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -401,6 +402,15 @@ export async function POST(
     if (!data) {
       return NextResponse.json({ error: 'Failed to create question' }, { status: 400 });
     }
+
+    // Audit log
+    await insertAuditLog(supabase, bankId, schoolId, 'question_created', userId, role as 'teacher' | 'admin', {
+      questionId: data.id,
+      topic,
+      questionText: questionText.slice(0, 100),
+      questionType,
+      difficulty,
+    });
 
     return NextResponse.json({ question: data }, { status: 201 });
   } catch {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getQuestionBankAuthContext } from '@/lib/question-bank/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
+import { insertAuditLog } from '@/lib/question-bank/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -151,6 +152,14 @@ export async function PATCH(
       return NextResponse.json({ error: 'Question not found or not editable' }, { status: 404 });
     }
 
+    // Audit log for question edit
+    const changedFields = Object.keys(updates).filter(k => k !== 'updated_at');
+    await insertAuditLog(supabase, data.bank_id || existingQuestion.bank_id, schoolId, 'question_updated', userId, role as 'teacher' | 'admin', {
+      questionId: data.id,
+      changedFields,
+      questionText: (data.question_text || '').slice(0, 100),
+    });
+
     return NextResponse.json({ question: data });
   } catch {
     return NextResponse.json({ error: 'Invalid request payload' }, { status: 400 });
@@ -180,10 +189,26 @@ export async function DELETE(
     query = query.eq('created_by_teacher_id', userId);
   }
 
+  // Fetch question info before deleting for audit
+  const { data: questionToDelete } = await supabase
+    .from('teacher_questions')
+    .select('bank_id, topic, question_text')
+    .eq('id', questionId)
+    .maybeSingle();
+
   const { error } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  // Audit log for question delete
+  if (questionToDelete) {
+    await insertAuditLog(supabase, questionToDelete.bank_id, schoolId, 'question_deleted', userId, role as 'teacher' | 'admin', {
+      questionId,
+      topic: questionToDelete.topic,
+      questionText: (questionToDelete.question_text || '').slice(0, 100),
+    });
   }
 
   return NextResponse.json({ success: true });

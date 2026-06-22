@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getQuestionBankAuthContext } from '@/lib/question-bank/server';
 import { fetchGroqChatCompletion } from '@/lib/ai-assistant/groq-client';
 import { parseGroqJsonPayload, toTopicList } from '@/lib/teacher-question-bank/server';
+import { insertAuditLog } from '@/lib/question-bank/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -390,6 +391,15 @@ export async function POST(
         rawContent,
         insertedCount: insertedRows?.length || 0,
       },
+    });
+
+    // Audit log for question generation
+    await insertAuditLog(supabase, bankId, schoolId, 'question_generated', userId, role as 'teacher' | 'admin', {
+      count: insertedRows?.length || 0,
+      difficulty,
+      questionType,
+      topics: topics.slice(0, 5),
+      model: GROQ_MODEL,
     });
 
     return NextResponse.json({

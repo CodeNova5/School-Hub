@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getQuestionBankAuthContext } from '@/lib/question-bank/server';
+import { insertAuditLog } from '@/lib/question-bank/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -114,6 +115,14 @@ export async function POST(
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
+
+    // Audit log for config save
+    const questionCount = (config?.orderedQuestionIds as string[])?.length || 0;
+    await insertAuditLog(supabase, bankId, schoolId, 'exam_config_saved', userId, role as 'teacher' | 'admin', {
+      term,
+      questionCount,
+      hasCustomNumbers: Object.keys((config?.customNumbers as Record<string, string>) || {}).length > 0,
+    });
 
     return NextResponse.json({ config: data }, { status: 200 });
   } catch {

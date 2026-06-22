@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, BookOpen, FolderKanban, Globe2, Lock, Save, Search, Settings2, Sparkles, X, AlertCircle, CheckCircle, PencilLine, Trash2, Plus, Printer } from 'lucide-react';
+import { ArrowLeft, BookOpen, FolderKanban, Globe2, Lock, Save, Search, Settings2, Sparkles, X, AlertCircle, CheckCircle, PencilLine, Trash2, Plus, Printer, ClipboardList } from 'lucide-react';
 import { toast } from 'sonner';
 
 import ReactMarkdown from 'react-markdown';
@@ -827,6 +827,15 @@ export function QuestionBankDetail({ role }: QuestionBankDetailProps) {
               >
                 <Printer className="h-4 w-4 mr-2" />
                 Print Exam
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-stone-200"
+                onClick={() => router.push(`${routePrefix}/${bankId}/audit`)}
+              >
+                <ClipboardList className="h-4 w-4 mr-2" />
+                Audit Trail
               </Button>
             </div>
           </div>

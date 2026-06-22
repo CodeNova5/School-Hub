@@ -21,13 +21,10 @@ export async function GET(
     return NextResponse.json({ error: ctxResult.error }, { status: ctxResult.status });
   }
 
-  const { supabase, userName, schoolId } = ctxResult.context;
+  const { supabase, schoolId } = ctxResult.context;
   const term = request.nextUrl.searchParams.get('term');
 
   if (!term || !['1', '2', '3'].includes(term)) {
-    return NextResponse.json({ error: 'term parameter is required (1, 2, or 3)' }, { status: 400 });
-  }
-  
     return NextResponse.json({ error: 'term parameter is required (1, 2, or 3)' }, { status: 400 });
   }
 
@@ -144,7 +141,9 @@ export async function DELETE(
 
   if (!ctxResult.ok) {
     return NextResponse.json({ error: ctxResult.error }, { status: ctxResult.status });
-  }  const { supabase, userId, userName, schoolId } = ctxResult.context;
+  }
+
+  const { supabase, userId, userName, schoolId } = ctxResult.context;
   const term = request.nextUrl.searchParams.get('term');
 
   if (!term || !['1', '2', '3'].includes(term)) {

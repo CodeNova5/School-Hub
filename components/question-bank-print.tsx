@@ -12,11 +12,19 @@ import { Label } from '@/components/ui/label';
 import {
   ArrowLeft, GripVertical, Printer, Eye, EyeOff, Search,
   CheckSquare, Shuffle, FileText, X, Trash2, ArrowUp, ArrowDown, Dices, Edit, Settings,
-  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
+  Save, Download, CheckCircle2, AlertCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useSchoolContext } from '@/hooks/use-school-context';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -336,6 +344,16 @@ export function QuestionBankPrint({ role }: ExamPrintComponentProps) {
 
   const [showAnswerKey, setShowAnswerKey] = useState(false);
 
+  // Saved Configs
+  const [savedConfigTerms, setSavedConfigTerms] = useState<Set<string>>(new Set());
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingConfig, setIsLoadingConfig] = useState(false);
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [loadModalOpen, setLoadModalOpen] = useState(false);
+  const [selectedSaveTerm, setSelectedSaveTerm] = useState<'1' | '2' | '3'>('1');
+  const [selectedLoadTerm, setSelectedLoadTerm] = useState<'1' | '2' | '3' | null>(null);
+  const [configLastSaved, setConfigLastSaved] = useState<string | null>(null);
+
   // Sub-tab state for Arrange & Order
   const [arrangeSubTab, setArrangeSubTab] = useState<'objectives' | 'theory'>('objectives');
 
@@ -356,6 +374,13 @@ export function QuestionBankPrint({ role }: ExamPrintComponentProps) {
   useEffect(() => {
     if (bankId) loadData();
   }, [bankId]);
+
+  // Check for saved configs after data loads
+  useEffect(() => {
+    if (bank && schoolId && questions.length > 0) {
+      checkSavedConfigs();
+    }
+  }, [bank?.id, schoolId, questions.length]);
 
   useEffect(() => {
     if (schoolId) fetchSchoolDetails(schoolId);
@@ -631,6 +656,175 @@ export function QuestionBankPrint({ role }: ExamPrintComponentProps) {
 
 
 
+  // ── Saved Config Handlers ──
+
+  async function checkSavedConfigs() {
+    try {
+      const results = await Promise.all(
+        ['1', '2', '3'].map(async (term) => {
+          const res = await fetch(`${apiPrefix}/banks/${bankId}/exam-config?term=${term}`);
+          if (!res.ok) return null;
+          const data = await res.json();
+          return data.config ? term : null;
+        })
+      );
+      const terms = new Set(results.filter(Boolean) as string[]);
+      setSavedConfigTerms(terms);
+    } catch {
+      // silently ignore
+    }
+  }
+
+  function buildConfigPayload(): Record<string, unknown> {
+    const customNumbers: Record<string, string> = {};
+    const shuffledOptions: Record<string, string[]> = {};
+    const shuffledAnswers: Record<string, string | null | undefined> = {};
+
+    for (const q of orderedQuestions) {
+      if (q.custom_number) {
+        customNumbers[q.id] = q.custom_number;
+      }
+      // Detect if options were changed from original
+      const originalQuestion = questions.find((oq) => oq.id === q.id);
+      if (originalQuestion && originalQuestion.options) {
+        const origStr = JSON.stringify(originalQuestion.options);
+        const currStr = JSON.stringify(q.options);
+        if (origStr !== currStr) {
+          shuffledOptions[q.id] = q.options;
+          if (q.correct_answer) {
+            shuffledAnswers[q.id] = q.correct_answer;
+          }
+        }
+      }
+    }
+
+    return {
+      orderedQuestionIds: orderedQuestions.map((q) => q.id),
+      customNumbers,
+      shuffledOptions,
+      shuffledAnswers,
+      examTitle,
+      examTime,
+      objectiveInstructions,
+      theoryInstructions,
+    };
+  }
+
+  async function saveConfig(term: string) {
+    if (orderedQuestions.length === 0) {
+      toast.error('No questions selected to save');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const config = buildConfigPayload();
+      const res = await fetch(`${apiPrefix}/banks/${bankId}/exam-config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ term, config }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        toast.error(err?.error || 'Failed to save config');
+        return;
+      }
+
+      const data = await res.json();
+      setConfigLastSaved(new Date().toISOString());
+      setSavedConfigTerms((prev) => new Set(prev).add(term));
+      setSaveModalOpen(false);
+      toast.success(`Config saved for Term ${term}`);
+    } catch {
+      toast.error('Failed to save config');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function loadConfig(term: string) {
+    setIsLoadingConfig(true);
+    try {
+      const res = await fetch(`${apiPrefix}/banks/${bankId}/exam-config?term=${term}`);
+      if (!res.ok) {
+        toast.error('Failed to load config');
+        return;
+      }
+
+      const data = await res.json();
+      if (!data.config) {
+        toast.error(`No saved config found for Term ${term}`);
+        return;
+      }
+
+      const cfg = data.config;
+      const questionIds: string[] = cfg.orderedQuestionIds || [];
+      const customNumbers: Record<string, string> = cfg.customNumbers || {};
+      const shuffledOptions: Record<string, string[]> = cfg.shuffledOptions || {};
+      const shuffledAnswers: Record<string, string | null | undefined> = cfg.shuffledAnswers || {};
+
+      // Reconstruct ordered questions from the full questions list
+      const restoredQuestions = questionIds
+        .map((id) => questions.find((q) => q.id === id))
+        .filter(Boolean) as OrderedQuestionRecord[];
+
+      // Apply custom numbers and option shuffling
+      for (const q of restoredQuestions) {
+        if (customNumbers[q.id]) {
+          q.custom_number = customNumbers[q.id];
+        }
+        if (shuffledOptions[q.id]) {
+          q.options = shuffledOptions[q.id];
+          if (shuffledAnswers[q.id]) {
+            q.correct_answer = shuffledAnswers[q.id];
+          }
+        }
+      }
+
+      const foundIds = restoredQuestions.map((q) => q.id);
+
+      setSelectedQuestionIds(foundIds);
+      setOrderedQuestions(restoredQuestions);
+
+      // Restore exam configuration
+      if (cfg.examTitle) setExamTitle(cfg.examTitle);
+      if (cfg.examTime) setExamTime(cfg.examTime);
+      if (cfg.objectiveInstructions) setObjectiveInstructions(cfg.objectiveInstructions);
+      if (cfg.theoryInstructions) setTheoryInstructions(cfg.theoryInstructions);
+
+      setConfigLastSaved(data.config.updated_at || null);
+      setLoadModalOpen(false);
+      toast.success(`Config loaded for Term ${term}`);
+    } catch {
+      toast.error('Failed to load config');
+    } finally {
+      setIsLoadingConfig(false);
+    }
+  }
+
+  async function deleteSavedConfig(term: string) {
+    try {
+      const res = await fetch(`${apiPrefix}/banks/${bankId}/exam-config?term=${term}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        toast.error('Failed to delete config');
+        return;
+      }
+
+      setSavedConfigTerms((prev) => {
+        const next = new Set(prev);
+        next.delete(term);
+        return next;
+      });
+      toast.success(`Config deleted for Term ${term}`);
+    } catch {
+      toast.error('Failed to delete config');
+    }
+  }
+
   // --- End Handlers ---
 
   if (isLoading || schoolLoading) {
@@ -667,12 +861,53 @@ export function QuestionBankPrint({ role }: ExamPrintComponentProps) {
                   <p className="text-sm text-slate-500">{bank?.title || 'Question Bank'}</p>
                 </div>
               </div>
-              <StatsBanner
-                total={orderedQuestions.length}
-                objectives={objectives.length}
-                theory={theory.length}
-                compact
-              />
+              <div className="flex items-center gap-3">
+                {/* Saved config indicators */}
+                {savedConfigTerms.size > 0 && (
+                  <div className="hidden sm:flex items-center gap-1">
+                    {['1', '2', '3'].map((term) =>
+                      savedConfigTerms.has(term) ? (
+                        <span
+                          key={term}
+                          className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 border border-emerald-200"
+                          title={`Term ${term} config saved`}
+                        >
+                          T{term}
+                        </span>
+                      ) : null
+                    )}
+                  </div>
+                )}
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    onClick={() => setLoadModalOpen(true)}
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-2.5 gap-1.5 text-xs border-slate-300"
+                    title="Load saved exam config"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Load</span>
+                  </Button>
+                  <Button
+                    onClick={() => setSaveModalOpen(true)}
+                    disabled={orderedQuestions.length === 0}
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-2.5 gap-1.5 text-xs border-slate-300"
+                    title="Save exam config for reuse"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Save</span>
+                  </Button>
+                </div>
+                <StatsBanner
+                  total={orderedQuestions.length}
+                  objectives={objectives.length}
+                  theory={theory.length}
+                  compact
+                />
+              </div>
             </div>
           </div>
 
@@ -1621,6 +1856,189 @@ export function QuestionBankPrint({ role }: ExamPrintComponentProps) {
             </div>
           </div>
         )}
+
+        {/* ── Save Modal ── */}
+        <Dialog open={saveModalOpen} onOpenChange={setSaveModalOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Save className="w-5 h-5 text-blue-600" />
+                Save Exam Config
+              </DialogTitle>
+              <DialogDescription>
+                Save your current question selection, ordering, option arrangement, and exam details so you can reuse them later.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-slate-700">Save for Term</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['1', '2', '3'] as const).map((term) => (
+                    <button
+                      key={term}
+                      onClick={() => setSelectedSaveTerm(term)}
+                      className={`
+                        py-3 px-4 rounded-lg border-2 text-sm font-semibold transition-all
+                        ${selectedSaveTerm === term
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                        }
+                        ${savedConfigTerms.has(term) ? 'ring-1 ring-emerald-400' : ''}
+                      `}
+                    >
+                      <div className="text-center">
+                        <div>Term {term}</div>
+                        {savedConfigTerms.has(term) && (
+                          <div className="text-[10px] text-emerald-600 mt-0.5 flex items-center justify-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" />
+                            Has saved config
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-slate-50 rounded-lg p-3 space-y-1">
+                <div className="flex justify-between text-xs text-slate-600">
+                  <span>Questions selected</span>
+                  <span className="font-semibold">{orderedQuestions.length}</span>
+                </div>
+                <div className="flex justify-between text-xs text-slate-600">
+                  <span>Objectives</span>
+                  <span className="font-semibold">{objectives.length}</span>
+                </div>
+                <div className="flex justify-between text-xs text-slate-600">
+                  <span>Theory</span>
+                  <span className="font-semibold">{theory.length}</span>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setSaveModalOpen(false)}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => saveConfig(selectedSaveTerm)}
+                  disabled={isSaving || orderedQuestions.length === 0}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  {isSaving ? 'Saving...' : `Save for Term ${selectedSaveTerm}`}
+                </Button>
+              </div>
+
+              {savedConfigTerms.has(selectedSaveTerm) && (
+                <p className="text-xs text-amber-600 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  Overwriting existing config for Term {selectedSaveTerm}
+                </p>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── Load Modal ── */}
+        <Dialog open={loadModalOpen} onOpenChange={setLoadModalOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Download className="w-5 h-5 text-blue-600" />
+                Load Exam Config
+              </DialogTitle>
+              <DialogDescription>
+                Load a previously saved exam configuration. This will replace your current selection and any unsaved changes will be lost.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-slate-700">Select Term</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['1', '2', '3'] as const).map((term) => {
+                    const hasConfig = savedConfigTerms.has(term);
+                    return (
+                      <button
+                        key={term}
+                        onClick={() => hasConfig && setSelectedLoadTerm(term)}
+                        disabled={!hasConfig}
+                        className={`
+                          py-3 px-4 rounded-lg border-2 text-sm font-semibold transition-all
+                          ${selectedLoadTerm === term
+                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                            : hasConfig
+                              ? 'border-slate-200 text-slate-600 hover:border-slate-300 cursor-pointer'
+                              : 'border-slate-100 text-slate-400 cursor-not-allowed opacity-50'
+                          }
+                        `}
+                      >
+                        <div className="text-center">
+                          <div>Term {term}</div>
+                          {hasConfig ? (
+                            <div className="text-[10px] text-emerald-600 mt-0.5 flex items-center justify-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Available
+                            </div>
+                          ) : (
+                            <div className="text-[10px] text-slate-400 mt-0.5">
+                              No config
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {selectedLoadTerm && savedConfigTerms.has(selectedLoadTerm) && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div>
+                    Loading will replace your current {orderedQuestions.length > 0 ? `selection of ${orderedQuestions.length} questions` : 'work'}. Consider saving first if you want to keep your current changes.
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setLoadModalOpen(false)}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => selectedLoadTerm && loadConfig(selectedLoadTerm)}
+                  disabled={isLoadingConfig || !selectedLoadTerm || !savedConfigTerms.has(selectedLoadTerm)}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  {isLoadingConfig ? 'Loading...' : `Load Term ${selectedLoadTerm}`}
+                </Button>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5">
+                {['1', '2', '3'].map((term) =>
+                  savedConfigTerms.has(term) && (
+                    <button
+                      key={term}
+                      onClick={() => deleteSavedConfig(term)}
+                      className="text-[11px] text-red-500 hover:text-red-700 hover:underline flex items-center gap-1"
+                    >
+                      <X className="w-3 h-3" />
+                      Delete Term {term}
+                    </button>
+                  )
+                )}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
       </div>
     </DashboardLayout>

@@ -393,7 +393,7 @@ export function QuestionBankAudit({ role }: QuestionBankAuditProps) {
                         <p className="text-sm text-slate-700">
                           {getActionSummary(log.action, log.details)}
                         </p>
-                        {log.details.questionText && (
+                        {(log.details.questionText as string) && (
                           <p className="text-xs text-slate-400 mt-1 line-clamp-1">
                             {log.details.questionText as string}
                           </p>

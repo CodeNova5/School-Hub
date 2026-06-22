@@ -1,0 +1,401 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getQuestionBankAuthContext } from '@/lib/question-bank/server';
+import { fetchGroqChatCompletion } from '@/lib/ai-assistant/groq-client';
+import { parseGroqJsonPayload, toTopicList } from '@/lib/teacher-question-bank/server';
+
+export const dynamic = 'force-dynamic';
+
+const GROQ_MODEL = 'openai/gpt-oss-20b';
+const PROMPT_VERSION = 'v1';
+
+type RouteContext = {
+  params: Promise<{ role: string }>;
+};
+
+type GeneratedQuestion = {
+  topic: string;
+  question_text: string;
+  options: string[];
+  correct_answer?: string | null;
+  explanation?: string | null;
+  contains_math: boolean;
+};
+
+function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' | 'theory'): GeneratedQuestion[] {
+  if (!Array.isArray(input)) return [];
+
+  const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+
+  function resolveLetter(options: string[], raw: string | undefined | null): string | null {
+    if (!raw) return null;
+    const candidate = String(raw).trim();
+    if (!candidate) return null;
+
+    const strippedCandidate = candidate
+      .replace(/^answer\s*[:\\-]?\s*/i, '')
+      .replace(/^(?:option\s*)?([A-H])\s*[).:-]?\s*/i, '$1')
+      .trim();
+
+    const normalizedCandidate = strippedCandidate || candidate;
+
+    if (/^[A-H]$/i.test(normalizedCandidate)) {
+      const idx = LETTERS.indexOf(normalizedCandidate.toUpperCase());
+      if (idx >= 0 && idx < options.length) return LETTERS[idx];
+    }
+
+    const letterMatch = normalizedCandidate.match(/^([A-H])\b/i);
+    if (letterMatch) {
+      const idx = LETTERS.indexOf(letterMatch[1].toUpperCase());
+      if (idx >= 0 && idx < options.length) return LETTERS[idx];
+    }
+
+    const exactIdx = options.findIndex((opt) => opt.toLowerCase() === normalizedCandidate.toLowerCase());
+    if (exactIdx >= 0) return LETTERS[exactIdx];
+
+    const partialIdx = options.findIndex(
+      (opt) =>
+        opt.toLowerCase().includes(normalizedCandidate.toLowerCase()) ||
+        normalizedCandidate.toLowerCase().includes(opt.toLowerCase()),
+    );
+    if (partialIdx >= 0) return LETTERS[partialIdx];
+
+    const anyLetter = candidate.match(/\b([A-H])\b/i);
+    if (anyLetter) {
+      const idx = LETTERS.indexOf(anyLetter[1].toUpperCase());
+      if (idx >= 0 && idx < options.length) return LETTERS[idx];
+      if (options.length > 0) return LETTERS[0];
+    }
+
+    return null;
+  }
+
+  const normalized: GeneratedQuestion[] = [];
+
+  for (const item of input) {
+    if (!item || typeof item !== 'object') continue;
+    const row = item as Record<string, unknown>;
+    const topic = String(row.topic || '').trim();
+    const questionText = String(row.question_text || '').trim();
+    const explanation = row.explanation ? String(row.explanation).trim() : '';
+    const rawCorrect = row.correct_answer ? String(row.correct_answer).trim() : '';
+
+    const containsMathFromAI = typeof row.contains_math === 'boolean' ? row.contains_math : false;
+    const LATEX_RE = /\$[^$\n]+?\$|\$\$[\s\S]+?\$\$|\\(?:frac|sqrt|le|ge|leq|geq|times|div|sum|int|pm|cdot|alpha|beta|gamma|theta|pi|sigma|infty)\b/;
+    const allText = [
+      String(row.question_text || ''),
+      ...(Array.isArray(row.options) ? row.options.map(String) : []),
+      String(row.explanation || ''),
+    ].join(' ');
+    const containsMath = containsMathFromAI || LATEX_RE.test(allText);
+
+    if (!topic || !questionText) continue;
+
+    if (questionType === 'objective') {
+      const options = Array.isArray(row.options)
+        ? row.options.map((v) => String(v || '').trim()).filter(Boolean)
+        : [];
+
+      if (options.length < 2) continue;
+
+      const letter = resolveLetter(options, rawCorrect);
+      if (!letter) continue;
+
+      normalized.push({
+        topic,
+        question_text: questionText,
+        options,
+        correct_answer: letter,
+        explanation,
+        contains_math: containsMath,
+      });
+      continue;
+    }
+
+    normalized.push({
+      topic,
+      question_text: questionText,
+      options: [],
+      correct_answer: rawCorrect || null,
+      explanation,
+      contains_math: containsMath,
+    });
+  }
+
+  return normalized;
+}
+
+export async function POST(
+  request: NextRequest,
+  { params }: RouteContext
+) {
+  const { role } = await params;
+  const ctxResult = await getQuestionBankAuthContext(role);
+
+  if (!ctxResult.ok) {
+    return NextResponse.json({ error: ctxResult.error }, { status: ctxResult.status });
+  }
+
+  const { supabase, userId, schoolId } = ctxResult.context;
+
+  try {
+    const body = await request.json();
+    const bankId = String(body?.bankId || '').trim();
+    const subjectClassId = String(body?.subjectClassId || '').trim();
+    const difficulty = body?.difficulty as 'easy' | 'medium' | 'hard';
+    const questionType = body?.questionType as 'objective' | 'theory';
+    const count = Number(body?.count || 5);
+    const topicSetId = body?.topicSetId ? String(body.topicSetId).trim() : null;
+    const explicitTopics = toTopicList(body?.topics);
+    const visibility = body?.visibility === 'public_school' ? 'public_school' : 'private';
+
+    if (!bankId || !subjectClassId || !difficulty || !questionType) {
+      return NextResponse.json({ error: 'bankId, subjectClassId, difficulty, and questionType are required' }, { status: 400 });
+    }
+
+    if (!['easy', 'medium', 'hard'].includes(difficulty)) {
+      return NextResponse.json({ error: 'difficulty must be easy, medium, or hard' }, { status: 400 });
+    }
+
+    if (!['objective', 'theory'].includes(questionType)) {
+      return NextResponse.json({ error: 'questionType must be objective or theory' }, { status: 400 });
+    }
+
+    const questionCount = Math.min(Math.max(Number.isFinite(count) ? Math.floor(count) : 5, 1), 30);
+
+    // Build ownership filter
+    const ownerColumn = role === 'teacher' ? 'created_by_teacher_id' : 'created_by_admin_id';
+    const ownerIdColumn = role === 'teacher' ? 'teacher_id' : undefined;
+
+    const [bankResult, subjectClassResult] = await Promise.all([
+      supabase
+        .from('teacher_question_banks')
+        .select('id, title, visibility')
+        .eq('id', bankId)
+        .eq('school_id', schoolId)
+        .eq(ownerColumn, userId)
+        .maybeSingle(),
+      supabase
+        .from('subject_classes')
+        .select(`
+          id,
+          subjects!subject_classes_subject_id_fkey(name),
+          classes(name)
+        `)
+        .eq('id', subjectClassId)
+        .eq('school_id', schoolId)
+        .maybeSingle(),
+    ]);
+
+    if (bankResult.error || !bankResult.data) {
+      return NextResponse.json({ error: 'Question bank not found or not editable' }, { status: 403 });
+    }
+
+    if (subjectClassResult.error || !subjectClassResult.data) {
+      return NextResponse.json({ error: 'Invalid subject class selection' }, { status: 403 });
+    }
+
+    let topics = explicitTopics;
+
+    if (topicSetId) {
+      const { data: topicSet } = await supabase
+        .from('teacher_question_topic_sets')
+        .select('topics')
+        .eq('id', topicSetId)
+        .eq('school_id', schoolId)
+        .maybeSingle();
+
+      if (topicSet?.topics) {
+        topics = toTopicList(topicSet.topics);
+      }
+    }
+
+    if (topics.length === 0) {
+      return NextResponse.json({ error: 'Provide topics or topicSetId with saved topics' }, { status: 400 });
+    }
+
+    const subjectName = (subjectClassResult.data as any)?.subjects?.name || 'the selected subject';
+    const className = (subjectClassResult.data as any)?.classes?.name || 'the selected class';
+
+    const requestPayload = {
+      bankId,
+      subjectClassId,
+      difficulty,
+      questionType,
+      count: questionCount,
+      topicSetId,
+      topics,
+      promptVersion: PROMPT_VERSION,
+    };
+
+    const groqResponse = await fetchGroqChatCompletion({
+      model: GROQ_MODEL,
+      temperature: 0.3,
+      max_tokens: 3000,
+      messages: [
+        {
+          role: 'system',
+          content: [
+            'You are an expert teacher question author.',
+            'Return ONLY valid JSON with shape {"questions": GeneratedQuestion[]}. No markdown fences, no commentary outside the JSON.',
+            'GeneratedQuestion fields: topic (string), question_text (string), options (string[] — exactly 4 items for objective, empty [] for theory), correct_answer ("A"|"B"|"C"|"D" for objective OR a model-answer string for theory), explanation (string), contains_math (boolean).',
+            'CRITICAL JSON ESCAPING RULES FOR LATEX:',
+            '1. Because you are outputting raw text inside a JSON string property, you MUST double-escape all backslashes.',
+            '2. Write "\\\\frac{1}{2}" instead of "\\\\frac{1}{2}". Write "\\\\times" instead of "\\\\times". Write "\\\\delta" instead of "\\\\delta".',
+            '3. Ensure all curly brackets used in LaTeX are safely contained inside the quoted JSON string properties.',
+            'MATH FORMATTING: For any mathematical symbols, equations, variables, exponents, fractions, inequalities, or chemical formulas, use LaTeX wrapped in single dollar signs: $x^2$, $\\\\frac{1}{2}$, $1 < x \\\\le \\\\frac{8}{3}$, $\\\\text{H}_2\\\\text{O}$.',
+            'contains_math RULE — this field is MANDATORY on every question object: set it to true if ANY of the fields contain even ONE LaTeX expression ($...$). Set it to false ONLY if the entire question is plain text with no formulas whatsoever.',
+          ].join(' '),
+        },
+        {
+          role: 'user',
+          content: [
+            `Generate ${questionCount} ${questionType} questions for subject ${subjectName} and class ${className}.`,
+            `Difficulty level: ${difficulty}.`,
+            `Topics to cover: ${topics.join(', ')}.`,
+            questionType === 'objective'
+              ? 'Each objective question must include exactly 4 options. The correct_answer must strictly be only the letter index of the correct option: "A", "B", "C", or "D".'
+              : 'For theory questions include a concise model answer in correct_answer and marking guidance in explanation.',
+            'Output valid JSON only.',
+          ].join('\n'),
+        },
+      ],
+    });
+
+    if (!groqResponse.ok) {
+      await supabase.from('teacher_question_generation_logs').insert({
+        school_id: schoolId,
+        teacher_id: userId,
+        subject_class_id: subjectClassId,
+        bank_id: bankId,
+        topic_set_id: topicSetId,
+        question_type: questionType,
+        difficulty,
+        requested_count: questionCount,
+        generated_count: 0,
+        model: GROQ_MODEL,
+        prompt_version: PROMPT_VERSION,
+        status: 'failed',
+        error_message: groqResponse.error,
+        request_payload: requestPayload,
+      });
+
+      return NextResponse.json({ error: groqResponse.error }, { status: groqResponse.status || 400 });
+    }
+
+    const rawContent = groqResponse.data?.choices?.[0]?.message?.content;
+    const parsed = parseGroqJsonPayload(rawContent);
+    const generatedQuestions = normalizeGeneratedQuestions(parsed?.questions, questionType);
+
+    if (generatedQuestions.length === 0) {
+      await supabase.from('teacher_question_generation_logs').insert({
+        school_id: schoolId,
+        teacher_id: userId,
+        subject_class_id: subjectClassId,
+        bank_id: bankId,
+        topic_set_id: topicSetId,
+        question_type: questionType,
+        difficulty,
+        requested_count: questionCount,
+        generated_count: 0,
+        model: GROQ_MODEL,
+        prompt_version: PROMPT_VERSION,
+        status: 'failed',
+        error_message: 'AI payload could not be validated due to structure or parse failure',
+        request_payload: requestPayload,
+        response_payload: { rawContent },
+      });
+
+      return NextResponse.json({ error: 'AI payload could not be validated' }, { status: 422 });
+    }
+
+    const rowsToInsert = generatedQuestions.map((question) => ({
+      school_id: schoolId,
+      bank_id: bankId,
+      subject_class_id: subjectClassId,
+      topic_set_id: topicSetId,
+      created_by_teacher_id: role === 'teacher' ? userId : null,
+      question_type: questionType,
+      difficulty,
+      visibility,
+      topic: question.topic,
+      question_text: question.question_text,
+      options: questionType === 'objective' ? question.options || [] : [],
+      correct_answer: question.correct_answer || null,
+      explanation: question.explanation || null,
+      metadata: {
+        generatedBy: 'groq',
+        model: GROQ_MODEL,
+        promptVersion: PROMPT_VERSION,
+        containsMath: question.contains_math,
+      },
+    }));
+
+    const { data: insertedRows, error: insertError } = await supabase
+      .from('teacher_questions')
+      .insert(rowsToInsert)
+      .select(`
+        id,
+        topic,
+        question_text,
+        options,
+        correct_answer,
+        explanation,
+        question_type,
+        difficulty,
+        visibility,
+        created_by_teacher_id,
+        created_at,
+        updated_at,
+        metadata
+      `);
+
+    if (insertError) {
+      await supabase.from('teacher_question_generation_logs').insert({
+        school_id: schoolId,
+        teacher_id: userId,
+        subject_class_id: subjectClassId,
+        bank_id: bankId,
+        topic_set_id: topicSetId,
+        question_type: questionType,
+        difficulty,
+        requested_count: questionCount,
+        generated_count: 0,
+        model: GROQ_MODEL,
+        prompt_version: PROMPT_VERSION,
+        status: 'failed',
+        error_message: insertError.message,
+        request_payload: requestPayload,
+        response_payload: { rawContent },
+      });
+
+      return NextResponse.json({ error: insertError.message }, { status: 400 });
+    }
+
+    await supabase.from('teacher_question_generation_logs').insert({
+      school_id: schoolId,
+      teacher_id: userId,
+      subject_class_id: subjectClassId,
+      bank_id: bankId,
+      topic_set_id: topicSetId,
+      question_type: questionType,
+      difficulty,
+      requested_count: questionCount,
+      generated_count: insertedRows?.length || 0,
+      model: GROQ_MODEL,
+      prompt_version: PROMPT_VERSION,
+      status: 'success',
+      request_payload: requestPayload,
+      response_payload: {
+        rawContent,
+        insertedCount: insertedRows?.length || 0,
+      },
+    });
+
+    return NextResponse.json({
+      questions: insertedRows || [],
+      generatedCount: insertedRows?.length || 0,
+    });
+  } catch {
+    return NextResponse.json({ error: 'Invalid request payload' }, { status: 400 });
+  }
+}

@@ -1,12 +1,10 @@
-"use client";
-
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { QuestionBankDetail } from '@/components/question-bank-detail';
 
-export default function TeacherQuestionBankDetailPage() {
+export default function AdminQuestionBankDetailPage() {
   return (
-    <DashboardLayout role="teacher">
-      <QuestionBankDetail role="teacher" />
+    <DashboardLayout role="admin">
+      <QuestionBankDetail role="admin" />
     </DashboardLayout>
   );
 }

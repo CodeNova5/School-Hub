@@ -3,10 +3,10 @@
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { QuestionBankGroups } from '@/components/question-bank-groups';
 
-export default function TeacherQuestionGroupsPage() {
+export default function AdminQuestionGroupsPage() {
   return (
-    <DashboardLayout role="teacher">
-      <QuestionBankGroups role="teacher" />
+    <DashboardLayout role="admin">
+      <QuestionBankGroups role="admin" />
     </DashboardLayout>
   );
 }

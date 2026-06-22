@@ -314,6 +314,7 @@ export async function POST(
       subject_class_id: subjectClassId,
       topic_set_id: topicSetId,
       created_by_teacher_id: role === 'teacher' ? userId : null,
+      created_by_admin_id: role === 'admin' ? userId : null,
       question_type: questionType,
       difficulty,
       visibility,

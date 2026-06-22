@@ -303,7 +303,7 @@ export default function TeacherLiveClassesPage() {
     }
   }
 
-  const loadLiveSessionsRef = useRef<() => Promise<void>>();
+  const loadLiveSessionsRef = useRef<() => Promise<void> | null>(null);
 
   loadLiveSessionsRef.current = useCallback(async () => {
     const response = await fetch("/api/teacher/live-sessions");
@@ -317,7 +317,7 @@ export default function TeacherLiveClassesPage() {
   }, []);
 
   async function loadLiveSessions() {
-    await loadLiveSessionsRef.current!();
+    await loadLiveSessionsRef.current?.();
   }
 
   async function createLiveSession() {

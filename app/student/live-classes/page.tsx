@@ -26,6 +26,7 @@ type StudentLiveSession = {
   subject_class_id: string | null;
   status: "scheduled" | "live" | "ended" | "cancelled";
   scheduled_for: string | null;
+  scheduled_end_at: string | null;
   started_at: string | null;
   ended_at: string | null;
   created_at: string;
@@ -74,7 +75,7 @@ export default function StudentLiveClassesPage() {
   const [sessions, setSessions] = useState<StudentLiveSession[]>([]);
   const [pastExpanded, setPastExpanded] = useState(false);
 
-  const loadSessionsRef = useRef<() => Promise<void>>();
+  const loadSessionsRef = useRef<() => Promise<void>>(async () => {});
 
   // Use ref to avoid stale closures in the realtime callback
   loadSessionsRef.current = useCallback(async () => {

@@ -40,21 +40,23 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
   if (role === 'teacher') {
     topicSetsQuery = topicSetsQuery.eq('created_by_teacher_id', userId);
-  } else {
-    topicSetsQuery = topicSetsQuery.eq('created_by_admin_id', userId);
   }
+  // Admins see all topic sets in the school
 
-  const idColumn = role === 'teacher' ? 'created_by_teacher_id' : 'created_by_admin_id';
+  let banksQuery = supabase
+    .from('teacher_question_banks')
+    .select('id, title, description, subject_class_id, visibility, created_by_teacher_id, created_by_admin_id, created_at')
+    .eq('school_id', schoolId);
+
+  if (role === 'teacher') {
+    banksQuery = banksQuery.or(`created_by_teacher_id.in.(${userId}),visibility.eq.public_school`);
+  }
+  // Admins see all banks in the school
   
   const [subjectClassesResult, topicSetsResult, banksResult] = await Promise.all([
     subjectClassesQuery.order('created_at', { ascending: false }),
     topicSetsQuery.order('created_at', { ascending: false }),
-    supabase
-      .from('teacher_question_banks')
-      .select('id, title, description, subject_class_id, visibility, created_by_teacher_id, created_by_admin_id, created_at')
-      .eq('school_id', schoolId)
-      .or(`${idColumn}.eq.${userId},visibility.eq.public_school`)
-      .order('created_at', { ascending: false }),
+    banksQuery.order('created_at', { ascending: false }),
   ]);
 
   if (subjectClassesResult.error) return NextResponse.json({ error: subjectClassesResult.error.message }, { status: 400 });

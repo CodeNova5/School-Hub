@@ -30,13 +30,17 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     query = query.eq('subject_class_id', subjectClassId);
   }
 
-  const idColumn = role === 'teacher' ? 'created_by_teacher_id' : 'created_by_admin_id';
-
-  if (owner === 'mine') {
-    query = query.eq(idColumn, userId);
-  } else {
-    query = query.or(`${idColumn}.eq.${userId},visibility.eq.public_school`);
+  // Teachers see their own banks + school-shared; admins see everything
+  if (role === 'teacher') {
+    if (owner === 'mine') {
+      query = query.eq('created_by_teacher_id', userId);
+    } else {
+      query = query.or(`created_by_teacher_id.eq.${userId},visibility.eq.public_school`);
+    }
+  } else if (owner === 'mine') {
+    query = query.eq('created_by_admin_id', userId);
   }
+  // Admins with no owner filter see all banks
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });

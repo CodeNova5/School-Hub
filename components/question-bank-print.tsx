@@ -753,12 +753,15 @@ export function QuestionBankPrint({ role }: ExamPrintComponentProps) {
       }
 
       const data = await res.json();
-      if (!data.config) {
+      const row = data.config;
+      if (!row) {
         toast.error(`No saved config found for Term ${term}`);
         return;
       }
 
-      const cfg = data.config;
+      // The API returns { config: { id, term, config: {...payload...}, created_at, updated_at } }
+      // So the actual payload is in row.config (the JSONB column)
+      const cfg = row.config || row;
       const questionIds: string[] = cfg.orderedQuestionIds || [];
       const customNumbers: Record<string, string> = cfg.customNumbers || {};
       const shuffledOptions: Record<string, string[]> = cfg.shuffledOptions || {};
@@ -793,7 +796,7 @@ export function QuestionBankPrint({ role }: ExamPrintComponentProps) {
       if (cfg.objectiveInstructions) setObjectiveInstructions(cfg.objectiveInstructions);
       if (cfg.theoryInstructions) setTheoryInstructions(cfg.theoryInstructions);
 
-      setConfigLastSaved(data.config.updated_at || null);
+      setConfigLastSaved(row.updated_at || null);
       setLoadModalOpen(false);
       toast.success(`Config loaded for Term ${term}`);
     } catch {

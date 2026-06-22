@@ -38,6 +38,11 @@ import {
   UserCheck,
   CheckCircle2,
   ArrowLeft,
+  X,
+  Check,
+  BarChart3,
+  AlertCircle,
+  NotebookPen,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -92,6 +97,70 @@ interface GeneratedLessonNote {
 }
 
 /* ────────────────────────────────────────────────────────────────────────── */
+/*  Sub-components                                                             */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+function InlineEditor({ value, onSave, onCancel, large }: {
+  value: string;
+  onSave: (val: string) => void;
+  onCancel: () => void;
+  large?: boolean;
+}) {
+  const [editVal, setEditVal] = useState(value);
+  return (
+    <div className="space-y-2">
+      <textarea
+        value={editVal}
+        onChange={(e) => setEditVal(e.target.value)}
+        className={`w-full rounded-xl border border-stone-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 ${large ? 'min-h-[200px]' : 'min-h-[80px]'}`}
+      />
+      <div className="flex items-center gap-2">
+        <button onClick={() => onSave(editVal)} className="px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
+          <Check className="h-3.5 w-3.5 inline mr-1" />
+          Done
+        </button>
+        <button onClick={onCancel} className="px-3 py-1.5 text-xs font-medium text-stone-600 hover:text-stone-800 transition-colors">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function EditableCard({ icon, label, color, initialValue, onSave, onCancel }: {
+  icon: React.ReactNode;
+  label: string;
+  color: string;
+  initialValue: string;
+  onSave: (val: string) => void;
+  onCancel: () => void;
+}) {
+  const [val, setVal] = useState(initialValue);
+  const colorMap: Record<string, { bg: string; border: string; text: string; ring: string }> = {
+    amber: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-900', ring: 'ring-amber-400' },
+    blue: { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-900', ring: 'ring-blue-400' },
+  };
+  const c = colorMap[color] || colorMap.amber;
+  return (
+    <div className={`${c.bg} border ${c.border} rounded-xl p-4`}>
+      <div className="flex items-center gap-2 ${c.text} font-medium text-sm mb-1">
+        {icon}
+        {label}
+      </div>
+      <input value={val} onChange={(e) => setVal(e.target.value)}
+        className={`w-full ${c.bg} ${c.text} text-sm rounded-lg px-2 py-1 focus:outline-none focus:ring-2 ${c.ring}`}
+      />
+      <div className="flex items-center gap-2 mt-2">
+        <button onClick={() => onSave(val)} className="px-2.5 py-1 text-xs font-medium bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
+          <Check className="h-3 w-3 inline mr-0.5" />Done
+        </button>
+        <button onClick={onCancel} className="px-2.5 py-1 text-xs font-medium text-stone-500 hover:text-stone-700">Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
 /*  Component                                                                  */
 /* ────────────────────────────────────────────────────────────────────────── */
 
@@ -124,13 +193,20 @@ export function TeacherLessonNotes() {
 
   // Generated lesson note state
   const [generatedNote, setGeneratedNote] = useState<GeneratedLessonNote | null>(null);
-  const [editingNote, setEditingNote] = useState<LessonNoteRecord | null>(null);
+
+  // Editor state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState<GeneratedLessonNote | null>(null);
+  const [editField, setEditField] = useState<string | null>(null);
 
   // View state
   const [activeTab, setActiveTab] = useState('generate');
   const [viewNote, setViewNote] = useState<LessonNoteRecord | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  // Planner state
+  const [plannerGenerating, setPlannerGenerating] = useState<string | null>(null);
 
   /* ──────────────────────────────────────────────────────────────────────── */
   /*  Loaders                                                                  */
@@ -403,6 +479,174 @@ export function TeacherLessonNotes() {
   }
 
   /* ──────────────────────────────────────────────────────────────────────── */
+  /*  Editor Actions                                                           */
+  /* ──────────────────────────────────────────────────────────────────────── */
+
+  function handleStartEditing() {
+    if (!generatedNote) return;
+    setEditData(JSON.parse(JSON.stringify(generatedNote)));
+    setIsEditing(true);
+  }
+
+  function handleCancelEditing() {
+    setIsEditing(false);
+    setEditData(null);
+    setEditField(null);
+  }
+
+  function handleEditFieldChange(field: string, value: string | string[]) {
+    if (!editData) return;
+    setEditData((prev) => {
+      if (!prev) return prev;
+      return { ...prev, [field]: value };
+    });
+  }
+
+  function handleAddListItem(field: 'objectives' | 'evaluation' | 'instructional_materials') {
+    if (!editData) return;
+    setEditData((prev) => {
+      if (!prev) return prev;
+      return { ...prev, [field]: [...(prev[field] || []), ''] };
+    });
+  }
+
+  function handleUpdateListItem(field: 'objectives' | 'evaluation' | 'instructional_materials', index: number, value: string) {
+    if (!editData) return;
+    setEditData((prev) => {
+      if (!prev) return prev;
+      const updated = [...(prev[field] || [])];
+      updated[index] = value;
+      return { ...prev, [field]: updated };
+    });
+  }
+
+  function handleRemoveListItem(field: 'objectives' | 'evaluation' | 'instructional_materials', index: number) {
+    if (!editData) return;
+    setEditData((prev) => {
+      if (!prev) return prev;
+      const updated = [...(prev[field] || [])];
+      updated.splice(index, 1);
+      return { ...prev, [field]: updated };
+    });
+  }
+
+  function handleApplyEdits() {
+    if (!editData) return;
+    setGeneratedNote(editData);
+    setIsEditing(false);
+    setEditField(null);
+    toast.success('Edits applied');
+  }
+
+  /* ──────────────────────────────────────────────────────────────────────── */
+  /*  Planner Actions                                                           */
+  /* ──────────────────────────────────────────────────────────────────────── */
+
+  // Compute topic coverage: which topics have saved lesson notes?
+  const savedTopicSet = new Set(savedNotes.map((n) => n.topic.toLowerCase().trim()));
+  const plannedTopics = topicGroups.flatMap((g) =>
+    g.topics.map((t) => ({
+      topic: t,
+      term: g.term,
+      groupTitle: g.title,
+      hasNote: savedTopicSet.has(t.toLowerCase().trim()),
+      note: savedNotes.find((n) => n.topic.toLowerCase().trim() === t.toLowerCase().trim()) || null,
+    }))
+  );
+  const filteredPlannedTopics = plannedTopics.filter((p) => String(p.term) === selectedTerm);
+  const totalTopics = filteredPlannedTopics.length;
+  const coveredTopics = filteredPlannedTopics.filter((p) => p.hasNote).length;
+  const coveragePercent = totalTopics > 0 ? Math.round((coveredTopics / totalTopics) * 100) : 0;
+
+  async function handlePlannerGenerate(topic: string) {
+    setPlannerGenerating(topic);
+    try {
+      const sc = subjectClasses.find((s) => s.id === selectedSubjectClassId);
+      const res = await fetch('/api/teacher/lesson-notes/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subjectClassId: selectedSubjectClassId,
+          topic,
+          subjectName: sc?.subjects?.name || '',
+          className: sc?.classes?.name || '',
+        }),
+      });
+      const payload = await res.json();
+      if (!res.ok) {
+        toast.error(payload?.error || 'Failed to generate');
+        return;
+      }
+      if (payload?.lessonNote) {
+        // Save directly without going through the preview tab
+        const saveRes = await fetch('/api/teacher/lesson-notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            subjectClassId: selectedSubjectClassId,
+            topic,
+            title: (payload.lessonNote as GeneratedLessonNote).title || topic,
+            content: payload.lessonNote as GeneratedLessonNote,
+            objectives: (payload.lessonNote as GeneratedLessonNote).objectives || [],
+            summary: (payload.lessonNote as GeneratedLessonNote).summary || '',
+          }),
+        });
+        if (saveRes.ok) {
+          toast.success(`Lesson note saved for "${topic}"`);
+        }
+      }
+    } catch (error) {
+      toast.error(`Failed to generate for "${topic}"`);
+    } finally {
+      setPlannerGenerating(null);
+      await loadSavedNotes();
+    }
+  }
+
+  async function handleBatchGenerate() {
+    const uncovered = filteredPlannedTopics.filter((p) => !p.hasNote);
+    if (uncovered.length === 0) return;
+
+    toast.info(`Generating ${uncovered.length} lesson notes...`);
+    let success = 0;
+    for (const item of uncovered) {
+      const sc = subjectClasses.find((s) => s.id === selectedSubjectClassId);
+      try {
+        const res = await fetch('/api/teacher/lesson-notes/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            subjectClassId: selectedSubjectClassId,
+            topic: item.topic,
+            subjectName: sc?.subjects?.name || '',
+            className: sc?.classes?.name || '',
+          }),
+        });
+        const payload = await res.json();
+        if (res.ok && payload?.lessonNote) {
+          await fetch('/api/teacher/lesson-notes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              subjectClassId: selectedSubjectClassId,
+              topic: item.topic,
+              title: (payload.lessonNote as GeneratedLessonNote).title || item.topic,
+              content: payload.lessonNote as GeneratedLessonNote,
+              objectives: (payload.lessonNote as GeneratedLessonNote).objectives || [],
+              summary: (payload.lessonNote as GeneratedLessonNote).summary || '',
+            }),
+          });
+          success++;
+        }
+      } catch {
+        // Continue with next topic
+      }
+    }
+    toast.success(`Generated and saved ${success} of ${uncovered.length} lesson notes!`);
+    await loadSavedNotes();
+  }
+
+  /* ──────────────────────────────────────────────────────────────────────── */
   /*  Helpers                                                                  */
   /* ──────────────────────────────────────────────────────────────────────── */
 
@@ -590,213 +834,420 @@ export function TeacherLessonNotes() {
               <ListTree className="h-4 w-4" />
               Topic Groups
             </TabsTrigger>
+            <TabsTrigger value="planner" className="rounded-lg data-[state=active]:bg-indigo-600 data-[state=active]:text-white gap-2" disabled={!selectedSubjectClassId}>
+              <BarChart3 className="h-4 w-4" />
+              Scheme Planner
+            </TabsTrigger>
           </TabsList>
 
           {/* ── Preview Tab ── */}
           <TabsContent value="preview" className="mt-0">
-            {generatedNote && (
+            {generatedNote && (() => {
+              const note = generatedNote!;
+              const edit = editData!;
+              const display = (isEditing ? edit : note);
+              return (
               <div className="space-y-4">
                 {/* Action bar */}
                 <div className="bg-white rounded-xl border border-stone-200 p-4 flex items-center justify-between flex-wrap gap-3">
                   <div className="flex items-center gap-2 text-sm text-stone-600">
                     <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                    <span>Generated for <strong>{generatedNote.topic}</strong></span>
-                    {generatedNote.duration && (
+                    <span>Generated for <strong>{note.topic}</strong></span>
+                    {note.duration && (
                       <>
                         <span className="text-stone-300">|</span>
                         <Clock className="h-3.5 w-3.5" />
-                        <span>{generatedNote.duration}</span>
+                        <span>{note.duration}</span>
                       </>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setGeneratedNote(null);
-                        setSelectedTopic('');
-                      }}
-                      className="gap-1.5 border-stone-200"
-                    >
-                      <RefreshCw className="h-3.5 w-3.5" />
-                      New
-                    </Button>
-                    <Button
-                      onClick={handleSave}
-                      disabled={saving}
-                      size="sm"
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
-                    >
-                      {saving ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Save className="h-3.5 w-3.5" />
-                      )}
-                      Save
-                    </Button>
+                    {isEditing ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleCancelEditing}
+                          className="gap-1.5 border-stone-200"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleApplyEdits}
+                          size="sm"
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                          Apply Edits
+                        </Button>
+                        <Button
+                          onClick={handleSave}
+                          disabled={saving}
+                          size="sm"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                        >
+                          {saving ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Save className="h-3.5 w-3.5" />
+                          )}
+                          Save
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setGeneratedNote(null);
+                            setSelectedTopic('');
+                          }}
+                          className="gap-1.5 border-stone-200"
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                          New
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleStartEditing}
+                          className="gap-1.5 border-stone-200 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                          Edit
+                        </Button>
+                        <Button
+                          onClick={handleSave}
+                          disabled={saving}
+                          size="sm"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                        >
+                          {saving ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Save className="h-3.5 w-3.5" />
+                          )}
+                          Save
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
 
                 {/* Lesson Note Content Card */}
                 <Card className="border-stone-200 overflow-hidden">
-                  {/* Lesson header */}
+                  {/* Lesson header - title editable when editing */}
                   <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-5 text-white">
-                    <h2 className="text-xl font-bold">{generatedNote.title}</h2>
+                    {isEditing ? (
+                      <input
+                        value={editData?.title || ''}
+                        onChange={(e) => handleEditFieldChange('title', e.target.value)}
+                        className="w-full bg-white/10 text-white text-xl font-bold px-3 py-1.5 rounded-lg border border-white/20 focus:outline-none focus:bg-white/20 placeholder:text-white/50"
+                      />
+                    ) : (
+                      <h2 className="text-xl font-bold">{note.title}</h2>
+                    )}
                     <p className="text-indigo-100 text-sm mt-1">
-                      {selectedSubject?.subjects?.name} &middot; {selectedSubject?.classes?.name} &middot; {generatedNote.topic}
+                      {selectedSubject?.subjects?.name} &middot; {selectedSubject?.classes?.name} &middot; {note.topic}
                     </p>
                   </div>
 
                   <CardContent className="p-6 space-y-6">
                     {/* Duration & Materials Row */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {generatedNote.duration && (
-                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                      {editField === 'duration' && isEditing ? (
+                        <EditableCard icon={<Clock className="h-4 w-4" />} label="Duration" color="amber"
+                          onSave={(val) => { handleEditFieldChange('duration', val); setEditField(null); }}
+                          onCancel={() => setEditField(null)}
+                          initialValue={editData?.duration || ''}
+                        />
+                      ) : (
+                        <div
+                          onClick={() => isEditing && setEditField('duration')}
+                          className={`bg-amber-50 border border-amber-200 rounded-xl p-4 ${isEditing ? 'cursor-pointer hover:ring-2 hover:ring-amber-400 transition-all' : ''}`}
+                        >
                           <div className="flex items-center gap-2 text-amber-700 font-medium text-sm mb-1">
                             <Clock className="h-4 w-4" />
                             Duration
+                            {isEditing && <Edit3 className="h-3 w-3 ml-auto text-amber-400" />}
                           </div>
-                          <p className="text-amber-900 text-sm">{generatedNote.duration}</p>
+                          <p className="text-amber-900 text-sm">{display.duration}</p>
                         </div>
                       )}
-                      {generatedNote.previous_knowledge && (
-                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+
+                      {editField === 'previous_knowledge' && isEditing ? (
+                        <EditableCard icon={<BookMarked className="h-4 w-4" />} label="Previous Knowledge" color="blue"
+                          onSave={(val) => { handleEditFieldChange('previous_knowledge', val); setEditField(null); }}
+                          onCancel={() => setEditField(null)}
+                          initialValue={editData?.previous_knowledge || ''}
+                        />
+                      ) : (
+                        <div
+                          onClick={() => isEditing && setEditField('previous_knowledge')}
+                          className={`bg-blue-50 border border-blue-200 rounded-xl p-4 ${isEditing ? 'cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all' : ''}`}
+                        >
                           <div className="flex items-center gap-2 text-blue-700 font-medium text-sm mb-1">
                             <BookMarked className="h-4 w-4" />
                             Previous Knowledge
+                            {isEditing && <Edit3 className="h-3 w-3 ml-auto text-blue-400" />}
                           </div>
-                          <p className="text-blue-900 text-sm">{generatedNote.previous_knowledge}</p>
+                          <p className="text-blue-900 text-sm">{display.previous_knowledge}</p>
                         </div>
                       )}
                     </div>
 
                     {/* Instructional Materials */}
-                    {generatedNote.instructional_materials?.length > 0 && (
+{display.instructional_materials.length > 0 && (
                       <div className="bg-stone-50 rounded-xl p-4 border border-stone-200">
                         <div className="flex items-center gap-2 text-stone-700 font-medium text-sm mb-2">
                           <Lightbulb className="h-4 w-4 text-amber-500" />
                           Instructional Materials
+                          {isEditing && (
+                            <button onClick={() => handleAddListItem('instructional_materials')} className="ml-auto text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+                              + Add
+                            </button>
+                          )}
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                          {generatedNote.instructional_materials.map((mat, i) => (
-                            <Badge key={i} variant="secondary" className="bg-white border border-stone-200 text-stone-600">
-                              {mat}
-                            </Badge>
-                          ))}
-                        </div>
+                        {isEditing ? (
+                          <div className="space-y-2">
+                            {display.instructional_materials.map((mat, i) => (
+                              <div key={i} className="flex items-center gap-2">
+                                <input
+                                  value={mat}
+                                  onChange={(e) => handleUpdateListItem('instructional_materials', i, e.target.value)}
+                                  className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-stone-200 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                />
+                                <button onClick={() => handleRemoveListItem('instructional_materials', i)} className="text-red-400 hover:text-red-600">
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {display.instructional_materials.map((mat, i) => (
+                              <Badge key={i} variant="secondary" className="bg-white border border-stone-200 text-stone-600">{mat}</Badge>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
 
                     {/* Learning Objectives */}
-                    {generatedNote.objectives?.length > 0 && (
+                    {display.objectives.length > 0 && (
                       <div>
-                        <h3 className="flex items-center gap-2 text-base font-semibold text-stone-800 mb-3">
+                        <div className="flex items-center gap-2 text-base font-semibold text-stone-800 mb-3">
                           <Target className="h-4 w-4 text-emerald-500" />
                           Learning Objectives
-                        </h3>
-                        <ul className="space-y-2">
-                          {generatedNote.objectives.map((obj, i) => (
-                            <li key={i} className="flex items-start gap-2 text-sm text-stone-700">
-                              <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[11px] font-semibold text-emerald-600 mt-0.5">
-                                {i + 1}
-                              </span>
-                              {obj}
-                            </li>
-                          ))}
-                        </ul>
+                          {isEditing && (
+                            <button onClick={() => handleAddListItem('objectives')} className="ml-auto text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+                              + Add
+                            </button>
+                          )}
+                        </div>
+                        {isEditing ? (
+                          <div className="space-y-2">
+                            {display.objectives.map((obj, i) => (
+                              <div key={i} className="flex items-center gap-2">
+                                <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[11px] font-semibold text-emerald-600">
+                                  {i + 1}
+                                </span>
+                                <input
+                                  value={obj}
+                                  onChange={(e) => handleUpdateListItem('objectives', i, e.target.value)}
+                                  className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-stone-200 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                />
+                                <button onClick={() => handleRemoveListItem('objectives', i)} className="text-red-400 hover:text-red-600">
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <ul className="space-y-2">
+                            {display.objectives.map((obj, i) => (
+                              <li key={i} className="flex items-start gap-2 text-sm text-stone-700">
+                                <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[11px] font-semibold text-emerald-600 mt-0.5">{i + 1}</span>
+                                {obj}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
                     )}
 
                     {/* Introduction */}
-                    {generatedNote.introduction && (
+                    {display.introduction && (
                       <div>
                         <h3 className="flex items-center gap-2 text-base font-semibold text-stone-800 mb-3">
                           <UserCheck className="h-4 w-4 text-blue-500" />
                           Introduction
+                          {isEditing && <Edit3 onClick={() => setEditField('introduction')} className="h-3.5 w-3.5 ml-auto text-blue-400 cursor-pointer hover:text-blue-600" />}
                         </h3>
-                        <div className="prose prose-sm max-w-none text-stone-700 bg-blue-50/50 rounded-xl p-4 border border-blue-100">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {generatedNote.introduction}
-                          </ReactMarkdown>
-                        </div>
+                        {editField === 'introduction' && isEditing ? (
+                          <InlineEditor
+                            value={editData?.introduction || ''}
+                            onSave={(val) => { handleEditFieldChange('introduction', val); setEditField(null); }}
+                            onCancel={() => setEditField(null)}
+                          />
+                        ) : (
+                          <div className={`prose prose-sm max-w-none text-stone-700 bg-blue-50/50 rounded-xl p-4 border border-blue-100 ${isEditing ? 'cursor-pointer hover:ring-2 hover:ring-blue-400' : ''}`}
+                            onClick={() => isEditing && setEditField('introduction')}
+                          >
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {display.introduction}
+                            </ReactMarkdown>
+                          </div>
+                        )}
                       </div>
                     )}
 
                     {/* Main Content */}
-                    {generatedNote.content && (
+                    {display.content && (
                       <div>
                         <h3 className="flex items-center gap-2 text-base font-semibold text-stone-800 mb-3">
                           <BookOpen className="h-4 w-4 text-indigo-500" />
                           Lesson Content
+                          {isEditing && <Edit3 onClick={() => setEditField('content')} className="h-3.5 w-3.5 ml-auto text-indigo-400 cursor-pointer hover:text-indigo-600" />}
                         </h3>
-                        <div className="prose prose-sm max-w-none prose-headings:text-stone-800 prose-a:text-indigo-600 prose-pre:bg-stone-900 prose-pre:text-stone-100 prose-code:text-indigo-600 prose-code:bg-indigo-50 prose-code:px-1 prose-code:rounded prose-table:border-collapse prose-table:border prose-table:border-stone-200 prose-th:bg-stone-50 prose-th:px-3 prose-th:py-2 prose-td:px-3 prose-td:py-2 prose-td:border prose-td:border-stone-200 bg-white rounded-xl p-5 border border-stone-200">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {generatedNote.content}
-                          </ReactMarkdown>
-                        </div>
+                        {editField === 'content' && isEditing ? (
+                          <InlineEditor
+                            value={editData?.content || ''}
+                            onSave={(val) => { handleEditFieldChange('content', val); setEditField(null); }}
+                            onCancel={() => setEditField(null)}
+                            large
+                          />
+                        ) : (
+                          <div className={`prose prose-sm max-w-none prose-headings:text-stone-800 prose-a:text-indigo-600 prose-pre:bg-stone-900 prose-pre:text-stone-100 prose-code:text-indigo-600 prose-code:bg-indigo-50 prose-code:px-1 prose-code:rounded prose-table:border-collapse prose-table:border prose-table:border-stone-200 prose-th:bg-stone-50 prose-th:px-3 prose-th:py-2 prose-td:px-3 prose-td:py-2 prose-td:border prose-td:border-stone-200 bg-white rounded-xl p-5 border border-stone-200 ${isEditing ? 'cursor-pointer hover:ring-2 hover:ring-indigo-400' : ''}`}
+                            onClick={() => isEditing && setEditField('content')}
+                          >
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {display.content}
+                            </ReactMarkdown>
+                          </div>
+                        )}
                       </div>
                     )}
 
                     {/* Evaluation */}
-                    {generatedNote.evaluation?.length > 0 && (
+                    {display.evaluation.length > 0 && (
                       <div>
-                        <h3 className="flex items-center gap-2 text-base font-semibold text-stone-800 mb-3">
+                        <div className="flex items-center gap-2 text-base font-semibold text-stone-800 mb-3">
                           <CheckCircle2 className="h-4 w-4 text-amber-500" />
                           Evaluation Questions
-                        </h3>
-                        <div className="bg-amber-50/50 rounded-xl p-4 border border-amber-100 space-y-2">
-                          {generatedNote.evaluation.map((q, i) => (
-                            <div key={i} className="flex items-start gap-2 text-sm text-stone-700">
-                              <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-100 text-[11px] font-semibold text-amber-600 mt-0.5">
-                                {i + 1}
-                              </span>
-                              {q}
-                            </div>
-                          ))}
+                          {isEditing && (
+                            <button onClick={() => handleAddListItem('evaluation')} className="ml-auto text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+                              + Add
+                            </button>
+                          )}
                         </div>
+                        {isEditing ? (
+                          <div className="space-y-2">
+                            {(editData?.evaluation || []).map((q, i) => (
+                              <div key={i} className="flex items-center gap-2">
+                                <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-100 text-[11px] font-semibold text-amber-600">{i + 1}</span>
+                                <input
+                                  value={q}
+                                  onChange={(e) => handleUpdateListItem('evaluation', i, e.target.value)}
+                                  className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-stone-200 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                />
+                                <button onClick={() => handleRemoveListItem('evaluation', i)} className="text-red-400 hover:text-red-600">
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="bg-amber-50/50 rounded-xl p-4 border border-amber-100 space-y-2">
+                            {note.evaluation.map((q, i) => (
+                              <div key={i} className="flex items-start gap-2 text-sm text-stone-700">
+                                <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-100 text-[11px] font-semibold text-amber-600 mt-0.5">{i + 1}</span>
+                                {q}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
 
                     {/* Conclusion */}
-                    {generatedNote.conclusion && (
+                    {display.conclusion && (
                       <div>
                         <h3 className="flex items-center gap-2 text-base font-semibold text-stone-800 mb-3">
                           <CheckCircle2 className="h-4 w-4 text-purple-500" />
                           Conclusion
+                          {isEditing && <Edit3 onClick={() => setEditField('conclusion')} className="h-3.5 w-3.5 ml-auto text-purple-400 cursor-pointer hover:text-purple-600" />}
                         </h3>
-                        <p className="text-sm text-stone-700 bg-purple-50/50 rounded-xl p-4 border border-purple-100">
-                          {generatedNote.conclusion}
-                        </p>
+                        {editField === 'conclusion' && isEditing ? (
+                          <InlineEditor
+                            value={editData?.conclusion || ''}
+                            onSave={(val) => { handleEditFieldChange('conclusion', val); setEditField(null); }}
+                            onCancel={() => setEditField(null)}
+                          />
+                        ) : (
+                          <p className={`text-sm text-stone-700 bg-purple-50/50 rounded-xl p-4 border border-purple-100 ${isEditing ? 'cursor-pointer hover:ring-2 hover:ring-purple-400' : ''}`}
+                            onClick={() => isEditing && setEditField('conclusion')}
+                          >{display.conclusion}</p>
+                        )}
                       </div>
                     )}
 
                     {/* Assignment */}
-                    {generatedNote.assignment && (
+                    {display.assignment && (
                       <div>
                         <h3 className="flex items-center gap-2 text-base font-semibold text-stone-800 mb-3">
                           <FileText className="h-4 w-4 text-orange-500" />
                           Assignment / Homework
+                          {isEditing && <Edit3 onClick={() => setEditField('assignment')} className="h-3.5 w-3.5 ml-auto text-orange-400 cursor-pointer hover:text-orange-600" />}
                         </h3>
-                        <div className="prose prose-sm max-w-none text-stone-700 bg-orange-50/50 rounded-xl p-4 border border-orange-100">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {generatedNote.assignment}
-                          </ReactMarkdown>
-                        </div>
+                        {editField === 'assignment' && isEditing ? (
+                          <InlineEditor
+                            value={editData?.assignment || ''}
+                            onSave={(val) => { handleEditFieldChange('assignment', val); setEditField(null); }}
+                            onCancel={() => setEditField(null)}
+                          />
+                        ) : (
+                          <div className={`prose prose-sm max-w-none text-stone-700 bg-orange-50/50 rounded-xl p-4 border border-orange-100 ${isEditing ? 'cursor-pointer hover:ring-2 hover:ring-orange-400' : ''}`}
+                            onClick={() => isEditing && setEditField('assignment')}
+                          >
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {display.assignment}
+                            </ReactMarkdown>
+                          </div>
+                        )}
                       </div>
                     )}
 
                     {/* Summary */}
-                    {generatedNote.summary && (
-                      <div className="bg-stone-50 rounded-xl p-4 border border-stone-200">
-                        <h3 className="text-sm font-semibold text-stone-700 mb-1">Summary</h3>
-                        <p className="text-sm text-stone-600 italic">{generatedNote.summary}</p>
+                    {display.summary && (
+                      <div>
+                        <h3 className="flex items-center gap-2 text-base font-semibold text-stone-800 mb-3">
+                          <NotebookPen className="h-4 w-4 text-stone-500" />
+                          Summary
+                          {isEditing && <Edit3 onClick={() => setEditField('summary')} className="h-3.5 w-3.5 ml-auto text-stone-400 cursor-pointer hover:text-stone-600" />}
+                        </h3>
+                        {editField === 'summary' && isEditing ? (
+                          <InlineEditor
+                            value={editData?.summary || ''}
+                            onSave={(val) => { handleEditFieldChange('summary', val); setEditField(null); }}
+                            onCancel={() => setEditField(null)}
+                          />
+                        ) : (
+                          <div className={`bg-stone-50 rounded-xl p-4 border border-stone-200 ${isEditing ? 'cursor-pointer hover:ring-2 hover:ring-stone-400' : ''}`}
+                            onClick={() => isEditing && setEditField('summary')}
+                          >
+                            <p className="text-sm text-stone-600 italic">{display.summary}</p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </CardContent>
                 </Card>
               </div>
-            )}
+              );
+            })()}
 
             {!generatedNote && activeTab === 'preview' && (
               <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -976,6 +1427,157 @@ export function TeacherLessonNotes() {
                     </CardContent>
                   </Card>
                 ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* ── Planner Tab ── */}
+          <TabsContent value="planner" className="mt-0">
+            {loadingTopics || loadingNotes ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="h-6 w-6 text-indigo-500 animate-spin" />
+              </div>
+            ) : totalTopics === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="h-16 w-16 rounded-2xl bg-stone-100 flex items-center justify-center mb-4">
+                  <BarChart3 className="h-7 w-7 text-stone-400" />
+                </div>
+                <h3 className="text-base font-semibold text-stone-700 mb-1">No topics to plan</h3>
+                <p className="text-sm text-stone-400 max-w-sm mb-6">
+                  Create topic groups in the Question Bank first, then come here to track your lesson note coverage.
+                </p>
+                <Button variant="outline" onClick={() => router.push('/teacher/question-bank')} className="gap-2 border-stone-200 text-stone-700">
+                  <FileText className="h-4 w-4" />
+                  Go to Question Bank
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Coverage stats card */}
+                <Card className="border-stone-200 overflow-hidden">
+                  <CardContent className="p-6">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div>
+                        <h3 className="text-base font-semibold text-stone-800">
+                          Term {selectedTerm} Coverage
+                        </h3>
+                        <p className="text-sm text-stone-500 mt-0.5">
+                          {coveredTopics} of {totalTopics} topics have lesson notes
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <span className={`text-2xl font-bold ${coveragePercent >= 80 ? 'text-emerald-600' : coveragePercent >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+                            {coveragePercent}%
+                          </span>
+                          <p className="text-xs text-stone-400">complete</p>
+                        </div>
+                        {totalTopics - coveredTopics > 0 && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleBatchGenerate}
+                            className="gap-1.5 border-stone-200"
+                          >
+                            <Sparkles className="h-3.5 w-3.5" />
+                            Generate All ({totalTopics - coveredTopics})
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Progress bar */}
+                    <div className="mt-4 h-3 bg-stone-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          coveragePercent >= 80 ? 'bg-emerald-500' : coveragePercent >= 50 ? 'bg-amber-500' : 'bg-red-500'
+                        }`}
+                        style={{ width: `${coveragePercent}%` }}
+                      />
+                    </div>
+
+                    {/* Mini legend */}
+                    <div className="flex items-center gap-4 mt-3 text-xs text-stone-500">
+                      <span className="flex items-center gap-1.5">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                        {coveredTopics} done
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <AlertCircle className="h-3.5 w-3.5 text-stone-300" />
+                        {totalTopics - coveredTopics} remaining
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Topic list */}
+                <div className="space-y-2">
+                  {filteredPlannedTopics.map((item, i) => (
+                    <div
+                      key={i}
+                      className={`rounded-xl border p-4 transition-all ${
+                        item.hasNote
+                          ? 'bg-white border-emerald-200 hover:border-emerald-300'
+                          : 'bg-white border-stone-200 hover:border-indigo-300 hover:shadow-sm'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-start gap-3 min-w-0">
+                          {item.hasNote ? (
+                            <div className="h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                            </div>
+                          ) : (
+                            <div className="h-8 w-8 rounded-full bg-stone-100 flex items-center justify-center flex-shrink-0">
+                              <AlertCircle className="h-4 w-4 text-stone-400" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className={`text-sm font-medium ${item.hasNote ? 'text-emerald-800' : 'text-stone-700'}`}>
+                              {item.topic}
+                            </p>
+                            <p className="text-xs text-stone-400 mt-0.5">
+                              {item.groupTitle}
+                              {item.note && (
+                                <> &middot; Saved {formatDate(item.note.updated_at)}</>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {item.hasNote && item.note && (
+                            <>
+                              <Button variant="ghost" size="sm" onClick={() => handleViewNote(item.note!)} className="h-8 text-xs gap-1 text-stone-600 hover:text-indigo-600">
+                                <Eye className="h-3.5 w-3.5" />
+                                View
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => handleExport(item.note!.id)} className="h-8 text-xs gap-1 text-stone-600 hover:text-emerald-600">
+                                <FileDown className="h-3.5 w-3.5" />
+                                .docx
+                              </Button>
+                            </>
+                          )}
+                          {!item.hasNote && (
+                            <Button
+                              size="sm"
+                              onClick={() => handlePlannerGenerate(item.topic)}
+                              disabled={plannerGenerating === item.topic}
+                              className="h-8 text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
+                            >
+                              {plannerGenerating === item.topic ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Sparkles className="h-3.5 w-3.5" />
+                              )}
+                              Generate
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </TabsContent>

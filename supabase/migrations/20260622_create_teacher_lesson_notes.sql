@@ -17,6 +17,16 @@ BEGIN
 END
 $$;
 
+CREATE OR REPLACE FUNCTION public.set_updated_at_timestamp()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at := now();
+  RETURN NEW;
+END;
+$$;
+
 CREATE TABLE IF NOT EXISTS teacher_lesson_notes (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   school_id uuid NOT NULL REFERENCES schools(id) ON DELETE CASCADE,

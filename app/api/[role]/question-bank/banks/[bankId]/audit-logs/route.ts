@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getQuestionBankAuthContext } from '@/lib/question-bank/server';
+import { insertAuditLog } from '@/lib/question-bank/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,4 +51,45 @@ export async function GET(
     offset,
     limit,
   });
+}
+
+// POST /api/[role]/question-bank/banks/[bankId]/audit-logs
+// Log a client-side event (e.g. exam_printed)
+export async function POST(
+  request: NextRequest,
+  { params }: RouteContext
+) {
+  const { role, bankId } = await params;
+  const ctxResult = await getQuestionBankAuthContext(role);
+
+  if (!ctxResult.ok) {
+    return NextResponse.json({ error: ctxResult.error }, { status: ctxResult.status });
+  }
+
+  const { supabase, userId, userName, schoolId } = ctxResult.context;
+
+  try {
+    const body = await request.json();
+    const action = body?.action as string;
+    const details = (body?.details || {}) as Record<string, unknown>;
+
+    if (!action) {
+      return NextResponse.json({ error: 'action is required' }, { status: 400 });
+    }
+
+    await insertAuditLog(
+      supabase,
+      bankId,
+      schoolId,
+      action as any,
+      userId,
+      role as 'teacher' | 'admin',
+      details,
+      userName
+    );
+
+    return NextResponse.json({ success: true });
+  } catch {
+    return NextResponse.json({ error: 'Invalid request payload' }, { status: 400 });
+  }
 }

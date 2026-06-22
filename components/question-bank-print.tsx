@@ -352,7 +352,7 @@ export function QuestionBankPrint({ role }: ExamPrintComponentProps) {
   const [loadModalOpen, setLoadModalOpen] = useState(false);
   const [selectedSaveTerm, setSelectedSaveTerm] = useState<'1' | '2' | '3'>('1');
   const [selectedLoadTerm, setSelectedLoadTerm] = useState<'1' | '2' | '3' | null>(null);
-  const [configLastSaved, setConfigLastSaved] = useState<string | null>(null);
+
 
   // Sub-tab state for Arrange & Order
   const [arrangeSubTab, setArrangeSubTab] = useState<'objectives' | 'theory'>('objectives');
@@ -732,7 +732,6 @@ export function QuestionBankPrint({ role }: ExamPrintComponentProps) {
       }
 
       const data = await res.json();
-      setConfigLastSaved(new Date().toISOString());
       setSavedConfigTerms((prev) => new Set(prev).add(term));
       setSaveModalOpen(false);
       toast.success(`Config saved for Term ${term}`);
@@ -796,7 +795,20 @@ export function QuestionBankPrint({ role }: ExamPrintComponentProps) {
       if (cfg.objectiveInstructions) setObjectiveInstructions(cfg.objectiveInstructions);
       if (cfg.theoryInstructions) setTheoryInstructions(cfg.theoryInstructions);
 
-      setConfigLastSaved(row.updated_at || null);
+      // Log the load event
+      try {
+        await fetch(`${apiPrefix}/banks/${bankId}/audit-logs`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'exam_config_loaded',
+            details: { term, totalQuestions: restoredQuestions.length },
+          }),
+        });
+      } catch {
+        // Non-critical
+      }
+
       setLoadModalOpen(false);
       toast.success(`Config loaded for Term ${term}`);
     } catch {
@@ -1704,7 +1716,26 @@ export function QuestionBankPrint({ role }: ExamPrintComponentProps) {
                   {showAnswerKey ? 'Answers Visible' : 'Show Answer Key'}
                 </button>
                 <Button
-                  onClick={() => window.print()}
+                  onClick={async () => {
+                    // Log the print event
+                    try {
+                      await fetch(`${apiPrefix}/banks/${bankId}/audit-logs`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          action: 'exam_printed',
+                          details: {
+                            totalQuestions: orderedQuestions.length,
+                            objectives: objectives.length,
+                            theory: theory.length,
+                          },
+                        }),
+                      });
+                    } catch {
+                      // Non-critical, ignore
+                    }
+                    window.print();
+                  }}
                   className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
                 >
                   <Printer className="w-4 h-4" />

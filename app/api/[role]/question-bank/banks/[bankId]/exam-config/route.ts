@@ -21,10 +21,13 @@ export async function GET(
     return NextResponse.json({ error: ctxResult.error }, { status: ctxResult.status });
   }
 
-  const { supabase, schoolId } = ctxResult.context;
+  const { supabase, userName, schoolId } = ctxResult.context;
   const term = request.nextUrl.searchParams.get('term');
 
   if (!term || !['1', '2', '3'].includes(term)) {
+    return NextResponse.json({ error: 'term parameter is required (1, 2, or 3)' }, { status: 400 });
+  }
+  
     return NextResponse.json({ error: 'term parameter is required (1, 2, or 3)' }, { status: 400 });
   }
 
@@ -56,7 +59,7 @@ export async function POST(
     return NextResponse.json({ error: ctxResult.error }, { status: ctxResult.status });
   }
 
-  const { supabase, userId, schoolId } = ctxResult.context;
+  const { supabase, userId, userName, schoolId } = ctxResult.context;
 
   try {
     const body = await request.json();
@@ -122,7 +125,7 @@ export async function POST(
       term,
       questionCount,
       hasCustomNumbers: Object.keys((config?.customNumbers as Record<string, string>) || {}).length > 0,
-    });
+    }, userName);
 
     return NextResponse.json({ config: data }, { status: 200 });
   } catch {
@@ -141,14 +144,17 @@ export async function DELETE(
 
   if (!ctxResult.ok) {
     return NextResponse.json({ error: ctxResult.error }, { status: ctxResult.status });
-  }
-
-  const { supabase, userId, schoolId } = ctxResult.context;
+  }  const { supabase, userId, userName, schoolId } = ctxResult.context;
   const term = request.nextUrl.searchParams.get('term');
 
   if (!term || !['1', '2', '3'].includes(term)) {
     return NextResponse.json({ error: 'term parameter is required (1, 2, or 3)' }, { status: 400 });
   }
+
+  // Log before deleting (fire-and-forget)
+  await insertAuditLog(supabase, bankId, schoolId, 'exam_config_deleted', userId, role as 'teacher' | 'admin', {
+    term,
+  }, userName);
 
   let query = supabase
     .from('exam_paper_configs')

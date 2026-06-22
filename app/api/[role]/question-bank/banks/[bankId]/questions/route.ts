@@ -163,7 +163,7 @@ export async function GET(
     return NextResponse.json({ error: ctxResult.error }, { status: ctxResult.status });
   }
 
-  const { supabase, userId, schoolId } = ctxResult.context;
+  const { supabase, userId, userName, schoolId } = ctxResult.context;
 
   // Verify bank access
   let bankQuery = supabase
@@ -244,7 +244,7 @@ export async function POST(
     return NextResponse.json({ error: ctxResult.error }, { status: ctxResult.status });
   }
 
-  const { supabase, userId, schoolId } = ctxResult.context;
+  const { supabase, userId, userName, schoolId } = ctxResult.context;
 
   const { data: bank, error: bankError } = await supabase
     .from('teacher_question_banks')
@@ -410,7 +410,7 @@ export async function POST(
       questionText: questionText.slice(0, 100),
       questionType,
       difficulty,
-    });
+    }, userName);
 
     return NextResponse.json({ question: data }, { status: 201 });
   } catch {

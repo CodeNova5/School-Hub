@@ -6,6 +6,7 @@ export type AuthRoleContext = {
   context: {
     supabase: any;
     userId: string;
+    userName: string;
     schoolId: string;
     role: 'admin' | 'teacher';
   };
@@ -30,6 +31,9 @@ export async function getQuestionBankAuthContext(rolePath: string): Promise<Auth
     return { ok: false, error: 'Unauthorized access', status: 401 };
   }
 
+  // Get user name from auth metadata or email
+  const userName = user.user_metadata?.name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Unknown';
+
   // 2. Resolve school context from role-specific table
   const table = rolePath === 'admin' ? 'admins' : 'teachers';
   const { data: profile, error: profileError } = await supabase
@@ -51,6 +55,7 @@ export async function getQuestionBankAuthContext(rolePath: string): Promise<Auth
     context: {
       supabase,
       userId: user.id,
+      userName,
       schoolId: profile.school_id,
       role: rolePath as 'admin' | 'teacher',
     },

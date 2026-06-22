@@ -21,7 +21,7 @@ export async function PATCH(
     return NextResponse.json({ error: ctxResult.error }, { status: ctxResult.status });
   }
 
-  const { supabase, userId, schoolId } = ctxResult.context;
+  const { supabase, userId, userName, schoolId } = ctxResult.context;
 
   try {
     // fetch existing question to help resolve correct_answer when needed
@@ -158,7 +158,7 @@ export async function PATCH(
       questionId: data.id,
       changedFields,
       questionText: (data.question_text || '').slice(0, 100),
-    });
+    }, userName);
 
     return NextResponse.json({ question: data });
   } catch {
@@ -177,7 +177,7 @@ export async function DELETE(
     return NextResponse.json({ error: ctxResult.error }, { status: ctxResult.status });
   }
 
-  const { supabase, userId, schoolId } = ctxResult.context;
+  const { supabase, userId, userName, schoolId } = ctxResult.context;
 
   let query = supabase
     .from('teacher_questions')
@@ -208,7 +208,7 @@ export async function DELETE(
       questionId,
       topic: questionToDelete.topic,
       questionText: (questionToDelete.question_text || '').slice(0, 100),
-    });
+    }, userName);
   }
 
   return NextResponse.json({ success: true });

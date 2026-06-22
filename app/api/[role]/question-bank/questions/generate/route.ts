@@ -136,7 +136,7 @@ export async function POST(
     return NextResponse.json({ error: ctxResult.error }, { status: ctxResult.status });
   }
 
-  const { supabase, userId, schoolId } = ctxResult.context;
+  const { supabase, userId, userName, schoolId } = ctxResult.context;
 
   try {
     const body = await request.json();
@@ -400,7 +400,7 @@ export async function POST(
       questionType,
       topics: topics.slice(0, 5),
       model: GROQ_MODEL,
-    });
+    }, userName);
 
     return NextResponse.json({
       questions: insertedRows || [],

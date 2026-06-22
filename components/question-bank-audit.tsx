@@ -263,12 +263,12 @@ export function QuestionBankAudit({ role }: QuestionBankAuditProps) {
 
   const actionFilters: { key: ActiveFilter; label: string; count: number }[] = [
     { key: 'all', label: 'All Activity', count: totalCount },
-    { key: 'question_created', label: 'Created', count: logs.filter(l => l.action === 'question_created').length },
-    { key: 'question_updated', label: 'Edited', count: logs.filter(l => l.action === 'question_updated').length },
-    { key: 'question_deleted', label: 'Deleted', count: logs.filter(l => l.action === 'question_deleted').length },
-    { key: 'question_generated', label: 'Generated', count: logs.filter(l => l.action === 'question_generated').length },
-    { key: 'exam_printed', label: 'Printed', count: logs.filter(l => l.action === 'exam_printed').length },
-    { key: 'exam_config_saved', label: 'Config Saved', count: logs.filter(l => l.action === 'exam_config_saved').length },
+    { key: 'question_created', label: 'Created', count: 0 },
+    { key: 'question_updated', label: 'Edited', count: 0 },
+    { key: 'question_deleted', label: 'Deleted', count: 0 },
+    { key: 'question_generated', label: 'Generated', count: 0 },
+    { key: 'exam_printed', label: 'Printed', count: 0 },
+    { key: 'exam_config_saved', label: 'Config Saved', count: 0 },
   ];
 
   // ── Render ──
@@ -335,9 +335,6 @@ export function QuestionBankAudit({ role }: QuestionBankAuditProps) {
                 `}
               >
                 {f.label}
-                <span className={`px-1 rounded text-[10px] ${activeFilter === f.key ? 'bg-blue-500' : 'bg-slate-100 text-slate-500'}`}>
-                  {f.count}
-                </span>
               </button>
             ))}
           </div>

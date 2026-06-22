@@ -1,6 +1,3 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
-
 export type AuditAction =
   | 'bank_created'
   | 'bank_updated'
@@ -20,8 +17,8 @@ export type AuditAction =
 type AuditDetails = Record<string, unknown>;
 
 /**
- * Insert an audit log entry using the service role client to bypass RLS.
- * This is called from within API route handlers after an action completes.
+ * Insert an audit log entry. This runs fire-and-forget (non-critical) so errors
+ * are logged to console but not propagated to the caller.
  */
 export async function insertAuditLog(
   supabase: any,
@@ -30,7 +27,8 @@ export async function insertAuditLog(
   action: AuditAction,
   userId: string,
   actorRole: 'teacher' | 'admin',
-  details: AuditDetails = {}
+  details: AuditDetails = {},
+  actorName?: string | null
 ) {
   const { error } = await supabase.from('question_bank_audit_logs').insert({
     bank_id: bankId,
@@ -38,27 +36,11 @@ export async function insertAuditLog(
     action,
     actor_id: userId,
     actor_role: actorRole,
+    actor_name: actorName || null,
     details,
   });
 
   if (error) {
     console.error(`[AuditLog] Failed to insert ${action}:`, error.message);
   }
-}
-
-/**
- * Create an audit log entry directly from a route handler context.
- */
-export function createAuditLogger(supabase: any, schoolId: string) {
-  return {
-    log: async (
-      bankId: string,
-      action: AuditAction,
-      userId: string,
-      actorRole: 'teacher' | 'admin',
-      details: AuditDetails = {}
-    ) => {
-      await insertAuditLog(supabase, bankId, schoolId, action, userId, actorRole, details);
-    },
-  };
 }

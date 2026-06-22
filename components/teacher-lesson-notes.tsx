@@ -1042,7 +1042,7 @@ export function TeacherLessonNotes() {
                   </div>
                 )}
 
-                {(viewNote.content as Record<string, unknown>)?.content && (
+                {(viewNote.content as Record<string, unknown>)?.content ? (
                   <div>
                     <h4 className="text-sm font-semibold text-stone-700 mb-2">Content</h4>
                     <div className="prose prose-sm max-w-none text-stone-600 bg-stone-50 rounded-xl p-4 border border-stone-200 max-h-60 overflow-y-auto">
@@ -1051,7 +1051,7 @@ export function TeacherLessonNotes() {
                     </ReactMarkdown>
                     </div>
                   </div>
-                )}
+                ) : null}
 
                 {viewNote.summary && (
                   <div className="bg-stone-50 rounded-xl p-4 border border-stone-200">

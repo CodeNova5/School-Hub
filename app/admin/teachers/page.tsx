@@ -14,14 +14,16 @@ import {
   UserX,
   Sparkles,
   ChevronRight,
+  ChevronLeft,
   CalendarDays,
   Shield,
   Briefcase,
   AlertTriangle,
-  CheckCircle2,
   ExternalLink,
+  GraduationCap,
+  Loader2,
 } from 'lucide-react';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useSchoolContext } from '@/hooks/use-school-context';
@@ -36,7 +38,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { TeachersSkeleton } from '@/components/skeletons';
 import { exportToCSV } from '@/lib/student-utils';
 import { getCurrentDateStringWAT } from '@/lib/utils';
@@ -156,13 +158,23 @@ export default function TeachersPage() {
   const { schoolId } = useSchoolContext();
   const router = useRouter();
   const [teachers, setTeachers] = useState<TeacherWithDetails[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
   const [classes, setClasses] = useState<Class[]>([]);
   const [subjectClasses, setSubjectClasses] = useState<SubjectClass[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Keyboard nav
+  const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+  const rowRefs = useRef<Array<HTMLTableRowElement | null>>([]);
+
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   // Image handling state
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -173,9 +185,20 @@ export default function TeachersPage() {
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [imageUrl, setImageUrl] = useState<string>('');
 
+  // ── Debounced search ──
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // ── Camera cleanup ──
+
   useEffect(() => {
     if (!isDialogOpen && cameraStream) {
-      // Clean up camera when dialog closes
       cameraStream.getTracks().forEach(track => track.stop());
       setCameraStream(null);
       setIsCameraOpen(false);
@@ -192,8 +215,8 @@ export default function TeachersPage() {
 
   async function fetchTeachers() {
     if (!schoolId) return;
+    setLoading(true);
     try {
-      // Fetch all teachers
       const { data: teachersData, error: teachersError } = await supabase
         .from('teachers')
         .select('*')
@@ -250,6 +273,8 @@ export default function TeachersPage() {
       setTeachers(teachersWithDetails);
     } catch (error) {
       toast.error('Failed to fetch teachers');
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -521,17 +546,21 @@ export default function TeachersPage() {
     return `${firstName[0]}${lastName[0]}`.toUpperCase();
   }
 
-  const filteredTeachers = teachers.filter((teacher) =>
-    `${teacher.first_name} ${teacher.last_name} ${teacher.staff_id}`
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase())
-  ).filter((teacher) => (statusFilter ? teacher.status === statusFilter : true));
+  const filteredTeachers = useMemo(() => {
+    return teachers.filter((teacher) =>
+      `${teacher.first_name} ${teacher.last_name} ${teacher.staff_id}`
+        .toLowerCase()
+        .includes(debouncedSearch.toLowerCase())
+    ).filter((teacher) => (statusFilter ? teacher.status === statusFilter : true));
+  }, [teachers, debouncedSearch, statusFilter]);
 
   const totalTeachers = teachers.length;
   const activeTeachers = teachers.filter((teacher) => teacher.status === 'active').length;
   const classTeachers = teachers.filter((teacher) => teacher.assignedClass).length;
   const subjectAssignments = teachers.reduce((total, teacher) => total + (teacher.subjectCount || 0), 0);
   const onboardingTeachers = teachers.filter((teacher) => teacher.status === 'inactive').length;
+
+  if (loading && teachers.length === 0) return <DashboardLayout role="admin"><TeachersSkeleton /></DashboardLayout>;
 
   return (
     <DashboardLayout role="admin">
@@ -566,7 +595,7 @@ export default function TeachersPage() {
                       setImagePreview(null);
                       setImageUrl('');
                     }}
-                    className="h-11 rounded-xl bg-white px-5 text-sm font-semibold text-slate-950 shadow-lg shadow-black/10 transition hover:bg-slate-100"
+                    className="h-11 rounded-xl bg-white px-5 text-sm font-semibold text-slate-950 shadow-lg shadow-black/10 transition-all duration-200 hover:bg-slate-100 active:scale-[0.97]"
                   >
                     <Plus className="mr-2 h-4 w-4" />
                     Add Teacher
@@ -871,7 +900,7 @@ export default function TeachersPage() {
               <Button
                 variant="outline"
                 onClick={handleExport}
-                className="h-11 rounded-xl border-white/10 bg-white/5 px-5 text-sm font-semibold text-white shadow-none hover:bg-white/10 hover:text-white"
+                className="h-11 rounded-xl border-white/10 bg-white/5 px-5 text-sm font-semibold text-white shadow-none transition-all duration-200 hover:bg-white/10 hover:text-white active:scale-[0.97]"
               >
                 <ChevronRight className="mr-2 h-4 w-4" />
                 Export
@@ -924,8 +953,8 @@ export default function TeachersPage() {
                 <StyledInput
                   placeholder="Search teachers..."
                   className="pl-10"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
               <StyledSelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>

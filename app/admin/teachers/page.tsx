@@ -7,12 +7,6 @@ import { Input } from '@/components/ui/input';
 import {
   Plus,
   Search,
-  Edit,
-  Trash2,
-  MoreVertical,
-  Eye,
-  UserCog,
-  BookOpen,
   Camera,
   X,
   Users,
@@ -23,12 +17,12 @@ import {
   CalendarDays,
   Shield,
   Briefcase,
-  ArrowLeft,
-  ArrowRight,
   AlertTriangle,
   CheckCircle2,
+  ExternalLink,
 } from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useSchoolContext } from '@/hooks/use-school-context';
 import { Teacher } from '@/lib/types';
@@ -40,12 +34,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -75,11 +63,6 @@ type Class = {
   id: string;
   name: string;
   class_level_id: string;
-};
-
-type Subject = {
-  id: string;
-  name: string;
 };
 
 type SubjectClass = {
@@ -171,23 +154,15 @@ function TeacherFeatureChip({ label, value }: { label: string; value: string | n
 
 export default function TeachersPage() {
   const { schoolId } = useSchoolContext();
+  const router = useRouter();
   const [teachers, setTeachers] = useState<TeacherWithDetails[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
-  const [viewingTeacher, setViewingTeacher] = useState<TeacherWithDetails | null>(null);
-  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
-  const [isAssignClassDialogOpen, setIsAssignClassDialogOpen] = useState(false);
-  const [isAssignSubjectDialogOpen, setIsAssignSubjectDialogOpen] = useState(false);
-  const [assigningTeacher, setAssigningTeacher] = useState<Teacher | null>(null);
   const [classes, setClasses] = useState<Class[]>([]);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [subjectClasses, setSubjectClasses] = useState<SubjectClass[]>([]);
-  const [selectedClassForSubject, setSelectedClassForSubject] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
-  const [teacherToDelete, setTeacherToDelete] = useState<{ id: string; userId?: string; name: string } | null>(null);
 
   // Image handling state
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -211,7 +186,6 @@ export default function TeachersPage() {
     if (schoolId) {
       fetchTeachers();
       fetchClasses();
-      fetchSubjects();
       fetchSubjectClasses();
     }
   }, [schoolId]);
@@ -291,21 +265,6 @@ export default function TeachersPage() {
       setClasses(data || []);
     } catch (error) {
       toast.error('Failed to fetch classes');
-    }
-  }
-
-  async function fetchSubjects() {
-    if (!schoolId) return;
-    try {
-      const { data, error } = await supabase
-        .from('subjects')
-        .select('id, name')
-        .eq('school_id', schoolId)
-        .order('name', { ascending: true });
-      if (error) throw error;
-      setSubjects(data || []);
-    } catch (error) {
-      toast.error('Failed to fetch subjects');
     }
   }
 
@@ -550,158 +509,12 @@ export default function TeachersPage() {
   }
 
 
-  async function handleDelete(id: string, userId?: string) {
-    setTeacherToDelete({
-      id,
-      userId,
-      name: teachers.find(t => t.id === id)?.first_name + ' ' + teachers.find(t => t.id === id)?.last_name || 'Teacher',
-    });
-    setIsDeleteConfirmOpen(true);
-  }
-
-  async function confirmDelete() {
-    if (!teacherToDelete) return;
-
-    try {
-      // Delete from teachers table
-      const { error: deleteError } = await supabase
-        .from('teachers')
-        .delete()
-        .eq('school_id', schoolId)
-        .eq('id', teacherToDelete.id);
-
-      if (deleteError) throw deleteError;
-
-      // Delete from auth if userId exists
-      if (teacherToDelete.userId) {
-        try {
-          await supabase.auth.admin.deleteUser(teacherToDelete.userId);
-        } catch (authError) {
-          console.error('Error deleting user from auth:', authError);
-          // Don't fail the deletion if auth deletion fails, just log it
-        }
-      }
-
-      toast.success('Teacher deleted successfully');
-      setIsDeleteConfirmOpen(false);
-      setTeacherToDelete(null);
-      fetchTeachers();
-    } catch (error) {
-      console.error('Error deleting teacher:', error);
-      toast.error('Failed to delete teacher');
-    }
-  }
-
-  async function openEditDialog(teacher: Teacher) {
-    setEditingTeacher(teacher);
-    // Load existing image if available
-    if ((teacher as any).photo_url) {
-      setImageUrl((teacher as any).photo_url);
-      setImagePreview((teacher as any).photo_url);
-    }
-    setIsDialogOpen(true);
-  }
-
   function closeDialog() {
     setIsDialogOpen(false);
     setEditingTeacher(null);
     setImagePreview(null);
     setImageUrl('');
     closeCameraAndClear();
-  }
-
-  async function handleAssignClass(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!assigningTeacher) return;
-
-    const formData = new FormData(e.currentTarget);
-    const classId = formData.get('class_id') as string;
-
-    if (!classId) {
-      toast.error('Please select a class');
-      return;
-    }
-
-    // First, remove this teacher from any existing class they're assigned to
-    await supabase
-      .from('classes')
-      .update({ class_teacher_id: null })
-      .eq('school_id', schoolId)
-      .eq('class_teacher_id', assigningTeacher.id);
-
-    // Then assign to the new class (this will also remove any previous teacher from this class)
-    const { error } = await supabase
-      .from('classes')
-      .update({ class_teacher_id: assigningTeacher.id })
-      .eq('school_id', schoolId)
-      .eq('id', classId);
-
-    if (error) {
-      toast.error('Failed to assign class teacher');
-    } else {
-      toast.success('Class teacher assigned successfully!');
-      setIsAssignClassDialogOpen(false);
-      setAssigningTeacher(null);
-      fetchTeachers();
-    }
-  }
-
-  async function handleAssignSubject(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!assigningTeacher) return;
-
-    const formData = new FormData(e.currentTarget);
-    const classId = formData.get('class_id') as string;
-    const subjectId = formData.get('subject_id') as string;
-
-    if (!classId || !subjectId) {
-      toast.error('Please select both a class and a subject');
-      return;
-    }
-
-    // Find the subject_class that matches the selected class and subject
-    const subjectClass = subjectClasses.find(
-      sc => sc.class_id === classId && sc.subject_id === subjectId
-    );
-
-    if (!subjectClass) {
-      toast.error('Selected subject is not available for this class');
-      return;
-    }
-
-    // Update the subject_class with the teacher (this overwrites any existing assignment)
-    const { error } = await supabase
-      .from('subject_classes')
-      .update({ teacher_id: assigningTeacher.id })
-      .eq('school_id', schoolId)
-      .eq('id', subjectClass.id);
-
-    if (error) {
-      toast.error('Failed to assign subject class');
-    } else {
-      toast.success('Subject class assigned successfully!');
-      setIsAssignSubjectDialogOpen(false);
-      setAssigningTeacher(null);
-      setSelectedClassForSubject('');
-      fetchTeachers();
-      fetchSubjectClasses();
-    }
-  }
-
-  function openAssignClassDialog(teacher: Teacher) {
-    setAssigningTeacher(teacher);
-    setIsAssignClassDialogOpen(true);
-  }
-
-  function openAssignSubjectDialog(teacher: Teacher) {
-    setAssigningTeacher(teacher);
-    setSelectedClassForSubject('');
-    setIsAssignSubjectDialogOpen(true);
-  }
-
-  function openViewDialog(teacher: TeacherWithDetails) {
-    setViewingTeacher(teacher);
-    setIsViewDialogOpen(true);
   }
 
   function getInitials(firstName: string, lastName: string) {
@@ -1208,38 +1021,15 @@ export default function TeachersPage() {
                         </Badge>
                       </td>
                       <td className="p-4 text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openViewDialog(teacher)}>
-                              <Eye className="h-4 w-4 mr-2" />
-                              View Details
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openEditDialog(teacher)}>
-                              <Edit className="h-4 w-4 mr-2" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openAssignClassDialog(teacher)}>
-                              <UserCog className="h-4 w-4 mr-2" />
-                              Assign as Class Teacher
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openAssignSubjectDialog(teacher)}>
-                              <BookOpen className="h-4 w-4 mr-2" />
-                              Assign Subject
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-red-600"
-                              onClick={() => handleDelete(teacher.id, teacher.user_id || undefined)}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => router.push(`/admin/teachers/${teacher.id}`)}
+                          className="rounded-xl text-xs font-medium gap-1.5 border-slate-200 hover:bg-slate-50 hover:text-indigo-700 hover:border-indigo-200 transition-all"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          View & Manage
+                        </Button>
                       </td>
                     </tr>
                   ))}
@@ -1255,301 +1045,6 @@ export default function TeachersPage() {
           </div>
         </div>
 
-        {/* View Teacher Details Dialog */}
-        <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-          <DialogContent className="max-h-[92vh] overflow-hidden border-0 bg-transparent p-0 shadow-none sm:max-w-4xl [&>button]:hidden">
-            <div className="flex max-h-[92vh] flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl shadow-slate-900/20 ring-1 ring-slate-900/10">
-              <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 py-4 sm:px-7">
-                <div>
-                  <DialogTitle className="text-base font-bold text-slate-900">Teacher Details</DialogTitle>
-                  <p className="mt-1 text-[11px] text-slate-400">Profile, assignments, and subject coverage at a glance.</p>
-                </div>
-                <Button variant="ghost" size="icon" onClick={() => setIsViewDialogOpen(false)} className="rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700">
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="max-h-[calc(92vh-72px)] overflow-y-auto px-6 py-6 sm:px-7">
-                <DialogHeader>
-                  <DialogTitle className="sr-only">Teacher Details</DialogTitle>
-                </DialogHeader>
-                {viewingTeacher && (
-                  <div className="space-y-6">
-                    {/* Header with Avatar */}
-                    <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                      <Avatar className="h-20 w-20 ring-4 ring-white shadow-sm">
-                        {(viewingTeacher as any).photo_url && (
-                          <img
-                            src={(viewingTeacher as any).photo_url}
-                            alt={`${viewingTeacher.first_name} ${viewingTeacher.last_name}`}
-                            className="w-full h-full object-cover"
-                          />
-                        )}
-                        <AvatarFallback className="bg-gradient-to-br from-green-100 to-green-200 text-green-700 text-2xl font-semibold">
-                          {getInitials(viewingTeacher.first_name, viewingTeacher.last_name)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <h3 className="text-2xl font-bold text-gray-900">
-                          {viewingTeacher.first_name} {viewingTeacher.last_name}
-                        </h3>
-                        <p className="text-sm text-gray-600 mt-1">{viewingTeacher.qualification || 'N/A'}</p>
-                        <div className="flex items-center gap-2 mt-2">
-                          <Badge variant={viewingTeacher.status === 'active' ? 'default' : 'secondary'}>
-                            {viewingTeacher.status}
-                          </Badge>
-                          {viewingTeacher.specialization && (
-                            <Badge variant="outline" className="text-xs">
-                              {viewingTeacher.specialization}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Basic Information */}
-                    <div>
-                      <h4 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wide">Basic Information</h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-gray-50 rounded-lg p-3">
-                          <Label className="text-xs text-gray-600 uppercase tracking-wider">Staff ID</Label>
-                          <p className="font-mono font-semibold text-gray-900 mt-1">{viewingTeacher.staff_id}</p>
-                        </div>
-                        <div className="bg-gray-50 rounded-lg p-3">
-                          <Label className="text-xs text-gray-600 uppercase tracking-wider">Email</Label>
-                          <p className="font-semibold text-gray-900 mt-1 text-sm break-all">{viewingTeacher.email}</p>
-                        </div>
-                        <div className="bg-gray-50 rounded-lg p-3">
-                          <Label className="text-xs text-gray-600 uppercase tracking-wider">Phone</Label>
-                          <p className="font-semibold text-gray-900 mt-1">{viewingTeacher.phone || 'N/A'}</p>
-                        </div>
-                        <div className="bg-gray-50 rounded-lg p-3">
-                          <Label className="text-xs text-gray-600 uppercase tracking-wider">Specialization</Label>
-                          <p className="font-semibold text-gray-900 mt-1 text-sm">{viewingTeacher.specialization || 'N/A'}</p>
-                        </div>
-                      </div>
-                      {viewingTeacher.address && (
-                        <div className="bg-gray-50 rounded-lg p-3 mt-3">
-                          <Label className="text-xs text-gray-600 uppercase tracking-wider">Address</Label>
-                          <p className="font-semibold text-gray-900 mt-1 text-sm">{viewingTeacher.address}</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Class Teacher Assignment */}
-                    <div>
-                      <h4 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wide">Class Assignment</h4>
-                      {viewingTeacher.assignedClass ? (
-                        <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                          <Badge variant="outline" className="text-base px-3 py-1.5 bg-white border-blue-300">
-                            {viewingTeacher.assignedClass}
-                          </Badge>
-                        </div>
-                      ) : (
-                        <div className="bg-gray-50 rounded-lg p-4 text-center">
-                          <p className="text-gray-500 text-sm">Not assigned to any class</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Subject Assignments */}
-                    <div>
-                      <h4 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wide">Subject Teaching</h4>
-                      {viewingTeacher.subjectAssignmentsByClass && viewingTeacher.subjectAssignmentsByClass.length > 0 ? (
-                        <div className="space-y-3">
-                          {viewingTeacher.subjectAssignmentsByClass.map((assignment, classIdx) => (
-                            <div key={classIdx} className="bg-amber-50 rounded-lg border border-amber-200 overflow-hidden">
-                              <div className="bg-amber-100 px-4 py-2 border-b border-amber-200">
-                                <h5 className="font-semibold text-amber-900 text-sm">{assignment.className}</h5>
-                              </div>
-                              <div className="p-3 flex flex-wrap gap-2">
-                                {assignment.subjects.map((subject, subjIdx) => (
-                                  <Badge key={subjIdx} variant="secondary" className="bg-amber-200 text-amber-900 font-medium">
-                                    {subject.name}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="bg-gray-50 rounded-lg p-4 text-center">
-                          <p className="text-gray-500 text-sm">Not assigned to any subjects</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Assign Class Teacher Dialog */}
-        <Dialog open={isAssignClassDialogOpen} onOpenChange={setIsAssignClassDialogOpen}>
-          <DialogContent className="rounded-[2rem] border-0 shadow-2xl sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle className="text-base font-bold text-slate-900">Assign Class Teacher</DialogTitle>
-            </DialogHeader>
-            {assigningTeacher && (
-              <form onSubmit={handleAssignClass} className="space-y-4">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-sm text-slate-600 mb-4">
-                    Assigning <span className="font-semibold">{assigningTeacher.first_name} {assigningTeacher.last_name}</span> as class teacher
-                  </p>
-                  <Label htmlFor="class_id">Select Class</Label>
-                  <StyledSelect
-                    id="class_id"
-                    name="class_id"
-                    className="mt-1"
-                    required
-                  >
-                    <option value="">Choose a class...</option>
-                    {classes.map((cls) => (
-                      <option key={cls.id} value={cls.id}>
-                        {cls.name}
-                      </option>
-                    ))}
-                  </StyledSelect>
-                  <p className="text-xs text-slate-500 mt-2">
-                    Note: This will replace any existing class teacher assignment for both the teacher and the class.
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button type="submit" className="flex-1 rounded-xl bg-slate-950 text-white hover:bg-slate-800">
-                    Assign Class
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsAssignClassDialogOpen(false)}
-                    className="rounded-xl"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </form>
-            )}
-          </DialogContent>
-        </Dialog>
-
-        {/* Assign Subject Class Dialog */}
-        <Dialog open={isAssignSubjectDialogOpen} onOpenChange={setIsAssignSubjectDialogOpen}>
-          <DialogContent className="rounded-[2rem] border-0 shadow-2xl sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle className="text-base font-bold text-slate-900">Assign Subject</DialogTitle>
-            </DialogHeader>
-            {assigningTeacher && (
-              <form onSubmit={handleAssignSubject} className="space-y-4">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-sm text-slate-600 mb-4">
-                    Assigning <span className="font-semibold">{assigningTeacher.first_name} {assigningTeacher.last_name}</span> to a subject
-                  </p>
-
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="class_id">Select Class</Label>
-                      <StyledSelect
-                        id="class_id"
-                        name="class_id"
-                        className="mt-1"
-                        value={selectedClassForSubject}
-                        onChange={(e) => setSelectedClassForSubject(e.target.value)}
-                        required
-                      >
-                        <option value="">Choose a class...</option>
-                        {classes.map((cls) => (
-                          <option key={cls.id} value={cls.id}>
-                            {cls.name}
-                          </option>
-                        ))}
-                      </StyledSelect>
-                    </div>
-
-                    {selectedClassForSubject && (
-                      <div>
-                        <Label htmlFor="subject_id">Select Subject</Label>
-                        <StyledSelect
-                          id="subject_id"
-                          name="subject_id"
-                          className="mt-1"
-                          required
-                        >
-                          <option value="">Choose a subject...</option>
-                          {subjectClasses
-                            .filter(sc => sc.class_id === selectedClassForSubject)
-                            .map((sc) => (
-                              <option key={sc.id} value={sc.subject_id}>
-                                {sc.subjects?.name}
-                              </option>
-                            ))}
-                        </StyledSelect>
-                      </div>
-                    )}
-                  </div>
-
-                  <p className="text-xs text-slate-500 mt-3">
-                    Note: This will replace any existing teacher assignment for this subject.
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button type="submit" className="flex-1 rounded-xl bg-slate-950 text-white hover:bg-slate-800" disabled={!selectedClassForSubject}>
-                    Assign Subject
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setIsAssignSubjectDialogOpen(false);
-                      setSelectedClassForSubject('');
-                    }}
-                    className="rounded-xl"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </form>
-            )}
-          </DialogContent>
-        </Dialog>
-
-        {/* Delete Confirmation Dialog */}
-        <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
-          <DialogContent className="rounded-[2rem] border-0 shadow-2xl sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle className="text-base font-bold text-slate-900">Delete Teacher</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
-                <p className="text-sm text-slate-700">
-                  Are you sure you want to delete <span className="font-semibold text-rose-700">{teacherToDelete?.name}</span>?
-                </p>
-                <p className="text-xs text-slate-500 mt-2">
-                  This action will permanently remove the teacher and their user account. This cannot be undone.
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="destructive"
-                  className="flex-1 rounded-xl"
-                  onClick={confirmDelete}
-                >
-                  Delete
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="flex-1 rounded-xl"
-                  onClick={() => {
-                    setIsDeleteConfirmOpen(false);
-                    setTeacherToDelete(null);
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
       </div>
     </DashboardLayout>
   );

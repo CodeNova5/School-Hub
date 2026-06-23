@@ -880,20 +880,26 @@ export function TeacherLessonNotes() {
     });
   }
 
-  function handleBulkDelete() {
+  async function handleBulkDelete() {
     if (selectedNoteIds.size === 0) return;
     const count = selectedNoteIds.size;
     if (!confirm(`Delete ${count} selected lesson note${count !== 1 ? 's' : ''}? This cannot be undone.`)) return;
-    Promise.all(
-      Array.from(selectedNoteIds).map((id) =>
-        fetch(`/api/teacher/lesson-notes/${id}`, { method: 'DELETE' })
-      )
-    ).then(() => {
+
+    try {
+      await Promise.all(
+        Array.from(selectedNoteIds).map((id) =>
+          fetch(`/api/teacher/lesson-notes/${id}`, { method: 'DELETE' })
+        )
+      );
+
       toast.success(`Deleted ${count} lesson note${count !== 1 ? 's' : ''}`);
       setSelectedNoteIds(new Set());
       setIsBulkMode(false);
-      loadSavedNotes();
-    });
+      await loadSavedNotes();
+    } catch (error) {
+      console.error('Bulk delete error:', error);
+      toast.error('Failed to delete some lesson notes');
+    }
   }
 
   // ── Draft auto-save

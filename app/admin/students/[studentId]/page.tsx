@@ -322,7 +322,7 @@ export default function AdminStudentPage() {
 			if (data.student) {
 				setStudent(data.student);
 			}
-			toast.success('Department and religion updated successfully');
+			toast.success('Academic info updated successfully');
 		} catch (error: any) {
 			toast.error(error.message || 'Failed to update academic profile');
 		} finally {
@@ -332,13 +332,13 @@ export default function AdminStudentPage() {
 
 	async function handleDelete() {
 		if (!student) return;
-		if (!confirm(`Permanently delete ${student.first_name} ${student.last_name}?`)) return;
+		if (!confirm(`Permanently delete ${student.first_name} ${student.last_name}? This cannot be undone.`)) return;
 		setIsDeleting(true);
 		try {
 			const res = await fetch('/api/admin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete-student', studentId: student.id, userId: student.user_id }) });
 			const body = await res.json();
 			if (!res.ok) { throw new Error(body.error || 'Failed to delete'); }
-			toast.success('Student record removed completely');
+			toast.success('Student deleted successfully');
 			router.push('/admin/students');
 		} catch (e: any) {
 			toast.error('Delete failed: ' + (e.message || 'Unknown'));
@@ -358,7 +358,7 @@ export default function AdminStudentPage() {
 	}
 
 	async function handleTransfer() {
-			if (!student || !transferTargetClassId) { return { success: false, error: 'Select a target class' }; }
+			if (!student || !transferTargetClassId) { return { success: false, error: 'Please select a target class' }; }
 			try {
 				const res = await fetch('/api/admin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'transfer-students', studentIds: [student.id], targetClassId: transferTargetClassId }) });
 				const data = await res.json();
@@ -374,7 +374,7 @@ export default function AdminStudentPage() {
 
 		const selectedParent = linkParentResults.find((parent) => parent.id === selectedLinkParentId);
 		if (!selectedParent) {
-			setLinkParentError('Select a parent to link');
+			setLinkParentError('Please select a parent to link');
 			return;
 		}
 
@@ -407,7 +407,7 @@ export default function AdminStudentPage() {
 				throw new Error(payload.error || 'Failed to link parent');
 			}
 
-			toast.success('Parent linked to student successfully');
+			toast.success('Parent linked successfully');
 			setIsLinkParentOpen(false);
 			await loadData();
 		} catch (error: any) {
@@ -436,7 +436,7 @@ export default function AdminStudentPage() {
 				throw new Error(data.error || 'Failed to send reset email');
 			}
 
-			toast.success('Password reset email dispatched');
+			toast.success('Password reset email sent');
 		} catch (e: any) {
 			toast.error(e.message || 'Failed to send reset email');
 		} finally {
@@ -464,13 +464,13 @@ export default function AdminStudentPage() {
 
 	async function handleSendEmailCode() {
 		if (!newEmail.trim()) {
-			setEmailChangeError('Enter a new email address');
+			setEmailChangeError('Please enter a new email address');
 			return;
 		}
 
 		const normalizedEmail = newEmail.trim().toLowerCase();
 		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-			setEmailChangeError('Enter a valid email address');
+			setEmailChangeError('Please enter a valid email address');
 			return;
 		}
 
@@ -489,7 +489,7 @@ export default function AdminStudentPage() {
 
 			setNewEmail(normalizedEmail);
 			setEmailStep('code');
-			toast.success('Verification code sent to the new email address');
+			toast.success('Verification code sent');
 		} catch (e: any) {
 			setEmailChangeError(e.message || 'Failed to send verification code');
 		} finally {
@@ -500,7 +500,7 @@ export default function AdminStudentPage() {
 	async function handleVerifyAndApplyEmailChange() {
 		if (!student) return;
 		if (!verificationCode.trim() || verificationCode.trim().length !== 6) {
-			setEmailChangeError('Enter the 6-digit verification code');
+			setEmailChangeError('Please enter the 6-digit verification code');
 			return;
 		}
 
@@ -536,7 +536,7 @@ export default function AdminStudentPage() {
 			if (updateData.student) {
 				setStudent(updateData.student);
 			}
-			const successMessage = updateData.message || 'Student email updated successfully';
+			const successMessage = updateData.message || 'Email updated successfully';
 			setEmailChangeSuccess(successMessage);
 			setEmailStep('success');
 			toast.success(successMessage);
@@ -568,7 +568,7 @@ export default function AdminStudentPage() {
 				throw new Error(payload.error || 'Failed to remove parent');
 			}
 
-			toast.success('Parent relationship terminated');
+			toast.success('Parent unlinked successfully');
 			setIsUnlinkConfirmOpen(false);
 			setGuardianToUnlink(null);
 			await loadData();
@@ -581,25 +581,25 @@ export default function AdminStudentPage() {
 
 	if (schoolLoading || loading) return (
 		<DashboardLayout role="admin">
-			<div className="flex flex-col items-center justify-center h-[60vh] gap-3" role="status" aria-live="polite">
-				<Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
-				<p className="text-sm font-medium text-slate-500">Loading profile data...</p>
+			<div className="flex flex-col items-center justify-center h-[60vh] gap-4" role="status" aria-live="polite">
+				<Loader2 className="h-10 w-10 animate-spin text-indigo-600" />
+				<p className="text-base font-medium text-slate-500">Loading student profile...</p>
 			</div>
 		</DashboardLayout>
 	);
 
 	if (schoolError || !schoolId) return (
 		<DashboardLayout role="admin">
-			<div className="flex items-center justify-center h-96 text-red-500 font-medium">
-				{schoolError || 'School environment context not available'}
+			<div className="flex items-center justify-center h-96 text-red-500 font-medium text-lg">
+				{schoolError || 'School environment could not be found.'}
 			</div>
 		</DashboardLayout>
 	);
 
 	if (!student) return (
 		<DashboardLayout role="admin">
-			<div className="flex items-center justify-center h-96 text-slate-500 font-medium">
-				Student record could not be found
+			<div className="flex items-center justify-center h-96 text-slate-500 font-medium text-lg">
+				Student record not found.
 			</div>
 		</DashboardLayout>
 	);
@@ -609,67 +609,67 @@ export default function AdminStudentPage() {
 
 	return (
 		<DashboardLayout role="admin">
-			<main className="max-w-7xl mx-auto p-4 md:p-8 space-y-8" id="main-content">
+			<main className="max-w-7xl mx-auto p-6 md:p-10 space-y-10" id="main-content">
 				
 				{/* Top Action Bar */}
-				<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-					<div className="space-y-1">
+				<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 pb-6 border-b border-slate-100">
+					<div className="space-y-2">
 						<div className="flex items-center gap-2 text-sm text-slate-500">
 							<GraduationCap className="h-4 w-4" />
-							<span>Student Registry Administration</span>
+							<span>Student Profile</span>
 						</div>
-						<h1 className="text-3xl font-bold tracking-tight text-slate-900">{student.first_name} {student.last_name}</h1>
+						<h1 className="text-4xl font-bold tracking-tight text-slate-900">{student.first_name} {student.last_name}</h1>
 					</div>
-					<Button variant="outline" size="sm" onClick={() => router.back()} aria-label="Back to students list" className="rounded-xl px-4 py-2 text-slate-700 hover:bg-slate-50 border-slate-200 transition-all self-start sm:self-auto shadow-sm">
+					<Button variant="outline" size="sm" onClick={() => router.back()} aria-label="Back to students list" className="rounded-xl px-5 py-2.5 text-slate-700 hover:bg-slate-50 border-slate-200 transition-all self-start sm:self-auto shadow-sm">
 						<ArrowLeft className="h-4 w-4 mr-2 text-slate-500" />
-						Back to Registry
+						Back to Students
 					</Button>
 				</div>
 
 				{/* Grid Dynamic Layout */}
-				<div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+				<div className="grid grid-cols-1 lg:grid-cols-3 gap-10 items-start">
 					
 					{/* Left Profile Sidebar Summary */}
-					<div className="space-y-6 lg:col-span-1">
-						<Card className="overflow-hidden border-slate-200/80 shadow-md shadow-slate-100/50 bg-gradient-to-b from-slate-50/50 to-white">
-							<div className="h-24 bg-gradient-to-r from-indigo-500 to-purple-600 relative" />
-							<CardContent className="p-6 pt-0 relative flex flex-col items-center text-center">
-								<figure className="-mt-12 mb-4 relative z-10">
-									<Avatar className="h-24 w-24 border-4 border-white shadow-xl ring-1 ring-slate-100">
+					<div className="space-y-8 lg:col-span-1">
+						<Card className="overflow-hidden border-slate-200/80 shadow-md bg-gradient-to-b from-slate-50/50 to-white">
+							<div className="h-32 bg-gradient-to-r from-indigo-500 to-purple-600 relative" />
+							<CardContent className="p-8 pt-0 relative flex flex-col items-center text-center">
+								<figure className="-mt-16 mb-6 relative z-10">
+									<Avatar className="h-32 w-32 border-4 border-white shadow-xl ring-1 ring-slate-100">
 										<AvatarImage src={student.photo_url} alt={`${student.first_name} ${student.last_name}`} />
-										<AvatarFallback className="bg-gradient-to-tr from-indigo-100 to-purple-100 text-indigo-700 text-2xl font-bold">{getInitials(student.first_name, student.last_name)}</AvatarFallback>
+										<AvatarFallback className="bg-gradient-to-tr from-indigo-100 to-purple-100 text-indigo-700 text-3xl font-bold">{getInitials(student.first_name, student.last_name)}</AvatarFallback>
 									</Avatar>
 								</figure>
 
-								<div className="space-y-1">
-									<h2 className="text-xl font-bold text-slate-900">{student.first_name} {student.last_name}</h2>
-									<p className="text-xs font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md inline-block">ID: {student.student_id}</p>
+								<div className="space-y-2">
+									<h2 className="text-2xl font-bold text-slate-900">{student.first_name} {student.last_name}</h2>
+									<p className="text-sm font-mono bg-slate-100 text-slate-600 px-3 py-1 rounded-md inline-block">ID: {student.student_id}</p>
 								</div>
 
-								<div className="mt-3">
-									<Badge className={`rounded-full px-3 py-0.5 text-xs font-medium border ${
+								<div className="mt-5">
+									<Badge className={`rounded-full px-4 py-1 text-sm font-medium border ${
 										student.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-700 border-slate-200'
 									}`}>{student.status}</Badge>
 								</div>
 
-								<div className="w-full border-t border-slate-100 my-5" />
+								<div className="w-full border-t border-slate-100 my-6" />
 
-								<div className="w-full space-y-4 text-left text-sm">
-									<div className="flex items-center gap-3 text-slate-600 hover:text-slate-900 transition-colors">
-										<div className="p-2 bg-slate-100 rounded-lg text-slate-500"><Mail className="h-4 w-4" /></div>
+								<div className="w-full space-y-5 text-left text-sm">
+									<div className="flex items-center gap-4 text-slate-600 hover:text-slate-900 transition-colors">
+										<div className="p-2.5 bg-slate-100 rounded-lg text-slate-500"><Mail className="h-5 w-5" /></div>
 										<span className="truncate font-medium">{student.email}</span>
 									</div>
-									<div className="flex items-center gap-3 text-slate-600 hover:text-slate-900 transition-colors">
-										<div className="p-2 bg-slate-100 rounded-lg text-slate-500"><Phone className="h-4 w-4" /></div>
+									<div className="flex items-center gap-4 text-slate-600 hover:text-slate-900 transition-colors">
+										<div className="p-2.5 bg-slate-100 rounded-lg text-slate-500"><Phone className="h-5 w-5" /></div>
 										<span className="font-medium">{student.phone || '—'}</span>
 									</div>
-									<div className="flex items-center gap-3 text-slate-600">
-										<div className="p-2 bg-slate-100 rounded-lg text-slate-500"><User className="h-4 w-4" /></div>
+									<div className="flex items-center gap-4 text-slate-600">
+										<div className="p-2.5 bg-slate-100 rounded-lg text-slate-500"><User className="h-5 w-5" /></div>
 										<span className="capitalize font-medium">{student.gender}</span>
 									</div>
-									<div className="flex items-center gap-3 text-slate-600">
-										<div className="p-2 bg-slate-100 rounded-lg text-slate-500"><Calendar className="h-4 w-4" /></div>
-										<span className="font-medium">Admitted: {new Date(student.admission_date).toLocaleDateString(undefined, {year: 'numeric', month: 'short', day: 'numeric'})}</span>
+									<div className="flex items-center gap-4 text-slate-600">
+										<div className="p-2.5 bg-slate-100 rounded-lg text-slate-500"><Calendar className="h-5 w-5" /></div>
+										<span className="font-medium">Admitted: {new Date(student.admission_date).toLocaleDateString(undefined, {year: 'numeric', month: 'long', day: 'numeric'})}</span>
 									</div>
 								</div>
 							</CardContent>
@@ -677,37 +677,37 @@ export default function AdminStudentPage() {
 
 						{/* Academic Information Quick Controls */}
 						<Card className="border-slate-200/80 shadow-sm">
-							<CardHeader className="pb-3 border-b border-slate-50 bg-slate-50/50">
-								<div className="flex items-center gap-2">
-									<BookOpen className="h-4 w-4 text-indigo-600" />
-									<CardTitle className="text-base font-semibold text-slate-900">Academic Profile</CardTitle>
+							<CardHeader className="pb-4 border-b border-slate-50 bg-slate-50/50 p-6">
+								<div className="flex items-center gap-3">
+									<BookOpen className="h-5 w-5 text-indigo-600" />
+									<CardTitle className="text-lg font-semibold text-slate-900">Academic Info</CardTitle>
 								</div>
 							</CardHeader>
-							<CardContent className="p-5 space-y-4">
-								<div className="space-y-1.5">
-									<Label htmlFor="studentDepartment" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Classification/Department</Label>
+							<CardContent className="p-6 space-y-6">
+								<div className="space-y-2">
+									<Label htmlFor="studentDepartment" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Department</Label>
 									<select
 										id="studentDepartment"
 										value={selectedDepartmentId}
 										onChange={(e) => setSelectedDepartmentId(e.target.value)}
-										className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+										className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
 									>
-										<option value="">No Custom Department Specified</option>
+										<option value="">No Department Selected</option>
 										{departments.map((department) => (
 											<option key={department.id} value={department.id}>{department.name}</option>
 										))}
 									</select>
 								</div>
 
-								<div className="space-y-1.5">
-									<Label htmlFor="studentReligion" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Religion Core Filtering</Label>
+								<div className="space-y-2">
+									<Label htmlFor="studentReligion" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Religion</Label>
 									<select
 										id="studentReligion"
 										value={selectedReligionId}
 										onChange={(e) => setSelectedReligionId(e.target.value)}
-										className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+										className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
 									>
-										<option value="">No Core Specified</option>
+										<option value="">No Religion Selected</option>
 										{religions.map((religion) => (
 											<option key={religion.id} value={religion.id}>{religion.name}</option>
 										))}
@@ -717,58 +717,57 @@ export default function AdminStudentPage() {
 								<Button 
 									onClick={handleSaveAcademicProfile} 
 									disabled={isSavingAcademicProfile} 
-									className="w-full rounded-xl mt-2 bg-indigo-600 hover:bg-indigo-700 shadow-sm text-sm"
+									className="w-full rounded-xl mt-4 bg-indigo-600 hover:bg-indigo-700 shadow-sm py-5"
 								>
 									{isSavingAcademicProfile ? (
-										<span className="flex items-center gap-2 justify-center"><Loader2 className="h-4 w-4 animate-spin"/> Updating Profile...</span>
-									) : 'Save Meta Data Updates'}
+										<span className="flex items-center gap-2 justify-center"><Loader2 className="h-5 w-5 animate-spin"/> Saving...</span>
+									) : 'Save Changes'}
 								</Button>
 							</CardContent>
 						</Card>
 					</div>
 
 					{/* Right Content Management Space */}
-					<div className="space-y-6 lg:col-span-2">
+					<div className="space-y-8 lg:col-span-2">
 						
 						{/* Guardians Card */}
 						<Card className="border-slate-200 shadow-sm overflow-hidden">
-							<CardHeader className="flex flex-row items-center justify-between gap-4 bg-slate-50/50 border-b border-slate-100 p-5">
-								<div className="space-y-0.5">
-									<div className="flex items-center gap-2">
-										<Heart className="h-4 w-4 text-rose-500" />
-										<CardTitle className="text-lg font-bold text-slate-900">Parent &amp; Guardian Links</CardTitle>
+							<CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50 border-b border-slate-100 p-6 sm:p-8">
+								<div className="space-y-1">
+									<div className="flex items-center gap-3">
+										<Heart className="h-5 w-5 text-rose-500" />
+										<CardTitle className="text-xl font-bold text-slate-900">Parents &amp; Guardians</CardTitle>
 									</div>
-									<CardDescription className="text-xs">Manage active account links for parents or direct contacts.</CardDescription>
+									<CardDescription className="text-sm">Manage the student's parents and emergency contacts.</CardDescription>
 								</div>
-								<Button variant="outline" size="sm" onClick={() => setIsLinkParentOpen(true)} className="rounded-xl gap-2 border-slate-200 text-slate-700 hover:bg-slate-100 transition-all shadow-sm shrink-0">
-									<UserPlus className="h-4 w-4 text-indigo-600" />
-									Link Directory Entry
+								<Button variant="outline" onClick={() => setIsLinkParentOpen(true)} className="rounded-xl gap-2 border-slate-200 text-slate-700 hover:bg-slate-100 transition-all shadow-sm py-5">
+									<UserPlus className="h-5 w-5 text-indigo-600" />
+									Link Parent
 								</Button>
 							</CardHeader>
-							<CardContent className="p-5">
+							<CardContent className="p-6 sm:p-8">
 								{guardians && guardians.length > 0 ? (
-									<ul role="list" className="space-y-3">
+									<ul role="list" className="space-y-4">
 										{guardians.map((g) => (
-											<li key={g.id} className="flex items-start justify-between gap-4 p-4 rounded-xl border border-slate-100 bg-slate-50/60 hover:bg-white hover:border-slate-200 hover:shadow-sm transition-all duration-200">
-												<div className="space-y-1">
-													<div className="flex items-center gap-2 flex-wrap">
-														<Link href={`/admin/parents/${g.id}`} className="font-semibold text-slate-900 hover:text-indigo-600 hover:underline focus:outline-none">{g.name}</Link>
-														<Badge variant="outline" className="text-[10px] uppercase font-bold tracking-wider px-2 py-0 bg-white text-slate-600 border-slate-200">{g.relationship}</Badge>
-														{g.is_primary && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 uppercase tracking-wide">Primary Contact</span>}
+											<li key={g.id} className="flex flex-col sm:flex-row items-start justify-between gap-4 p-5 rounded-2xl border border-slate-100 bg-slate-50/60 hover:bg-white hover:border-slate-200 hover:shadow-sm transition-all duration-200">
+												<div className="space-y-2">
+													<div className="flex items-center gap-3 flex-wrap">
+														<Link href={`/admin/parents/${g.id}`} className="font-semibold text-lg text-slate-900 hover:text-indigo-600 hover:underline focus:outline-none">{g.name}</Link>
+														<Badge variant="outline" className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 bg-white text-slate-600 border-slate-200">{g.relationship}</Badge>
+														{g.is_primary && <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 uppercase tracking-wide">Primary Contact</span>}
 													</div>
-													<div className="text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-1 pt-1">
-														<span className="flex items-center gap-1"><Mail className="h-3 w-3" /> {g.email || '—'}</span>
-														<span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {g.phone || '—'}</span>
+													<div className="text-sm text-slate-500 flex flex-wrap gap-x-5 gap-y-2 pt-1">
+														<span className="flex items-center gap-2"><Mail className="h-4 w-4" /> {g.email || '—'}</span>
+														<span className="flex items-center gap-2"><Phone className="h-4 w-4" /> {g.phone || '—'}</span>
 													</div>
 												</div>
-												<div className="flex flex-col items-end justify-between self-stretch shrink-0">
-													<span className={`text-[11px] font-medium px-2 py-0.5 rounded-md ${g.can_pickup ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-400'}`}>
-														{g.can_pickup ? 'Authorized Pick-up' : 'No Pick-up Access'}
+												<div className="flex flex-row sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto gap-3 shrink-0">
+													<span className={`text-xs font-medium px-3 py-1 rounded-md ${g.can_pickup ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}>
+														{g.can_pickup ? 'Can Pick Up' : 'No Pick-Up'}
 													</span>
 													<Button
 														variant="ghost"
-														size="sm"
-														className="h-7 text-xs text-rose-600 hover:bg-rose-50 hover:text-rose-700 rounded-lg font-medium px-2"
+														className="text-sm text-rose-600 hover:bg-rose-50 hover:text-rose-700 rounded-lg font-medium px-4"
 														onClick={() => { setGuardianToUnlink(g); setIsUnlinkConfirmOpen(true); }}
 													>
 														Unlink
@@ -778,17 +777,17 @@ export default function AdminStudentPage() {
 										))}
 									</ul>
 								) : (
-									<div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50/50 p-4 rounded-xl border border-slate-100 border-dashed">
-										<div className="space-y-0.5">
-											<Label className="text-[11px] uppercase tracking-wider font-bold text-slate-400">Legacy Contact Name</Label>
+									<div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50/50 p-6 rounded-2xl border border-slate-200 border-dashed">
+										<div className="space-y-1">
+											<Label className="text-xs uppercase tracking-wider font-bold text-slate-400">Old Contact Name</Label>
 											<div className="font-medium text-slate-800">{student.parent_name || '—'}</div>
 										</div>
-										<div className="space-y-0.5">
-											<Label className="text-[11px] uppercase tracking-wider font-bold text-slate-400">Legacy Email Contact</Label>
+										<div className="space-y-1">
+											<Label className="text-xs uppercase tracking-wider font-bold text-slate-400">Old Email Contact</Label>
 											<div className="font-medium text-slate-800 break-all">{student.parent_email || '—'}</div>
 										</div>
-										<div className="space-y-0.5">
-											<Label className="text-[11px] uppercase tracking-wider font-bold text-slate-400">Legacy Contact Phone</Label>
+										<div className="space-y-1">
+											<Label className="text-xs uppercase tracking-wider font-bold text-slate-400">Old Contact Phone</Label>
 											<div className="font-medium text-slate-800">{student.parent_phone || '—'}</div>
 										</div>
 									</div>
@@ -798,35 +797,35 @@ export default function AdminStudentPage() {
 
 						{/* Academic & Attendance Records Block */}
 						<Tabs defaultValue="attendance" className="w-full">
-							<TabsList className="grid w-full grid-cols-2 p-1 bg-slate-100 rounded-xl">
-								<TabsTrigger value="attendance" className="text-sm font-medium rounded-lg py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">Attendance Records</TabsTrigger>
-								<TabsTrigger value="results" className="text-sm font-medium rounded-lg py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">Academic Results Terminal</TabsTrigger>
+							<TabsList className="grid w-full grid-cols-2 p-1.5 bg-slate-100 rounded-2xl">
+								<TabsTrigger value="attendance" className="text-base font-medium rounded-xl py-3 data-[state=active]:bg-white data-[state=active]:shadow-sm">Attendance</TabsTrigger>
+								<TabsTrigger value="results" className="text-base font-medium rounded-xl py-3 data-[state=active]:bg-white data-[state=active]:shadow-sm">Academic Results</TabsTrigger>
 							</TabsList>
 
-							<TabsContent value="attendance" className="space-y-4 mt-4 focus-visible:outline-none">
+							<TabsContent value="attendance" className="space-y-6 mt-6 focus-visible:outline-none">
 								<Card className="border-slate-200 shadow-sm">
-									<CardHeader className="flex flex-row items-center justify-between space-y-0 p-5 border-b border-slate-50">
-										<CardTitle className="text-base font-bold text-slate-900">Attendance Track Metrics</CardTitle>
-										<div className="flex items-center gap-2">
-											<Label htmlFor="attendancePeriodSelect" className="text-xs text-slate-500 font-medium">Period Window</Label>
-											<select id="attendancePeriodSelect" value={attendancePeriod} onChange={(e) => setAttendancePeriod(e.target.value as any)} className="px-2.5 py-1 text-xs font-medium border border-slate-200 rounded-lg bg-white shadow-sm outline-none" aria-label="Attendance period font-medium">
-												<option value="daily">Daily View</option>
-												<option value="weekly">Weekly Window</option>
-												<option value="monthly">Monthly Cycle</option>
+									<CardHeader className="flex flex-row items-center justify-between space-y-0 p-6 sm:p-8 border-b border-slate-50">
+										<CardTitle className="text-lg font-bold text-slate-900">Attendance Log</CardTitle>
+										<div className="flex items-center gap-3">
+											<Label htmlFor="attendancePeriodSelect" className="text-sm text-slate-500 font-medium">Time Period</Label>
+											<select id="attendancePeriodSelect" value={attendancePeriod} onChange={(e) => setAttendancePeriod(e.target.value as any)} className="px-3 py-2 text-sm font-medium border border-slate-200 rounded-xl bg-white shadow-sm outline-none" aria-label="Select attendance period">
+												<option value="daily">Daily</option>
+												<option value="weekly">Weekly</option>
+												<option value="monthly">Monthly</option>
 												<option value="term">Current Term</option>
 												<option value="session">Full Session</option>
 											</select>
 										</div>
 									</CardHeader>
-									<CardContent className="p-5 space-y-6">
-										<div className="flex flex-col sm:flex-row sm:items-center gap-4 bg-gradient-to-r from-indigo-50/60 to-blue-50/40 p-4 rounded-xl border border-indigo-100/40">
-											<div className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-2xl tracking-tight shadow-sm" aria-live="polite" aria-atomic="true">
+									<CardContent className="p-6 sm:p-8 space-y-8">
+										<div className="flex flex-col sm:flex-row sm:items-center gap-6 bg-indigo-50/60 p-6 rounded-2xl border border-indigo-100">
+											<div className="inline-flex items-center justify-center px-6 py-4 rounded-xl bg-indigo-600 text-white font-bold text-3xl tracking-tight shadow-sm" aria-live="polite" aria-atomic="true">
 												{student.average_attendance}%
 											</div>
-											<div className="space-y-1 flex-1">
-												<div className="text-sm font-semibold text-slate-800">Aggregated Attendance Rating</div>
-												<div className="w-full bg-slate-200/70 rounded-full h-2 overflow-hidden">
-													<div className="bg-indigo-600 h-2 rounded-full transition-all duration-500" style={{ width: `${student.average_attendance}%` }} />
+											<div className="space-y-2 flex-1">
+												<div className="text-base font-semibold text-slate-800">Average Attendance</div>
+												<div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
+													<div className="bg-indigo-600 h-3 rounded-full transition-all duration-500" style={{ width: `${student.average_attendance}%` }} />
 												</div>
 											</div>
 										</div>
@@ -835,21 +834,21 @@ export default function AdminStudentPage() {
 								</Card>
 							</TabsContent>
 
-							<TabsContent value="results" className="space-y-4 mt-4 focus-visible:outline-none">
+							<TabsContent value="results" className="space-y-6 mt-6 focus-visible:outline-none">
 								<Card className="border-slate-200 shadow-sm">
-									<CardHeader className="p-5 border-b border-slate-50">
-										<CardTitle className="text-base font-bold text-slate-900">Performance Matrix Summary</CardTitle>
+									<CardHeader className="p-6 sm:p-8 border-b border-slate-50">
+										<CardTitle className="text-lg font-bold text-slate-900">Performance Summary</CardTitle>
 									</CardHeader>
-									<CardContent className="p-5 space-y-4">
-										<div className="overflow-hidden rounded-xl border border-slate-100 shadow-inner">
+									<CardContent className="p-6 sm:p-8 space-y-6">
+										<div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
 											<ResultsTable results={studentResults} />
 										</div>
-										<div className="flex flex-wrap gap-2 pt-2">
-											<Button onClick={handleManageSubjects} aria-label="Manage subjects" className="bg-slate-900 hover:bg-slate-800 text-white text-xs rounded-xl px-4 py-2 font-medium shadow-sm">
-												Configure Registrations
+										<div className="flex flex-wrap gap-4 pt-4">
+											<Button onClick={handleManageSubjects} aria-label="Manage subjects" className="bg-slate-900 hover:bg-slate-800 text-white text-sm rounded-xl px-6 py-5 font-medium shadow-sm">
+												Manage Subjects
 											</Button>
-											<Button variant="outline" onClick={handleViewReport} aria-label="View report" className="text-xs rounded-xl px-4 py-2 font-medium shadow-sm border-slate-200 text-slate-700 hover:bg-slate-50">
-												<FileText className="h-3.5 w-3.5 mr-1.5 text-slate-500" /> Print Term Report Sheet
+											<Button variant="outline" onClick={handleViewReport} aria-label="View report" className="text-sm rounded-xl px-6 py-5 font-medium shadow-sm border-slate-200 text-slate-700 hover:bg-slate-50">
+												<FileText className="h-4 w-4 mr-2 text-slate-500" /> Print Report Card
 											</Button>
 										</div>
 									</CardContent>
@@ -857,90 +856,80 @@ export default function AdminStudentPage() {
 							</TabsContent>
 						</Tabs>
 
-						{/* Identity Danger & Operations Hub Zone */}
-						<Card className="border-rose-100 bg-gradient-to-b from-rose-50/30 to-rose-50/10 rounded-2xl overflow-hidden shadow-sm">
-							<CardHeader className="p-5 border-b border-rose-100/60 bg-rose-50/50">
-								<div className="flex items-center gap-2">
-									<ShieldAlert className="h-5 w-5 text-rose-600" />
-									<CardTitle className="text-lg font-bold text-rose-950">Administrative Account Actions</CardTitle>
+						{/* Operations Hub Zone */}
+						<Card className="border-rose-200 bg-rose-50/30 rounded-2xl overflow-hidden shadow-sm">
+							<CardHeader className="p-6 sm:p-8 border-b border-rose-100 bg-rose-50/50">
+								<div className="flex items-center gap-3">
+									<ShieldAlert className="h-6 w-6 text-rose-600" />
+									<CardTitle className="text-xl font-bold text-rose-950">Account Actions</CardTitle>
 								</div>
-								<CardDescription className="text-xs text-rose-800/80">Execute sensitive system configuration mutations and credential modifications for this student account.</CardDescription>
+								<CardDescription className="text-sm text-rose-800 mt-2">Manage student account access and critical settings.</CardDescription>
 							</CardHeader>
-							<CardContent className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
+							<CardContent className="p-6 sm:p-8 grid grid-cols-1 sm:grid-cols-2 gap-6">
 								
-								<Card className="border-slate-200/60 bg-white shadow-sm flex flex-col justify-between">
-									<CardHeader className="p-4 pb-2 space-y-1">
-										<div className="flex items-center gap-2">
-											<RefreshCcw className="h-4 w-4 text-rose-600" />
-											<h3 className="font-bold text-slate-900 text-sm">Dispatched Password Reset</h3>
+								<Card className="border-slate-200 bg-white shadow-sm flex flex-col justify-between p-6 gap-6">
+									<div className="space-y-2">
+										<div className="flex items-center gap-3">
+											<RefreshCcw className="h-5 w-5 text-rose-600" />
+											<h3 className="font-bold text-slate-900 text-base">Password Reset</h3>
 										</div>
-										<p className="text-xs text-slate-500 leading-relaxed">Sends a localized cryptographic token password configuration reset pathway directory link directly onto the current identity profile email index.</p>
-									</CardHeader>
-									<CardContent className="p-4 pt-2">
-										<Button variant="outline" onClick={() => setIsResetConfirmOpen(true)} disabled={isResettingPassword} className="w-full text-xs rounded-xl font-semibold border-rose-200 text-rose-700 hover:bg-rose-50 hover:border-rose-300">
-											{isResettingPassword ? 'Processing Link Dispatched...' : 'Trigger Password Reset Link'}
-										</Button>
-									</CardContent>
+										<p className="text-sm text-slate-500 leading-relaxed">Sends a password reset link to the student's email address.</p>
+									</div>
+									<Button variant="outline" onClick={() => setIsResetConfirmOpen(true)} disabled={isResettingPassword} className="w-full text-sm rounded-xl font-semibold border-rose-200 text-rose-700 hover:bg-rose-50 py-5">
+										{isResettingPassword ? 'Sending Link...' : 'Send Reset Link'}
+									</Button>
 								</Card>
 
-								<Card className="border-slate-200/60 bg-white shadow-sm flex flex-col justify-between">
-									<CardHeader className="p-4 pb-2 space-y-1">
-										<div className="flex items-center gap-2">
-											<KeyRound className="h-4 w-4 text-rose-600" />
-											<h3 className="font-bold text-slate-900 text-sm">Email Access Configuration</h3>
+								<Card className="border-slate-200 bg-white shadow-sm flex flex-col justify-between p-6 gap-6">
+									<div className="space-y-2">
+										<div className="flex items-center gap-3">
+											<KeyRound className="h-5 w-5 text-rose-600" />
+											<h3 className="font-bold text-slate-900 text-base">Change Email</h3>
 										</div>
-										<p className="text-xs text-slate-500 leading-relaxed">Modifies authentication state routing addresses. Requires interactive multi-factor confirmation tokens verification processing execution loops.</p>
-									</CardHeader>
-									<CardContent className="p-4 pt-2">
-										<Button variant="outline" onClick={openEmailChangeDialog} className="w-full text-xs rounded-xl font-semibold border-slate-200 text-slate-700 hover:bg-slate-50">
-											Initiate Email Lifecycle Switch
-										</Button>
-									</CardContent>
+										<p className="text-sm text-slate-500 leading-relaxed">Update the student's login email address. Requires an email verification code.</p>
+									</div>
+									<Button variant="outline" onClick={openEmailChangeDialog} className="w-full text-sm rounded-xl font-semibold border-slate-200 text-slate-700 hover:bg-slate-50 py-5">
+										Change Email
+									</Button>
 								</Card>
 
-								<Card className="border-slate-200/60 bg-white shadow-sm flex flex-col justify-between">
-									<CardHeader className="p-4 pb-2 space-y-1">
-										<div className="flex items-center gap-2">
-											<PencilLine className="h-4 w-4 text-indigo-600" />
-											<h3 className="font-bold text-slate-900 text-sm">Profile Manifest Matrix</h3>
+								<Card className="border-slate-200 bg-white shadow-sm flex flex-col justify-between p-6 gap-6">
+									<div className="space-y-2">
+										<div className="flex items-center gap-3">
+											<PencilLine className="h-5 w-5 text-indigo-600" />
+											<h3 className="font-bold text-slate-900 text-base">Edit Profile</h3>
 										</div>
-										<p className="text-xs text-slate-500 leading-relaxed">Updates primitive fields including core data strings, localized text configurations, bio vectors and parent fallback properties arrays.</p>
-									</CardHeader>
-									<CardContent className="p-4 pt-2">
-										<Button onClick={() => setIsEditOpen(true)} className="w-full text-xs rounded-xl font-semibold bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm">
-											Open Structural Profiler Editor
-										</Button>
-									</CardContent>
+										<p className="text-sm text-slate-500 leading-relaxed">Update basic information like name, date of birth, and contact details.</p>
+									</div>
+									<Button onClick={() => setIsEditOpen(true)} className="w-full text-sm rounded-xl font-semibold bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm py-5">
+										Edit Student Info
+									</Button>
 								</Card>
 
-								<Card className="border-slate-200/60 bg-white shadow-sm flex flex-col justify-between">
-									<CardHeader className="p-4 pb-2 space-y-1">
-										<div className="flex items-center gap-2">
-											<MoveRight className="h-4 w-4 text-indigo-600" />
-											<h3 className="font-bold text-slate-900 text-sm">Transfer Class Placement</h3>
+								<Card className="border-slate-200 bg-white shadow-sm flex flex-col justify-between p-6 gap-6">
+									<div className="space-y-2">
+										<div className="flex items-center gap-3">
+											<MoveRight className="h-5 w-5 text-indigo-600" />
+											<h3 className="font-bold text-slate-900 text-base">Change Class</h3>
 										</div>
-										<p className="text-xs text-slate-500 leading-relaxed">Migrates student records across educational tiers while managing associated contextual grading trees cleanly.</p>
-									</CardHeader>
-									<CardContent className="p-4 pt-2">
-										<Button variant="outline" onClick={() => setIsTransferOpen(true)} className="w-full text-xs rounded-xl font-semibold border-indigo-200 text-indigo-700 hover:bg-indigo-50">
-											Initialize Tier Transfer Loop
-										</Button>
-									</CardContent>
+										<p className="text-sm text-slate-500 leading-relaxed">Move the student to a different class or grade level.</p>
+									</div>
+									<Button variant="outline" onClick={() => setIsTransferOpen(true)} className="w-full text-sm rounded-xl font-semibold border-indigo-200 text-indigo-700 hover:bg-indigo-50 py-5">
+										Transfer Student
+									</Button>
 								</Card>
 
-								<Card className="border-rose-200 bg-rose-50/20 shadow-sm sm:col-span-2 lg:col-span-1 xl:col-span-2 flex flex-col justify-between">
-									<CardHeader className="p-4 pb-2 space-y-1">
-										<div className="flex items-center gap-2">
-											<Trash2 className="h-4 w-4 text-rose-600" />
-											<h3 className="font-bold text-rose-950 text-sm">Purge Record Database</h3>
+								<Card className="border-rose-200 bg-rose-50 shadow-sm sm:col-span-2 flex flex-col justify-between p-6 gap-6">
+									<div className="space-y-2">
+										<div className="flex items-center gap-3">
+											<Trash2 className="h-5 w-5 text-rose-600" />
+											<h3 className="font-bold text-rose-900 text-base">Delete Student Record</h3>
 										</div>
-										<p className="text-xs text-rose-800/80 leading-relaxed">Permanently drops student entity frames, related grading records, attendance charts, and related identity framework entries across all tables. This action is irreversible.</p>
-									</CardHeader>
-									<CardContent className="p-4 pt-2">
-										<Button variant="destructive" onClick={handleDelete} disabled={isDeleting} className="w-full text-xs rounded-xl font-semibold bg-rose-600 hover:bg-rose-700 shadow-sm">
-											{isDeleting ? 'Purging Entity Stack...' : 'Purge All Student Records'}
-										</Button>
-									</CardContent>
+										<p className="text-sm text-rose-800 leading-relaxed">Permanently remove the student, their grades, attendance, and all related data. This action cannot be undone.</p>
+									</div>
+									<Button variant="destructive" onClick={handleDelete} disabled={isDeleting} className="w-full text-sm rounded-xl font-semibold bg-rose-600 hover:bg-rose-700 shadow-sm py-5">
+										{isDeleting ? 'Deleting...' : 'Delete Student'}
+									</Button>
 								</Card>
 
 							</CardContent>
@@ -949,97 +938,97 @@ export default function AdminStudentPage() {
 				</div>
 			</main>
 
-			{/* Directories Links Linkage Modals Box */}
+			{/* Link Parent Modal */}
 			<Dialog open={isLinkParentOpen} onOpenChange={setIsLinkParentOpen}>
-				<DialogContent className="sm:max-w-2xl rounded-2xl p-6 overflow-hidden border border-slate-100 shadow-2xl">
-					<DialogHeader className="pb-4 border-b border-slate-50">
-						<DialogTitle className="text-xl font-bold text-slate-900">Link Existing Parent Account</DialogTitle>
-						<p className="text-xs text-slate-500 mt-1">Query database structures to link centralized parent data models to this student framework directly.</p>
+				<DialogContent className="sm:max-w-2xl rounded-2xl p-8 border border-slate-200 shadow-2xl">
+					<DialogHeader className="pb-6 border-b border-slate-100">
+						<DialogTitle className="text-2xl font-bold text-slate-900">Link Parent Account</DialogTitle>
+						<p className="text-sm text-slate-500 mt-2">Search for an existing parent account to link to this student.</p>
 					</DialogHeader>
 
-					<div className="space-y-5 pt-4">
-						<div className="space-y-1.5">
-							<Label htmlFor="parentSearch" className="text-xs font-semibold text-slate-700">Search Context</Label>
+					<div className="space-y-6 pt-6">
+						<div className="space-y-2">
+							<Label htmlFor="parentSearch" className="text-sm font-semibold text-slate-700">Search Parent</Label>
 							<div className="relative">
-								<Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+								<Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
 								<Input
 									id="parentSearch"
 									ref={linkParentSearchRef}
 									value={linkParentSearch}
 									onChange={(e) => setLinkParentSearch(e.target.value)}
-									placeholder="Query via Name string index, email mapping strings, etc..."
-									className="pl-10 rounded-xl border-slate-200 text-sm focus-visible:ring-indigo-100 focus-visible:border-indigo-400"
+									placeholder="Search by name or email..."
+									className="pl-12 py-6 rounded-xl border-slate-200 text-base focus-visible:ring-indigo-100"
 								/>
 							</div>
-							<p className="text-[11px] text-slate-400">Provide an evaluation string slice containing at least 2 characters to trigger query evaluations.</p>
+							<p className="text-xs text-slate-400">Type at least 2 characters to search.</p>
 						</div>
 
-						<div className="grid gap-4 md:grid-cols-2">
-							<div className="space-y-1.5">
-								<Label htmlFor="relationshipType" className="text-xs font-semibold text-slate-700">Relationship Classification Tag</Label>
+						<div className="grid gap-6 md:grid-cols-2">
+							<div className="space-y-2">
+								<Label htmlFor="relationshipType" className="text-sm font-semibold text-slate-700">Relationship</Label>
 								<select
 									id="relationshipType"
 									value={linkRelationshipType}
 									onChange={(e) => { setLinkRelationshipType(e.target.value); if (e.target.value !== 'Other') setLinkRelationshipCustom(''); }}
-									className="w-full px-3 py-2 border border-slate-200 bg-white rounded-xl text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+									className="w-full px-4 py-3 border border-slate-200 bg-white rounded-xl text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
 								>
 									<option value="Guardian">Legal Guardian</option>
-									<option value="Mother">Biological/Legal Mother</option>
-									<option value="Father">Biological/Legal Father</option>
-									<option value="Grandparent">Grandparent Tier</option>
-									<option value="Sibling">Sibling Direct Contact</option>
-									<option value="Emergency contact">Proxy Emergency Contact</option>
-									<option value="Other">Custom Unlisted Designation</option>
+									<option value="Mother">Mother</option>
+									<option value="Father">Father</option>
+									<option value="Grandparent">Grandparent</option>
+									<option value="Sibling">Sibling</option>
+									<option value="Emergency contact">Emergency Contact</option>
+									<option value="Other">Other</option>
 								</select>
 								{linkRelationshipType === 'Other' && (
-									<Input id="relationshipTypeCustom" value={linkRelationshipCustom} onChange={(e) => setLinkRelationshipCustom(e.target.value)} placeholder="Specify configuration tag (e.g., Aunt)" className="mt-2 rounded-xl text-sm border-slate-200" />
+									<Input id="relationshipTypeCustom" value={linkRelationshipCustom} onChange={(e) => setLinkRelationshipCustom(e.target.value)} placeholder="Please specify (e.g., Aunt)" className="mt-3 rounded-xl text-sm border-slate-200 py-5" />
 								)}
 							</div>
-							<div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 text-xs text-slate-600 flex flex-col justify-center gap-2.5">
-								<label className="inline-flex items-center gap-2.5 cursor-pointer">
+							<div className="rounded-xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-700 flex flex-col justify-center gap-4">
+								<label className="inline-flex items-center gap-3 cursor-pointer">
 									<input
 										type="checkbox"
 										checked={linkIsPrimaryContact}
 										onChange={(e) => setLinkIsPrimaryContact(e.target.checked)}
-										className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+										className="h-5 w-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
 									/>
-									<span className="select-none font-medium text-slate-700">Designate Primary Contact Node</span>
+									<span className="select-none font-medium">Primary Contact</span>
 								</label>
-								<label className="inline-flex items-center gap-2.5 cursor-pointer">
+								<label className="inline-flex items-center gap-3 cursor-pointer">
 									<input
 										type="checkbox"
 										checked={linkHasLegalCustody}
 										onChange={(e) => setLinkHasLegalCustody(e.target.checked)}
-										className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+										className="h-5 w-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
 									/>
-									<span className="select-none font-medium text-slate-700">Maintains Retained Legal Custody</span>
+									<span className="select-none font-medium">Has Legal Custody</span>
 								</label>
-								<label className="inline-flex items-center gap-2.5 cursor-pointer">
+								<label className="inline-flex items-center gap-3 cursor-pointer">
 									<input
 										type="checkbox"
 										checked={linkCanPickup}
 										onChange={(e) => setLinkCanPickup(e.target.checked)}
-										className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+										className="h-5 w-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
 									/>
-									<span className="select-none font-medium text-slate-700">Authorized Campus Pick-up Clearing</span>
+									<span className="select-none font-medium">Can Pick Up Student</span>
 								</label>
 							</div>
 						</div>
 
 						{linkParentError && (
-							<div className="rounded-xl border border-rose-200 bg-rose-50/50 p-3 text-xs font-medium text-rose-700">{linkParentError}</div>
+							<div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-700">{linkParentError}</div>
 						)}
 
-						<div className="max-h-60 space-y-2 overflow-auto rounded-xl border border-slate-100 bg-slate-50/30 p-2" role="listbox" aria-label="Parent search results">
+						<div className="max-h-72 space-y-3 overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
 							{linkParentLoading ? (
-								<div className="flex items-center justify-center gap-2 py-8 text-xs font-medium text-slate-400">
-									<Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
-									Executing Remote Directory Scanning...
+								<div className="flex items-center justify-center gap-3 py-10 text-sm font-medium text-slate-500">
+									<Loader2 className="h-5 w-5 animate-spin text-indigo-500" />
+									Searching...
 								</div>
 							) : linkParentSearch.trim().length < 2 ? (
-								<div className="py-8 text-center text-xs font-medium text-slate-400">Input parameter queries inside field boxes to map records.</div>
+								<div className="py-10 text-center text-sm font-medium text-slate-400">Type a name or email to start searching.</div>
 							) : linkParentResults.length === 0 ? (
-								<div className="py-8 text-center text-xs font-medium text-slate-400">Zero entries returned for this parameter array.</div>
+								<div className="py-10 text-center text-sm font-medium text-slate-400">No parents found.</div>
 							) : (
 								linkParentResults.map((parent) => {
 									const isSelected = selectedLinkParentId === parent.id;
@@ -1051,19 +1040,18 @@ export default function AdminStudentPage() {
 											aria-selected={isSelected}
 											role="option"
 											disabled={parent.is_linked_to_student}
-											className={`w-full flex items-start gap-3 rounded-xl border p-3 text-left transition-all focus:outline-none ${isSelected ? 'ring-2 ring-indigo-500/20 border-indigo-500 bg-indigo-50/40' : 'border-slate-100 bg-white hover:border-slate-200 hover:shadow-sm'} ${parent.is_linked_to_student ? 'opacity-50 cursor-not-allowed bg-slate-50' : ''}`}
+											className={`w-full flex items-center gap-4 rounded-xl border p-4 text-left transition-all focus:outline-none ${isSelected ? 'ring-2 ring-indigo-500/20 border-indigo-500 bg-indigo-50/40' : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'} ${parent.is_linked_to_student ? 'opacity-50 cursor-not-allowed bg-slate-100' : ''}`}
 										>
-											<Avatar className="h-9 w-9 shrink-0">
-												<AvatarFallback className="bg-slate-100 text-slate-700 text-xs font-bold">{getInitials(parent.name.split(' ')[0] || '?', parent.name.split(' ')[1] || '?')}</AvatarFallback>
+											<Avatar className="h-10 w-10 shrink-0">
+												<AvatarFallback className="bg-slate-200 text-slate-700 text-sm font-bold">{getInitials(parent.name.split(' ')[0] || '?', parent.name.split(' ')[1] || '?')}</AvatarFallback>
 											</Avatar>
 											<div className="flex-1 min-w-0">
-												<p className="font-semibold text-slate-900 text-sm truncate">{parent.name}</p>
-												<p className="text-xs text-slate-500 truncate">{parent.email}</p>
-												<p className="text-[11px] text-slate-400 font-medium mt-0.5">{parent.phone || 'No Linked Phone Line'}</p>
+												<p className="font-semibold text-slate-900 text-base truncate">{parent.name}</p>
+												<p className="text-sm text-slate-500 truncate">{parent.email}</p>
 											</div>
-											<div className="flex flex-col items-end gap-1.5 shrink-0 text-[10px]">
-												<Badge variant={parent.is_active ? 'default' : 'secondary'} className="text-[9px] px-1.5 py-0 uppercase tracking-wider font-bold">{parent.is_active ? 'Active' : 'Inactive'}</Badge>
-												{parent.is_linked_to_student && <Badge variant="secondary" className="text-[9px] bg-slate-200/60 text-slate-600 px-1.5 py-0 font-medium">Already Linked</Badge>}
+											<div className="flex flex-col items-end gap-2 shrink-0">
+												<Badge variant={parent.is_active ? 'default' : 'secondary'} className="text-xs px-2 py-0.5 uppercase tracking-wider font-bold">{parent.is_active ? 'Active' : 'Inactive'}</Badge>
+												{parent.is_linked_to_student && <Badge variant="secondary" className="text-xs bg-slate-200 text-slate-700 px-2 py-0.5 font-medium">Already Linked</Badge>}
 											</div>
 										</button>
 									);
@@ -1071,187 +1059,184 @@ export default function AdminStudentPage() {
 							)}
 						</div>
 
-						{linkParentHasMore && <p className="text-[10px] text-slate-400 italic">Truncation bounds reached. Refine parameters to reveal hidden database rows.</p>}
-
-						<div className="flex justify-end gap-2 pt-2 border-t border-slate-50">
-							<Button variant="outline" onClick={() => setIsLinkParentOpen(false)} className="rounded-xl text-xs font-medium border-slate-200">Cancel</Button>
+						<div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+							<Button variant="outline" onClick={() => setIsLinkParentOpen(false)} className="rounded-xl text-sm font-medium border-slate-200 py-5 px-6">Cancel</Button>
 							<Button 
 								onClick={handleLinkExistingParent} 
 								disabled={isLinkingParent || !selectedLinkParentId || linkParentResults.find((parent) => parent.id === selectedLinkParentId)?.is_linked_to_student}
-								className="rounded-xl text-xs bg-indigo-600 hover:bg-indigo-700 font-medium shadow-sm"
+								className="rounded-xl text-sm bg-indigo-600 hover:bg-indigo-700 font-medium shadow-sm py-5 px-6"
 							>
-								{isLinkingParent ? 'Binding Mapping Node...' : 'Commit Mapping Association'}
+								{isLinkingParent ? 'Linking...' : 'Link Parent'}
 							</Button>
 						</div>
 					</div>
 				</DialogContent>
 			</Dialog>
 
-			{/* Interactive Structural Alert Dialogboxes */}
+			{/* Unlink Parent Dialog */}
 			<AlertDialog open={isUnlinkConfirmOpen} onOpenChange={(open) => { setIsUnlinkConfirmOpen(open); if (!open) setGuardianToUnlink(null); }}>
-				<AlertDialogContent className="rounded-2xl border border-slate-100">
-					<AlertDialogHeader>
-						<AlertDialogTitle className="text-lg font-bold text-slate-900">Sever Contact Mapping Relationship?</AlertDialogTitle>
-						<AlertDialogDescription className="text-sm text-slate-500">
-							This breaks relationship matrices between entry context item <span className="font-semibold text-slate-900">{guardianToUnlink?.name}</span> and student file tracking parameters. This configuration can be linked back later if needed.
+				<AlertDialogContent className="rounded-2xl border border-slate-200 p-8">
+					<AlertDialogHeader className="space-y-3">
+						<AlertDialogTitle className="text-xl font-bold text-slate-900">Unlink Parent?</AlertDialogTitle>
+						<AlertDialogDescription className="text-base text-slate-600">
+							This will remove <span className="font-semibold text-slate-900">{guardianToUnlink?.name}</span> from the student's contacts. You can add them back later if needed.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
-					<AlertDialogFooter className="gap-2 sm:gap-0">
-						<AlertDialogCancel className="rounded-xl text-xs font-medium border-slate-200">Cancel Operation</AlertDialogCancel>
-						<AlertDialogAction onClick={handleUnlinkParent} disabled={isUnlinkingParent} className="rounded-xl text-xs font-medium bg-rose-600 hover:bg-rose-700 text-white">
-							{isUnlinkingParent ? 'Breaking Link...' : 'Terminate Linked Account'}
+					<AlertDialogFooter className="gap-3 sm:gap-0 mt-6">
+						<AlertDialogCancel className="rounded-xl text-sm font-medium border-slate-200 py-5">Cancel</AlertDialogCancel>
+						<AlertDialogAction onClick={handleUnlinkParent} disabled={isUnlinkingParent} className="rounded-xl text-sm font-medium bg-rose-600 hover:bg-rose-700 text-white py-5">
+							{isUnlinkingParent ? 'Unlinking...' : 'Unlink Parent'}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
 
-			<EditStudentModal student={student} isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} onSuccess={(updated: Student) => { setStudent(updated); toast.success('Student core configuration schema updated'); }} />
+			<EditStudentModal student={student} isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} onSuccess={(updated: Student) => { setStudent(updated); toast.success('Student info updated successfully'); }} />
 
-			{/* Operational Modal Transitions */}
+			{/* Transfer Class Dialog */}
 			<Dialog open={isTransferOpen} onOpenChange={setIsTransferOpen}>
-				<DialogContent id="transfer-dialog" className="rounded-2xl sm:max-w-md p-6 border border-slate-100 shadow-2xl">
-					<DialogHeader>
-						<DialogTitle className="text-lg font-bold text-slate-900">Execute Registry Student Tier Transfer</DialogTitle>
+				<DialogContent id="transfer-dialog" className="rounded-2xl sm:max-w-lg p-8 border border-slate-200 shadow-2xl">
+					<DialogHeader className="space-y-2">
+						<DialogTitle className="text-xl font-bold text-slate-900">Transfer Student to a New Class</DialogTitle>
 					</DialogHeader>
-					<div className="space-y-4 pt-2">
-						<p className="text-xs text-slate-500 leading-relaxed">Changes framework paths, registry tracking lists, and curriculum lines for student entry record <span className="font-semibold text-slate-700">{student.first_name} {student.last_name}</span>.</p>
-						<div className="space-y-1">
-							<Label htmlFor="transferClassSelect" className="text-xs font-semibold text-slate-700">Target Structural Placement Tier</Label>
+					<div className="space-y-6 pt-4">
+						<p className="text-sm text-slate-600 leading-relaxed">Choose a new class for <span className="font-semibold text-slate-800">{student.first_name} {student.last_name}</span>.</p>
+						<div className="space-y-2">
+							<Label htmlFor="transferClassSelect" className="text-sm font-semibold text-slate-700">New Class</Label>
 							<select 
 								id="transferClassSelect" 
 								ref={transferClassSelectRef} 
 								value={transferTargetClassId} 
 								onChange={(e) => setTransferTargetClassId(e.target.value)} 
-								className="w-full px-3 py-2 text-sm border border-slate-200 bg-white rounded-xl shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" 
-								aria-label="Target class selection dropdown"
+								className="w-full px-4 py-3 text-base border border-slate-200 bg-white rounded-xl shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" 
 							>
-								<option value="">Select Target Class Assignment Matrix...</option>
+								<option value="">Select a class...</option>
 								{classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
 							</select>
 						</div>
-						<div className="flex justify-end gap-2 pt-2">
-							<Button variant="outline" onClick={() => { setIsTransferOpen(false); setTransferTargetClassId(''); }} className="rounded-xl text-xs border-slate-200">Abort</Button>
-							<Button onClick={() => setIsTransferConfirmOpen(true)} disabled={!transferTargetClassId} className="rounded-xl text-xs bg-indigo-600 hover:bg-indigo-700 font-medium shadow-sm">
-								Proceed to Confirmation
+						<div className="flex justify-end gap-3 pt-4">
+							<Button variant="outline" onClick={() => { setIsTransferOpen(false); setTransferTargetClassId(''); }} className="rounded-xl text-sm border-slate-200 py-5 px-6">Cancel</Button>
+							<Button onClick={() => setIsTransferConfirmOpen(true)} disabled={!transferTargetClassId} className="rounded-xl text-sm bg-indigo-600 hover:bg-indigo-700 font-medium shadow-sm py-5 px-6">
+								Continue
 							</Button>
 						</div>
 					</div>
 				</DialogContent>
 			</Dialog>
 
-			{/* Sub-tier Transfer Approvals Confirmation */}
+			{/* Confirm Class Transfer */}
 			<AlertDialog open={isTransferConfirmOpen} onOpenChange={(open) => { setIsTransferConfirmOpen(open); if (!open) setTransferError(''); }}>
-				<AlertDialogContent className="rounded-2xl border border-slate-100">
-					<AlertDialogHeader>
-						<AlertDialogTitle className="text-lg font-bold text-slate-900">Authorize Record Class Placement Mutation?</AlertDialogTitle>
-						<AlertDialogDescription className="text-sm text-slate-500">
-							Confirm migration path for <span className="font-semibold text-slate-800">{student.first_name} {student.last_name}</span> into registry destination slot: <span className="font-bold text-indigo-600">{classes.find((c) => c.id === transferTargetClassId)?.name || 'Unspecified Node'}</span>.
+				<AlertDialogContent className="rounded-2xl border border-slate-200 p-8">
+					<AlertDialogHeader className="space-y-3">
+						<AlertDialogTitle className="text-xl font-bold text-slate-900">Confirm Class Transfer</AlertDialogTitle>
+						<AlertDialogDescription className="text-base text-slate-600">
+							Are you sure you want to move <span className="font-semibold text-slate-800">{student.first_name} {student.last_name}</span> to <span className="font-bold text-indigo-600">{classes.find((c) => c.id === transferTargetClassId)?.name || 'the new class'}</span>?
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					{transferError && (
-						<div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-medium text-rose-700">{transferError}</div>
+						<div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-700 mt-4">{transferError}</div>
 					)}
-					<AlertDialogFooter className="gap-2 sm:gap-0">
-						<AlertDialogCancel className="rounded-xl text-xs font-medium border-slate-200">Abort Route</AlertDialogCancel>
+					<AlertDialogFooter className="gap-3 sm:gap-0 mt-6">
+						<AlertDialogCancel className="rounded-xl text-sm font-medium border-slate-200 py-5 px-6">Cancel</AlertDialogCancel>
 						<AlertDialogAction id="transfer-confirm-btn" onClick={async () => {
 							setTransferError('');
 							setIsTransferring(true);
 							try {
 								const result = await handleTransfer();
 								if (result.success) {
-									toast.success(result.data?.message || 'Tier transfer structural operations passed');
+									toast.success('Student transferred successfully');
 									setIsTransferConfirmOpen(false);
 									setIsTransferOpen(false);
 									setTransferTargetClassId('');
 									await loadData();
 								} else {
-									setTransferError(result.error || 'Operations stack structural failure exception');
+									setTransferError(result.error || 'Failed to transfer student');
 								}
 							} catch (err: any) {
-								setTransferError(err?.message || 'Structural network operation failure');
+								setTransferError(err?.message || 'Failed to transfer student');
 							} finally {
 								setIsTransferring(false);
 							}
-						}} disabled={isTransferring} className="rounded-xl text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">
-							{isTransferring ? 'Re-writing System Blocks...' : 'Authorize Placement Re-route'}
+						}} disabled={isTransferring} className="rounded-xl text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm py-5 px-6">
+							{isTransferring ? 'Transferring...' : 'Confirm Transfer'}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
 
-			{/* Credential Reset Controls Container */}
+			{/* Reset Password Dialog */}
 			<AlertDialog open={isResetConfirmOpen} onOpenChange={setIsResetConfirmOpen}>
-				<AlertDialogContent className="rounded-2xl border border-slate-100">
-					<AlertDialogHeader>
-						<AlertDialogTitle className="text-lg font-bold text-slate-900">Dispatch Interactive Password Re-assignment Protocol?</AlertDialogTitle>
-						<AlertDialogDescription className="text-sm text-slate-500">
-							This forces access suspension and sends a recovery token directly to the target mailbox <span className="font-medium text-slate-900">{student.email}</span>.
+				<AlertDialogContent className="rounded-2xl border border-slate-200 p-8">
+					<AlertDialogHeader className="space-y-3">
+						<AlertDialogTitle className="text-xl font-bold text-slate-900">Send Password Reset Email?</AlertDialogTitle>
+						<AlertDialogDescription className="text-base text-slate-600">
+							This will send a password reset link to <span className="font-medium text-slate-900">{student.email}</span>.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
-					<AlertDialogFooter className="gap-2 sm:gap-0">
-						<AlertDialogCancel className="rounded-xl text-xs font-medium border-slate-200">Abort Reset</AlertDialogCancel>
-						<AlertDialogAction onClick={handleResetConfirmed} className="rounded-xl text-xs font-medium bg-rose-600 hover:bg-rose-700 text-white shadow-sm">
-							Transmit Cryptographic Reset Token
+					<AlertDialogFooter className="gap-3 sm:gap-0 mt-6">
+						<AlertDialogCancel className="rounded-xl text-sm font-medium border-slate-200 py-5 px-6">Cancel</AlertDialogCancel>
+						<AlertDialogAction onClick={handleResetConfirmed} className="rounded-xl text-sm font-medium bg-rose-600 hover:bg-rose-700 text-white shadow-sm py-5 px-6">
+							Send Email
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
 
-			{/* Email Swapping Lifecycle Manager Modal */}
+			{/* Change Email Dialog */}
 			<Dialog open={isEmailChangeOpen} onOpenChange={(open) => (open ? setIsEmailChangeOpen(true) : closeEmailChangeDialog())}>
-				<DialogContent className="sm:max-w-lg rounded-2xl p-6 border border-slate-100 shadow-2xl">
-					<DialogHeader>
-						<DialogTitle className="text-lg font-bold text-slate-900">Modify Security Route Email</DialogTitle>
+				<DialogContent className="sm:max-w-lg rounded-2xl p-8 border border-slate-200 shadow-2xl">
+					<DialogHeader className="space-y-2">
+						<DialogTitle className="text-xl font-bold text-slate-900">Change Student Email</DialogTitle>
 					</DialogHeader>
 
-					<div className="space-y-4 pt-2">
-						<div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3.5 text-xs text-amber-900 leading-relaxed flex gap-2.5 items-start">
-							<ShieldAlert className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-							<span>Security checkpoint: An operational authentication code token will be delivered onto the new mailbox address destination before execution loops close.</span>
+					<div className="space-y-6 pt-4">
+						<div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 leading-relaxed flex gap-3 items-start">
+							<ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+							<span>Security check: A verification code will be sent to the new email address to confirm the change.</span>
 						</div>
 
 						{emailChangeError && (
-							<div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-medium text-rose-700">{emailChangeError}</div>
+							<div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-700">{emailChangeError}</div>
 						)}
 
 						{emailStep === 'success' ? (
-							<div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 space-y-3">
-								<div className="flex items-start gap-3">
-									<CheckCircle className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
-									<div className="space-y-1">
-										<p className="font-bold text-emerald-900 text-sm">System Database Record Updated</p>
-										<p className="text-xs text-emerald-800 leading-relaxed">{emailChangeSuccess}</p>
-										<p className="text-xs font-mono bg-white border border-emerald-100 rounded-md px-2 py-1 text-emerald-900 inline-block mt-1">Active ID: {newEmail}</p>
+							<div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 space-y-4">
+								<div className="flex items-start gap-4">
+									<CheckCircle className="h-6 w-6 text-emerald-600 shrink-0 mt-0.5" />
+									<div className="space-y-2">
+										<p className="font-bold text-emerald-900 text-base">Email Updated Successfully</p>
+										<p className="text-sm text-emerald-800 leading-relaxed">{emailChangeSuccess}</p>
+										<p className="text-sm font-mono bg-white border border-emerald-100 rounded-md px-3 py-1.5 text-emerald-900 inline-block mt-2">{newEmail}</p>
 									</div>
 								</div>
-								<div className="flex justify-end">
-									<Button onClick={closeEmailChangeDialog} className="rounded-xl text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white px-4">Close Dialogue</Button>
+								<div className="flex justify-end pt-2">
+									<Button onClick={closeEmailChangeDialog} className="rounded-xl text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-5">Close</Button>
 								</div>
 							</div>
 						) : emailStep === 'email' ? (
-							<div className="space-y-4">
-								<div className="space-y-1.5">
-									<Label htmlFor="newEmail" className="text-xs font-semibold text-slate-700">New Authentication Email Route Target</Label>
+							<div className="space-y-6">
+								<div className="space-y-2">
+									<Label htmlFor="newEmail" className="text-sm font-semibold text-slate-700">New Email Address</Label>
 									<Input
 										id="newEmail"
 										type="email"
 										value={newEmail}
 										onChange={(e) => setNewEmail(e.target.value)}
-										placeholder="e.g., student.new.record@school.edu"
-										className="rounded-xl border-slate-200 text-sm focus-visible:ring-indigo-100"
+										placeholder="e.g., new.email@example.com"
+										className="rounded-xl border-slate-200 text-base focus-visible:ring-indigo-100 py-6"
 									/>
 								</div>
-								<div className="flex justify-end gap-2 pt-2">
-									<Button variant="outline" onClick={closeEmailChangeDialog} className="rounded-xl text-xs border-slate-200">Cancel</Button>
-									<Button onClick={handleSendEmailCode} disabled={isSendingCode} className="rounded-xl text-xs bg-indigo-600 hover:bg-indigo-700 font-medium text-white shadow-sm">
-										{isSendingCode ? 'Transmitting Token...' : 'Generate Dispatch Verification Token'}
+								<div className="flex justify-end gap-3 pt-4">
+									<Button variant="outline" onClick={closeEmailChangeDialog} className="rounded-xl text-sm border-slate-200 py-5 px-6">Cancel</Button>
+									<Button onClick={handleSendEmailCode} disabled={isSendingCode} className="rounded-xl text-sm bg-indigo-600 hover:bg-indigo-700 font-medium text-white shadow-sm py-5 px-6">
+										{isSendingCode ? 'Sending...' : 'Send Verification Code'}
 									</Button>
 								</div>
 							</div>
 						) : (
-							<div className="space-y-4">
-								<div className="space-y-1.5">
-									<Label htmlFor="verificationCode" className="text-xs font-semibold text-slate-700">6-Digit Verification Check Token</Label>
+							<div className="space-y-6">
+								<div className="space-y-2">
+									<Label htmlFor="verificationCode" className="text-sm font-semibold text-slate-700">6-Digit Verification Code</Label>
 									<Input
 										id="verificationCode"
 										inputMode="numeric"
@@ -1259,16 +1244,16 @@ export default function AdminStudentPage() {
 										value={verificationCode}
 										onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
 										placeholder="******"
-										className="rounded-xl border-slate-200 text-center tracking-widest text-lg font-bold font-mono focus-visible:ring-indigo-100"
+										className="rounded-xl border-slate-200 text-center tracking-widest text-2xl font-bold font-mono focus-visible:ring-indigo-100 py-6"
 									/>
 								</div>
-								<p className="text-xs text-slate-400">Security checkpoint payload sent onto entry address: <span className="font-semibold text-slate-600">{newEmail}</span></p>
-								<div className="flex justify-between gap-2 pt-2 border-t border-slate-50">
-									<Button variant="ghost" onClick={() => setEmailStep('email')} className="rounded-xl text-xs font-medium text-slate-500 hover:bg-slate-100">Return to Mail Entry</Button>
-									<div className="flex gap-2">
-										<Button variant="outline" onClick={closeEmailChangeDialog} className="rounded-xl text-xs border-slate-200">Abort Changing</Button>
-										<Button onClick={handleVerifyAndApplyEmailChange} disabled={isVerifyingCode || isApplyingEmailChange} className="rounded-xl text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm">
-											{isVerifyingCode || isApplyingEmailChange ? 'Re-writing Identity Frames...' : 'Confirm Authentication Swap'}
+								<p className="text-sm text-slate-500">We sent a code to: <span className="font-semibold text-slate-700">{newEmail}</span></p>
+								<div className="flex justify-between gap-3 pt-4 border-t border-slate-100">
+									<Button variant="ghost" onClick={() => setEmailStep('email')} className="rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 py-5">Back to Email</Button>
+									<div className="flex gap-3">
+										<Button variant="outline" onClick={closeEmailChangeDialog} className="rounded-xl text-sm border-slate-200 py-5 px-6">Cancel</Button>
+										<Button onClick={handleVerifyAndApplyEmailChange} disabled={isVerifyingCode || isApplyingEmailChange} className="rounded-xl text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm py-5 px-6">
+											{isVerifyingCode || isApplyingEmailChange ? 'Updating...' : 'Confirm Change'}
 										</Button>
 									</div>
 								</div>

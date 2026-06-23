@@ -3,6 +3,29 @@ import { getTeacherQuestionBankContext } from '@/lib/teacher-question-bank/serve
 
 export const dynamic = 'force-dynamic';
 
+/** Build a default 12-week scheme-of-work array with week 6 as break */
+function buildDefaultWeeks(): WeekEntry[] {
+  const weeks: WeekEntry[] = [];
+  for (let w = 1; w <= 12; w++) {
+    weeks.push({ week_number: w, topics: [], is_break: w === 6 });
+  }
+  return weeks;
+}
+
+/** Flatten all topics from weeks into a single array */
+function flattenTopicsFromWeeks(weeks: WeekEntry[]): string[] {
+  return (weeks || [])
+    .filter((w) => !w.is_break)
+    .flatMap((w) => w.topics || [])
+    .filter(Boolean);
+}
+
+type WeekEntry = {
+  week_number: number;
+  topics: string[];
+  is_break: boolean;
+};
+
 function inferTopicGroupTerm(name: string) {
   const label = name.trim().toLowerCase();
   if (/\b(1st|first|term\s*1|term\s*one)\b/.test(label)) return '1';
@@ -27,6 +50,7 @@ export async function PATCH(
     const body = await request.json();
     const title = body?.title ? String(body.title).trim() : null;
     const topics = Array.isArray(body?.topics) ? body.topics : null;
+    const weeks = Array.isArray(body?.weeks) ? body.weeks : null;
 
     const { data: bank, error: bankError } = await supabase
       .from('teacher_question_banks')
@@ -69,12 +93,16 @@ export async function PATCH(
     const updates: any = {};
     if (title !== null) updates.name = title;
     if (topics !== null) updates.topics = topics;
+    if (weeks !== null) {
+      updates.weeks = weeks;
+      updates.topics = flattenTopicsFromWeeks(weeks);
+    }
 
     const { data, error } = await supabase
       .from('teacher_question_topic_sets')
       .update(updates)
       .eq('id', id)
-      .select('id, name, topics, created_by_teacher_id, created_at')
+      .select('id, name, topics, weeks, created_by_teacher_id, created_at')
       .maybeSingle();
 
     if (error) {
@@ -85,14 +113,27 @@ export async function PATCH(
       return NextResponse.json({ error: 'Failed to update topic group' }, { status: 400 });
     }
 
-    return NextResponse.json({ group: { id: data.id, title: data.name, topics: data.topics, term: inferTopicGroupTerm(data.name), created_by_teacher_id: data.created_by_teacher_id, created_at: data.created_at } });
+    const savedWeeks: WeekEntry[] = (data.weeks as WeekEntry[]) || [];
+    const hasWeeks = Array.isArray(savedWeeks) && savedWeeks.length > 0;
+
+    return NextResponse.json({
+      group: {
+        id: data.id,
+        title: data.name,
+        topics: hasWeeks ? flattenTopicsFromWeeks(savedWeeks) : (data.topics || []),
+        weeks: hasWeeks ? savedWeeks : buildDefaultWeeks(),
+        term: inferTopicGroupTerm(data.name),
+        created_by_teacher_id: data.created_by_teacher_id,
+        created_at: data.created_at,
+      },
+    });
   } catch {
     return NextResponse.json({ error: 'Invalid request payload' }, { status: 400 });
   }
 }
 
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: { bankId: string; id: string } }
 ) {
   const ctxResult = await getTeacherQuestionBankContext();

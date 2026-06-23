@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, BookOpen, FolderKanban, Globe2, Lock, Save, Search, Settings2, Sparkles, X, AlertCircle, CheckCircle, PencilLine, Trash2, Plus, Printer, ClipboardList } from 'lucide-react';
+import { ArrowLeft, BookOpen, FolderKanban, Globe2, Lock, Save, Search, Settings2, Sparkles, X, AlertCircle, CheckCircle, PencilLine, Plus, Printer, ClipboardList } from 'lucide-react';
 import { toast } from 'sonner';
 
 import ReactMarkdown from 'react-markdown';
@@ -79,6 +79,53 @@ function SmartText({ content, containsMath }: SmartTextProps) {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────── */
+/*  Compact Week Card                                                            */
+/* ────────────────────────────────────────────────────────────────────────────── */
+
+function CompactWeekCard({ week }: { week: WeekEntry }) {
+  if (week.is_break) return null;
+  const topicCount = week.topics.length;
+  return (
+    <div
+      className={`rounded-lg border p-3 transition-all ${
+        topicCount > 0
+          ? 'border-stone-200 bg-white hover:border-amber-200 hover:shadow-sm'
+          : 'border-dashed border-stone-200 bg-stone-50/50'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2 mb-1.5">
+        <span className={`text-xs font-bold ${topicCount > 0 ? 'text-stone-700' : 'text-stone-400'}`}>
+          Wk {week.week_number}
+        </span>
+        {topicCount > 0 && (
+          <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5">
+            {topicCount}
+          </span>
+        )}
+      </div>
+      {topicCount > 0 ? (
+        <div className="flex flex-wrap gap-1">
+          {week.topics.slice(0, 2).map((topic, i) => (
+            <span
+              key={i}
+              className="text-[10px] text-stone-500 bg-stone-50 rounded px-1.5 py-0.5 truncate max-w-full block leading-tight"
+              title={topic}
+            >
+              {topic}
+            </span>
+          ))}
+          {week.topics.length > 2 && (
+            <span className="text-[10px] text-stone-400">+{week.topics.length - 2}</span>
+          )}
+        </div>
+      ) : (
+        <p className="text-[10px] text-stone-400 italic">No topics</p>
+      )}
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────── */
 /*  Types                                                                        */
 /* ────────────────────────────────────────────────────────────────────────────── */
 
@@ -124,10 +171,17 @@ type QuestionRecord = {
   updated_at?: string;
 };
 
+type WeekEntry = {
+  week_number: number;
+  topics: string[];
+  is_break: boolean;
+};
+
 type TopicGroupRecord = {
   id: string;
   title: string;
   topics: string[];
+  weeks: WeekEntry[];
   term?: '1' | '2' | '3';
   created_by_teacher_id?: string | null;
   created_by_admin_id?: string | null;
@@ -197,11 +251,7 @@ export function QuestionBankDetail({ role }: QuestionBankDetailProps) {
   const [bank, setBank] = useState<BankRecord | null>(null);
   const [questions, setQuestions] = useState<QuestionRecord[]>([]);
   const [topicGroups, setTopicGroups] = useState<TopicGroupRecord[]>([]);
-  const [topicGroupsLoading, setTopicGroupsLoading] = useState(false);
-  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
-  const [groupTitleInput, setGroupTitleInput] = useState('');
-  const [groupTopicsInput, setGroupTopicsInput] = useState('');
-  const [isQuestionGroupsModalOpen, setIsQuestionGroupsModalOpen] = useState(false);
+  const [isSchemeModalOpen, setIsSchemeModalOpen] = useState(false);
   const [isBankSettingsModalOpen, setIsBankSettingsModalOpen] = useState(false);
   const [questionCount, setQuestionCount] = useState(0);
   const [questionsError, setQuestionsError] = useState('');
@@ -253,12 +303,35 @@ export function QuestionBankDetail({ role }: QuestionBankDetailProps) {
       .map((t) => t.trim().toLowerCase());
   }, [topicGroups, selectedTerm]);
 
-  const groupTopicPreview = useMemo(() => {
-    return groupTopicsInput
-      .split(',')
-      .map((topic) => topic.trim())
-      .filter(Boolean);
-  }, [groupTopicsInput]);
+  /** Build a default 12-week scheme array for display when no scheme exists */
+  function buildDefaultWeeks(): WeekEntry[] {
+    const weeks: WeekEntry[] = [];
+    for (let w = 1; w <= 12; w++) {
+      weeks.push({ week_number: w, topics: [], is_break: w === 6 });
+    }
+    return weeks;
+  }
+
+  function getCurrentSchemeWeeks(): WeekEntry[] {
+    const scheme = selectedTerm !== 'all'
+      ? topicGroups.find((g) => inferTopicGroupTerm(g) === selectedTerm)
+      : null;
+    const weeks = scheme?.weeks;
+    if (Array.isArray(weeks) && weeks.length > 0) return weeks;
+    // Fall back to deriving from flat topics
+    if (scheme && scheme.topics.length > 0) {
+      const wks = buildDefaultWeeks();
+      const teachingWeeks = wks.filter((w) => !w.is_break);
+      scheme.topics.forEach((topic, i) => {
+        const wi = i % teachingWeeks.length;
+        const weekNum = teachingWeeks[wi].week_number;
+        const idx = wks.findIndex((w) => w.week_number === weekNum);
+        if (idx !== -1) wks[idx].topics.push(topic);
+      });
+      return wks;
+    }
+    return buildDefaultWeeks();
+  }
 
   const effectiveGenerateTopics = useMemo(() => {
     const combined = [...selectedGenerateTopics];
@@ -529,6 +602,14 @@ export function QuestionBankDetail({ role }: QuestionBankDetailProps) {
     toast.success(`Loaded ${group.title}`);
   }
 
+  function getWeekTopicCount(term: string): number {
+    if (term === 'all') {
+      return topicGroups.reduce((sum, g) => sum + (g.topics?.length || 0), 0);
+    }
+    const scheme = topicGroups.find((g) => inferTopicGroupTerm(g) === term);
+    return scheme ? (scheme.topics?.length || 0) : 0;
+  }
+
   function getDifficultyStyles(difficulty: QuestionRecord['difficulty']) {
     switch (difficulty) {
       case 'easy':
@@ -582,105 +663,11 @@ export function QuestionBankDetail({ role }: QuestionBankDetailProps) {
     }
   }
 
-  function startEditGroup(group: TopicGroupRecord) {
-    setEditingGroupId(group.id);
-    setGroupTitleInput(group.title || '');
-    setGroupTopicsInput((group.topics || []).join(', '));
-  }
-
-  function cancelEditGroup() {
-    setEditingGroupId(null);
-    setGroupTitleInput('');
-    setGroupTopicsInput('');
-  }
-
-  async function handleSaveTopicGroup() {
-    if (!isEditable) {
-      toast.error('You can only manage topic groups for banks you created');
-      return;
-    }
-
-    const title = groupTitleInput.trim();
-    const topics = groupTopicsInput
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean);
-
-    if (!title) {
-      toast.error('Provide a title for the topic group');
-      return;
-    }
-
-    if (topics.length === 0) {
-      toast.error('Add at least one topic to the group');
-      return;
-    }
-
-    setTopicGroupsLoading(true);
-    try {
-      const method = editingGroupId ? 'PATCH' : 'POST';
-      const url = editingGroupId
-        ? `${apiPrefix}/banks/${bankId}/topic-groups/${editingGroupId}`
-        : `${apiPrefix}/banks/${bankId}/topic-groups`;
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, topics }),
-      });
-
-      const payload = await res.json();
-      if (!res.ok) {
-        toast.error(payload?.error || 'Failed to save topic group');
-        return;
-      }
-
-      const savedGroup = payload.group as TopicGroupRecord;
-      if (editingGroupId) {
-        setTopicGroups((prev) => prev.map((g) => (g.id === savedGroup.id ? savedGroup : g)));
-        toast.success('Topic group updated');
-      } else {
-        setTopicGroups((prev) => [savedGroup, ...prev]);
-        toast.success('Topic group created');
-      }
-
-      cancelEditGroup();
-    } catch (error) {
-      console.error(error);
-      toast.error('Failed to save topic group');
-    } finally {
-      setTopicGroupsLoading(false);
-    }
-  }
-
-  async function handleDeleteTopicGroup(id: string) {
-    if (!isEditable) {
-      toast.error('You can only manage topic groups for banks you created');
-      return;
-    }
-
-    if (!confirm('Delete this topic group? This action cannot be undone.')) return;
-
-    setTopicGroupsLoading(true);
-    try {
-      const res = await fetch(`${apiPrefix}/banks/${bankId}/topic-groups/${id}`, { method: 'DELETE' });
-      if (!res.ok) {
-        const payload = await res.json();
-        toast.error(payload?.error || 'Failed to delete topic group');
-        return;
-      }
-      setTopicGroups((prev) => prev.filter((g) => g.id !== id));
-      toast.success('Topic group deleted');
-    } catch (error) {
-      console.error(error);
-      toast.error('Failed to delete topic group');
-    } finally {
-      setTopicGroupsLoading(false);
-    }
+  function handleOpenSchemeModal() {
+    setIsSchemeModalOpen(true);
   }
 
   const canGenerateQuestions = isEditable && !!bank && !!subjectClassId;
-  const hasQuestionGroups = topicGroups.length > 0;
 
   const generateStepLabels = [
     { step: 1, title: 'Amount' },
@@ -790,7 +777,7 @@ export function QuestionBankDetail({ role }: QuestionBankDetailProps) {
                 onClick={() => router.push(`${routePrefix}/${bankId}/questions`)}
               >
                 <Plus className="h-4 w-4 mr-2" />
-                Add Question Manually
+                Add Question
               </Button>
               <Button
                 onClick={handleOpenGenerateModal}
@@ -805,10 +792,10 @@ export function QuestionBankDetail({ role }: QuestionBankDetailProps) {
                 variant="outline"
                 size="sm"
                 className="border-stone-200"
-                onClick={() => router.push(`${routePrefix}/${bankId}/groups`)}
+                onClick={handleOpenSchemeModal}
               >
                 <FolderKanban className="h-4 w-4 mr-2" />
-                Manage Groups
+                Scheme of Work
               </Button>
               <Button
                 variant="outline"
@@ -1121,205 +1108,155 @@ export function QuestionBankDetail({ role }: QuestionBankDetailProps) {
         </DialogContent>
       </Dialog>
 
-      {/* ── Question Groups Modal ── */}
-      <Dialog open={isQuestionGroupsModalOpen} onOpenChange={setIsQuestionGroupsModalOpen}>
-        <DialogContent className="w-[96vw] max-w-5xl max-h-[90vh] overflow-y-auto p-0 sm:w-full">
+      {/* ── Scheme of Work Modal ── */}
+      <Dialog open={isSchemeModalOpen} onOpenChange={setIsSchemeModalOpen}>
+        <DialogContent className="w-[96vw] max-w-4xl max-h-[90vh] overflow-y-auto p-0 sm:w-full">
           <DialogHeader className="space-y-2 border-b border-stone-200/80 bg-stone-50/80 px-6 py-5 sm:px-7">
-            <DialogTitle className="text-xl font-bold tracking-tight text-stone-950">Question Groups</DialogTitle>
-            <DialogDescription className="max-w-2xl text-sm leading-6 text-stone-600">
-              Create reusable topic collections, then apply them directly to AI generation.
-            </DialogDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="text-xl font-bold tracking-tight text-stone-950">Scheme of Work</DialogTitle>
+                <DialogDescription className="max-w-2xl text-sm leading-6 text-stone-600 mt-1">
+                  Week-by-week topic plan for this question bank
+                </DialogDescription>
+              </div>
+              <Badge variant="outline" className="border-stone-200 text-stone-500 shrink-0">
+                {getWeekTopicCount(selectedTerm)} topic{getWeekTopicCount(selectedTerm) !== 1 ? 's' : ''} across {selectedTerm === 'all' ? 'all terms' : 'Term ' + selectedTerm}
+              </Badge>
+            </div>
           </DialogHeader>
 
-          <div className="space-y-5 px-6 py-6 sm:px-7">
+          <div className="px-6 py-5 sm:px-7 space-y-5">
             {!isEditable && (
-              <div className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
+              <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-                <div>You can view saved groups here, but only the bank owner can create or edit them.</div>
+                <div>You can view the scheme, but only the bank owner can edit it.</div>
               </div>
             )}
 
-            <div className="grid gap-5 lg:grid-cols-[340px_minmax(0,1fr)] lg:items-start">
-              <div className="rounded-3xl border border-stone-200/80 bg-gradient-to-b from-white to-stone-50 p-5 shadow-sm sm:p-6">
-                <div className="space-y-1.5 border-b border-stone-200/60 pb-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
-                    {editingGroupId ? 'Edit Group' : 'Create New Group'}
-                  </p>
-                  <h3 className="text-lg font-semibold text-stone-950">
-                    {editingGroupId ? 'Edit Group' : 'Create New Group'}
-                  </h3>
-                  <p className="text-sm leading-6 text-stone-500">Save frequently used topic combinations for faster generation.</p>
-                </div>
-
-                <div className="mt-5 space-y-4">
-                  <div className="space-y-2">
-                    <Label className="text-xs font-semibold text-stone-700">Group Title</Label>
-                    <Input
-                      value={groupTitleInput}
-                      onChange={(e) => setGroupTitleInput(e.target.value)}
-                      disabled={!isEditable || topicGroupsLoading}
-                      placeholder="e.g. Fractions revision set"
-                      className="h-11 border-stone-200 bg-white text-sm shadow-sm"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-xs font-semibold text-stone-700">Topics</Label>
-                    <Textarea
-                      value={groupTopicsInput}
-                      onChange={(e) => setGroupTopicsInput(e.target.value)}
-                      disabled={!isEditable || topicGroupsLoading}
-                      placeholder="Fractions, decimals, ratios"
-                      rows={4}
-                      className="resize-none border-stone-200 bg-white text-sm shadow-sm"
-                    />
-                    <p className="text-xs text-stone-500">Separate topics with commas.</p>
-                  </div>
-
-                  <div className="rounded-2xl border border-stone-200 bg-white px-4 py-3 shadow-sm">
-                    <div className="flex items-center justify-between gap-3 text-xs font-medium text-stone-500">
-                      <span>Live preview</span>
-                      <span>{groupTopicPreview.length} topics</span>
-                    </div>
-                    <div className="mt-3 flex min-h-12 flex-wrap gap-2">
-                      {groupTopicPreview.length > 0 ? (
-                        groupTopicPreview.map((topic) => (
-                          <span
-                            key={topic}
-                            className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 shadow-sm"
-                          >
-                            {topic}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-xs text-stone-400">Start typing topics to preview the chips.</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button
-                      size="sm"
-                      onClick={handleSaveTopicGroup}
-                      disabled={!isEditable || topicGroupsLoading}
-                      className="flex-1 bg-stone-950 text-white shadow-sm transition-colors hover:bg-stone-800"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      {topicGroupsLoading ? 'Saving...' : editingGroupId ? 'Update Group' : 'Create Group'}
-                    </Button>
-                    {editingGroupId && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={cancelEditGroup}
-                        disabled={topicGroupsLoading}
-                        className="flex-1 border-stone-200 bg-white"
-                      >
-                        Cancel
-                      </Button>
+            {/* Inline term tabs */}
+            <div className="flex gap-1 bg-stone-100 p-1 rounded-lg w-fit">
+              {(['1', '2', '3'] as const).map((term) => {
+                const scheme = topicGroups.find((g) => inferTopicGroupTerm(g) === term);
+                const count = scheme?.topics?.length || 0;
+                return (
+                  <button
+                    key={term}
+                    onClick={() => setSelectedTerm(term)}
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${
+                      selectedTerm === term
+                        ? 'bg-white text-stone-900 shadow-sm'
+                        : 'text-stone-500 hover:text-stone-700'
+                    }`}
+                  >
+                    Term {term}
+                    {count > 0 && (
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                        selectedTerm === term ? 'bg-amber-100 text-amber-700' : 'bg-stone-200 text-stone-500'
+                      }`}>
+                        {count}
+                      </span>
                     )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-end justify-between gap-4 border-b border-stone-200/60 pb-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">Saved groups</p>
-                    <p className="mt-1 text-sm text-stone-500">Use, edit, or delete existing topic collections.</p>
-                  </div>
-                  <Badge variant="secondary" className="rounded-full border border-stone-200 bg-stone-50 text-stone-700">
-                    {topicGroups.length} total
-                  </Badge>
-                </div>
-
-                {hasQuestionGroups ? (
-                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3">
-                    {topicGroups.map((group) => {
-                      const topicCount = (group.topics || []).length;
-                      return (
-                        <div
-                          key={group.id}
-                          className="group flex h-full flex-col rounded-3xl border border-stone-200/80 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-stone-200/70"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex min-w-0 items-start gap-3">
-                              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-stone-950 text-white shadow-sm">
-                                <FolderKanban className="h-5 w-5" />
-                              </div>
-                              <div className="min-w-0 space-y-1">
-                                <p className="truncate font-semibold text-stone-950">{group.title}</p>
-                                <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
-                                  <span>{topicCount} {topicCount === 1 ? 'topic' : 'topics'}</span>
-                                  <span>•</span>
-                                  <span>Created {formatDate(group.created_at)}</span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-1 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto">
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => startEditGroup(group)}
-                                disabled={topicGroupsLoading || !isEditable}
-                                className="h-8 w-8 text-stone-500 hover:bg-stone-100 hover:text-stone-950"
-                                aria-label={`Edit ${group.title}`}
-                              >
-                                <PencilLine className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => handleDeleteTopicGroup(group.id)}
-                                disabled={topicGroupsLoading || !isEditable}
-                                className="h-8 w-8 text-stone-500 hover:bg-red-50 hover:text-red-600"
-                                aria-label={`Delete ${group.title}`}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-
-                          <div className="mt-4 flex flex-wrap gap-2">
-                            {topicCount > 0 ? (
-                              group.topics.map((topic) => (
-                                <Badge
-                                  key={`${group.id}-${topic}`}
-                                  variant="secondary"
-                                  className="rounded-full border border-amber-100 bg-amber-50/90 text-amber-700 shadow-sm"
-                                >
-                                  {topic}
-                                </Badge>
-                              ))
-                            ) : (
-                              <span className="text-xs text-stone-500">No topics defined</span>
-                            )}
-                          </div>
-
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="mt-5 w-full border-stone-200 bg-stone-950 text-white shadow-sm transition-colors hover:bg-stone-800 hover:text-white"
-                            onClick={() => applyTopicGroup(group)}
-                          >
-                            Use Group
-                          </Button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="rounded-3xl border border-dashed border-stone-200 bg-stone-50/70 px-6 py-12 text-center shadow-sm">
-                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm">
-                      <FolderKanban className="h-7 w-7 text-stone-400" />
-                    </div>
-                    <h3 className="mt-4 text-base font-semibold text-stone-900">No Question Groups Yet</h3>
-                    <p className="mt-2 text-sm text-stone-500">Create your first reusable topic collection.</p>
-                  </div>
-                )}
-              </div>
+                  </button>
+                );
+              })}
             </div>
+
+            {/* Weekly scheme grid */}
+            {selectedTerm !== 'all' && (() => {
+              const weeks = getCurrentSchemeWeeks();
+              const hasTopics = weeks.some((w) => !w.is_break && w.topics.length > 0);
+
+              if (!hasTopics) {
+                return (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <div className="h-12 w-12 rounded-2xl bg-stone-100 flex items-center justify-center mb-3">
+                      <BookOpen className="h-6 w-6 text-stone-400" />
+                    </div>
+                    <p className="text-sm font-semibold text-stone-700 mb-1">No scheme for Term {selectedTerm}</p>
+                    <p className="text-xs text-stone-500 mb-4 max-w-xs">
+                      Head to the Scheme of Work page to create a week-by-week topic plan.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push(`${routePrefix}/${bankId}/groups`)}
+                      className="gap-2 border-stone-200"
+                    >
+                      <FolderKanban className="h-4 w-4" />
+                      Create Scheme
+                    </Button>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-4">
+                  {/* Weeks 1-5 */}
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-stone-400 mb-2.5 px-1">
+                      First Half · Weeks 1 – 5
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                      {weeks.filter((w) => w.week_number >= 1 && w.week_number <= 5).map((week) => (
+                        <CompactWeekCard key={week.week_number} week={week} />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Week 6 - Break */}
+                  <div className="max-w-[200px] mx-auto">
+                    {weeks.filter((w) => w.is_break).map((week) => (
+                      <div
+                        key={week.week_number}
+                        className="rounded-lg border-2 border-dashed border-stone-200 bg-stone-50/50 py-3 text-center"
+                      >
+                        <p className="text-[11px] font-semibold text-stone-400">Week 6</p>
+                        <p className="text-[10px] text-stone-300 font-medium">Mid-Term Break</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Weeks 7-12 */}
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-stone-400 mb-2.5 px-1">
+                      Second Half · Weeks 7 – 12
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                      {weeks.filter((w) => w.week_number >= 7 && w.week_number <= 12).map((week) => (
+                        <CompactWeekCard key={week.week_number} week={week} />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {selectedTerm === 'all' && (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <p className="text-sm text-stone-500">Select a term above to view its scheme of work.</p>
+              </div>
+            )}
           </div>
+
+          <DialogFooter className="px-6 py-4 border-t border-stone-100 flex gap-2 sm:gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsSchemeModalOpen(false)}
+              className="border-stone-200 text-stone-600"
+            >
+              Close
+            </Button>
+            <Button
+              onClick={() => {
+                setIsSchemeModalOpen(false);
+                router.push(`${routePrefix}/${bankId}/groups`);
+              }}
+              className="bg-amber-600 hover:bg-amber-700 text-white gap-2"
+            >
+              <FolderKanban className="h-4 w-4" />
+              Full Scheme Editor
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

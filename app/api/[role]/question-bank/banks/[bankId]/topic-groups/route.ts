@@ -30,7 +30,7 @@ function distributeTopicsAcrossWeeks(topics: string[], weeks: WeekEntry[]): Week
   const teachingWeeks = weeks.filter((w) => !w.is_break);
   if (teachingWeeks.length === 0) return weeks;
 
-  const result = weeks.map((w) => ({ ...w, topics: [] }));
+  const result = weeks.map((w) => ({ ...w, topics: [] as string[] }));
   const topicsCopy = [...topics];
 
   // Distribute topics round-robin across teaching weeks

@@ -7,67 +7,17 @@ import { Input } from '@/components/ui/input';
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSchoolContext } from '@/hooks/use-school-context';
-import { Student, Session, Term, Class, Department } from '@/lib/types';
+import { Student, Term, Class, Department } from '@/lib/types';
 import { StudentTable } from '@/components/student-table';
-import { StudentDetailsModal } from '@/components/student-details-modal';
-import { EditStudentModal } from '@/components/edit-student-modal';
 import {
   Search, Download, Users, UserCheck, UserX,
-  Calendar as CalendarIcon, Plus, AlertTriangle,
+  Calendar as CalendarIcon, Plus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { exportToCSV } from '@/lib/student-utils';
 import { getCurrentDateStringWAT } from '@/lib/utils';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { useRouter } from 'next/navigation';
 import { StudentsSkeleton } from '@/components/skeletons';
-
-// ─── Styled field primitives ──────────────────────────────────────────────────
-function FieldLabel({ children, required }: { children: React.ReactNode; required?: boolean }) {
-  return (
-    <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-1.5">
-      {children}
-      {required && <span className="ml-1 text-rose-400">*</span>}
-    </label>
-  );
-}
-
-function StyledInput(props: React.ComponentProps<typeof Input>) {
-  return (
-    <Input
-      {...props}
-      className={
-        'h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 placeholder:text-slate-400 ' +
-        'shadow-sm ring-0 transition-all ' +
-        'focus-visible:border-indigo-400 focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:outline-none ' +
-        (props.className ?? '')
-      }
-    />
-  );
-}
-
-function StyledSelect(props: React.ComponentProps<'select'>) {
-  return (
-    <select
-      {...props}
-      className={
-        'h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 ' +
-        'shadow-sm outline-none transition-all appearance-none ' +
-        'focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 ' +
-        (props.className ?? '')
-      }
-    />
-  );
-}
-
-function FieldGroup({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={`space-y-1.5 ${className ?? ''}`}>{children}</div>;
-}
 
 // ─── Stat card ────────────────────────────────────────────────────────────────
 function StatCard({
@@ -98,19 +48,9 @@ export default function AdminStudentsPage() {
   const { schoolId, isLoading: schoolLoading, error: schoolError } = useSchoolContext();
   const [students, setStudents] = useState<Student[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
-  const [sessions, setSessions] = useState<Session[]>([]);
   const [terms, setTerms] = useState<Term[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [religions, setReligions] = useState<any[]>([]);
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isEditStudentOpen, setIsEditStudentOpen] = useState(false);
-  const [isTransferStudentOpen, setIsTransferStudentOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
-  const [transferTargetClassId, setTransferTargetClassId] = useState('');
-  const [isDeleting, setIsDeleting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState('');
@@ -120,30 +60,7 @@ export default function AdminStudentsPage() {
 
   const router = useRouter();
 
-  // ── navigation ──────────────────────────────────────────────────────────────
-  const handleNextStudent = useCallback(() => {
-    if (!selectedStudent) return;
-    const i = filteredStudents.findIndex((s) => s.id === selectedStudent.id);
-    setSelectedStudent(filteredStudents[(i + 1) % filteredStudents.length]);
-  }, [filteredStudents, selectedStudent]);
-
-  const handlePreviousStudent = useCallback(() => {
-    if (!selectedStudent) return;
-    const i = filteredStudents.findIndex((s) => s.id === selectedStudent.id);
-    setSelectedStudent(filteredStudents[(i - 1 + filteredStudents.length) % filteredStudents.length]);
-  }, [filteredStudents, selectedStudent]);
-
   useEffect(() => { if (schoolId) loadData(); }, [schoolId]);
-
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if (!isModalOpen) return;
-      if (e.key === 'ArrowRight') handleNextStudent();
-      if (e.key === 'ArrowLeft') handlePreviousStudent();
-    };
-    window.addEventListener('keydown', down);
-    return () => window.removeEventListener('keydown', down);
-  }, [isModalOpen, handleNextStudent, handlePreviousStudent]);
 
   const applyFilters = useCallback(() => {
     let f = [...students];
@@ -172,21 +89,17 @@ export default function AdminStudentsPage() {
       if (!schoolId) throw new Error('School ID not available');
       const [
         { data: studentList, error: studentsError },
-        { data: sessionsList, error: sessionsError },
         { data: termsList, error: termsError },
         { data: classList, error: classesError },
         { data: departmentsList, error: departmentsError },
-        { data: religionsList, error: religionsError },
       ] = await Promise.all([
         supabase.from('students').select('*').eq('school_id', schoolId).order('first_name', { ascending: true }),
-        supabase.from('sessions').select('*').eq('school_id', schoolId).order('name', { ascending: false }),
         supabase.from('terms').select('*').eq('school_id', schoolId).order('start_date', { ascending: false }),
         supabase.from('classes').select('*').eq('school_id', schoolId).order('name', { ascending: true }),
         supabase.from('school_departments').select('*').eq('school_id', schoolId).eq('is_active', true).order('name', { ascending: true }),
-        supabase.from('school_religions').select('*').eq('school_id', schoolId).eq('is_active', true).order('name', { ascending: true }),
       ]);
-      if (studentsError || sessionsError || termsError || classesError || departmentsError || religionsError) {
-        throw new Error(studentsError?.message || sessionsError?.message || termsError?.message || classesError?.message || departmentsError?.message || religionsError?.message || 'Unknown error');
+      if (studentsError || termsError || classesError || departmentsError) {
+        throw new Error(studentsError?.message || termsError?.message || classesError?.message || departmentsError?.message || 'Unknown error');
       }
       const departmentMap = new Map((departmentsList || []).map((d: Department) => [d.id, d.name]));
       const studentIds = (studentList || []).map((s: Student) => s.id).filter(Boolean);
@@ -208,91 +121,14 @@ export default function AdminStudentsPage() {
         };
       });
       setStudents(studentsWithAttendance);
-      setSessions(sessionsList || []);
       setTerms(termsList || []);
       setClasses(classList || []);
       setDepartments(departmentsList || []);
-      setReligions(religionsList || []);
     } catch (error: any) {
       toast.error('Failed to load data: ' + error.message);
     } finally {
       setIsLoading(false);
     }
-  }
-
-  async function handleViewDetails(student: Student) {
-    try {
-      const { data: attendance, error } = await supabase.from('attendance').select('*').eq('school_id', schoolId).eq('student_id', student.id);
-      if (error) throw error;
-      const total = attendance?.length || 0;
-      const present = attendance?.filter((r: any) => r.status === 'present' || r.status === 'late' || r.status === 'excused').length || 0;
-      setSelectedStudent({ ...student, average_attendance: total === 0 ? 0 : Math.round((present / total) * 100), total_attendance: total } as Student);
-    } catch {
-      setSelectedStudent(student);
-    }
-    setIsModalOpen(true);
-  }
-
-  function handleManageSubjects(student: Student) { router.push(`/admin/students/${student.id}/subjects`); }
-
-  function handleEditStudent(student: Student) { setSelectedStudent(student); setIsEditStudentOpen(true); }
-  function handleTransferStudent(student: Student) { setSelectedStudent(student); setIsTransferStudentOpen(true); }
-
-  async function handleTransferStudentToClass(targetClassId: string) {
-    if (!selectedStudent || !targetClassId) { toast.error('Please select a valid student and class'); return; }
-    try {
-      const res = await fetch('/api/admin', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'transfer-students', studentIds: [selectedStudent.id], targetClassId }),
-      });
-      const result = await res.json();
-      if (!res.ok) { toast.error(result.error || 'Failed to transfer student'); return; }
-      toast.success(`Transferred ${selectedStudent.first_name} ${selectedStudent.last_name}`);
-      setStudents(students.map((s) => s.id === selectedStudent.id ? { ...s, class_id: targetClassId } : s));
-      setIsTransferStudentOpen(false);
-      setTransferTargetClassId('');
-      setSelectedStudent(null);
-    } catch (e: any) { toast.error('Failed to transfer student: ' + e.message); }
-  }
-
-  async function handleRemoveStudent(student: Student) {
-    if (!student) return;
-    setIsDeleting(true);
-    try {
-      const res = await fetch('/api/admin', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete-student', studentId: student.id, userId: student.user_id }),
-      });
-      const result = await res.json();
-      if (!res.ok) { toast.error(result.error || 'Failed to delete student'); return; }
-      toast.success('Student deleted.');
-      setStudents(students.filter((s) => s.id !== student.id));
-    } catch (e: any) { toast.error('Failed to delete student: ' + e.message); }
-    finally { setIsDeleting(false); }
-  }
-
-  function handleDeleteStudent(student: Student) { setStudentToDelete(student); setIsDeleteDialogOpen(true); }
-
-  async function handleDeleteStudentCompletely() {
-    if (!studentToDelete) return;
-    setIsDeleting(true);
-    try {
-      const res = await fetch('/api/admin', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete-student', studentId: studentToDelete.id, userId: studentToDelete.user_id }),
-      });
-      const result = await res.json();
-      if (!res.ok) { toast.error(result.error || 'Failed to delete student'); return; }
-      toast.success('Student permanently deleted.');
-      setIsDeleteDialogOpen(false);
-      setStudents(students.filter((s) => s.id !== studentToDelete.id));
-      setStudentToDelete(null);
-    } catch (e: any) { toast.error('Failed to delete student: ' + e.message); }
-    finally { setIsDeleting(false); }
-  }
-
-  function handleEditStudentSuccess(updatedStudent: Student) {
-    setStudents(students.map((s) => s.id === updatedStudent.id ? updatedStudent : s));
   }
 
   function handleExport() {
@@ -417,75 +253,9 @@ export default function AdminStudentsPage() {
           <div className="px-2 pb-2">
             <StudentTable
               students={filteredStudents}
-              onViewDetails={handleViewDetails}
-              onEditStudent={handleEditStudent}
-              onManageSubjects={handleManageSubjects}
-              onTransferStudent={handleTransferStudent}
-              onRemoveStudent={handleRemoveStudent}
-              onDeleteStudent={handleDeleteStudent}
             />
           </div>
         </div>
-
-        {/* ── Modals ── */}
-        <StudentDetailsModal student={selectedStudent} sessions={sessions} terms={terms} isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
-        <EditStudentModal student={selectedStudent} isOpen={isEditStudentOpen}
-          onClose={() => { setIsEditStudentOpen(false); setSelectedStudent(null); }}
-          onSuccess={handleEditStudentSuccess}
-        />
-
-        {/* ── Transfer dialog ── */}
-        <Dialog open={isTransferStudentOpen} onOpenChange={setIsTransferStudentOpen}>
-          <DialogContent className="rounded-2xl border-0 shadow-2xl sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="text-base font-bold text-slate-900">Transfer Student</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 pt-1">
-              <p className="text-sm text-slate-500">
-                Move <span className="font-semibold text-slate-800">{selectedStudent?.first_name} {selectedStudent?.last_name}</span> to a new class:
-              </p>
-              <StyledSelect value={transferTargetClassId} onChange={(e) => setTransferTargetClassId(e.target.value)}>
-                <option value="">Select target class</option>
-                {classes.filter((c) => c.id !== selectedStudent?.class_id).map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </StyledSelect>
-              <div className="flex justify-end gap-2 pt-1">
-                <Button variant="outline" onClick={() => { setIsTransferStudentOpen(false); setTransferTargetClassId(''); }} className="rounded-xl">Cancel</Button>
-                <Button onClick={() => handleTransferStudentToClass(transferTargetClassId)} disabled={!transferTargetClassId} className="rounded-xl bg-slate-950 text-white hover:bg-slate-800">Transfer</Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* ── Delete dialog ── */}
-        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-          <DialogContent className="rounded-2xl border-0 shadow-2xl sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-rose-700">
-                <AlertTriangle className="h-5 w-5 shrink-0" />
-                Permanently Delete Student
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-3 pt-1">
-              <p className="text-sm font-semibold text-rose-700">
-                This will permanently delete <strong>{studentToDelete?.first_name} {studentToDelete?.last_name}</strong> and all associated data:
-              </p>
-              <ul className="space-y-1.5 rounded-xl bg-rose-50 px-4 py-3 text-xs text-rose-700">
-                {['Student record', 'Attendance, results, class assignments', 'Session / term links', 'Auth user account (cannot be undone)'].map((item) => (
-                  <li key={item} className="flex items-center gap-2"><span className="h-1 w-1 rounded-full bg-rose-400 shrink-0" />{item}</li>
-                ))}
-              </ul>
-              <p className="text-xs text-slate-500">This action cannot be undone. Are you sure?</p>
-              <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting} className="rounded-xl">Cancel</Button>
-                <Button variant="destructive" onClick={handleDeleteStudentCompletely} disabled={isDeleting} className="rounded-xl">
-                  {isDeleting ? 'Deleting…' : 'Delete Permanently'}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
 
       </div>
     </DashboardLayout>

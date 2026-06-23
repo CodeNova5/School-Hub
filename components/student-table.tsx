@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { Student } from '@/lib/types';
 import {
   Table,
@@ -12,35 +13,17 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Eye, Edit, BookOpen, ArrowRightLeft, UserMinus, AlertTriangle } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 
 interface StudentTableProps {
   students: Student[];
-  onViewDetails: (student: Student) => void;
-  onEditStudent?: (student: Student) => void;
-  onManageSubjects?: (student: Student) => void;
-  onTransferStudent?: (student: Student) => void;
-  onRemoveStudent?: (student: Student) => void;
-  onDeleteStudent?: (student: Student) => void;
 }
 
 export function StudentTable({
   students,
-  onViewDetails,
-  onEditStudent,
-  onManageSubjects,
-  onTransferStudent,
-  onRemoveStudent,
-  onDeleteStudent
 }: StudentTableProps) {
+  const router = useRouter();
+
   const getStatusVariant = (status: string) => {
     switch (status) {
       case 'active':
@@ -57,60 +40,6 @@ export function StudentTable({
   const getInitials = (firstName: string, lastName: string) => {
     return `${firstName?.[0] || ''}${lastName?.[0] || ''}`.toUpperCase();
   };
-
-  const actionsMenu = (student: Student) => (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon">
-          <MoreHorizontal className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => onViewDetails(student)}>
-          <Eye className="mr-2 h-4 w-4" />
-          View Details
-        </DropdownMenuItem>
-        {onEditStudent && (
-          <DropdownMenuItem onClick={() => onEditStudent(student)}>
-            <Edit className="mr-2 h-4 w-4" />
-            Edit Student
-          </DropdownMenuItem>
-        )}
-        {onManageSubjects && (
-          <DropdownMenuItem onClick={() => onManageSubjects(student)}>
-            <BookOpen className="mr-2 h-4 w-4" />
-            Manage Subjects
-          </DropdownMenuItem>
-        )}
-        {onTransferStudent && (
-          <DropdownMenuItem onClick={() => onTransferStudent(student)}>
-            <ArrowRightLeft className="mr-2 h-4 w-4" />
-            Transfer Student
-          </DropdownMenuItem>
-        )}
-        {onRemoveStudent && (
-          <DropdownMenuItem
-            className="text-red-600 focus:text-red-600"
-            onClick={() => onRemoveStudent(student)}
-          >
-            <UserMinus className="mr-2 h-4 w-4" />
-            Remove from Class
-          </DropdownMenuItem>
-        )}
-        {onDeleteStudent && (
-          <DropdownMenuItem
-            className="text-red-700 focus:text-red-700"
-            onClick={() => onDeleteStudent(student)}
-          >
-            <AlertTriangle className="mr-2 h-4 w-4 text-red-700" />
-            Delete Completely
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
 
   return (
     <div className="space-y-6">
@@ -177,7 +106,17 @@ export function StudentTable({
                         {student.status}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">{actionsMenu(student)}</TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => router.push(`/admin/students/${student.id}`)}
+                        className="rounded-xl text-xs font-medium gap-1.5 border-slate-200 hover:bg-slate-50 hover:text-indigo-700 hover:border-indigo-200 transition-all"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        View & Manage
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -209,7 +148,15 @@ export function StudentTable({
                       <p className="text-sm text-gray-500">{student.email}</p>
                     </div>
                   </div>
-                  <div className="ml-2">{actionsMenu(student)}</div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push(`/admin/students/${student.id}`)}
+                    className="rounded-xl text-xs font-medium gap-1.5 border-slate-200 hover:bg-slate-50 hover:text-indigo-700 hover:border-indigo-200 transition-all shrink-0"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Manage
+                  </Button>
                 </div>
                 <div className="mt-3 space-y-2 text-sm text-gray-600">
                   <div className="flex justify-between text-xs uppercase tracking-wide text-gray-500">

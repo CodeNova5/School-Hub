@@ -6,9 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Student, Session, Term, Class } from '@/lib/types';
+import { Student, Class } from '@/lib/types';
 import { StudentTable } from '@/components/student-table';
-import { StudentDetailsModal } from '@/components/student-details-modal';
 import { Search, Download, Users, UserCheck, UserX, Calendar as CalendarIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { exportToCSV } from '@/lib/student-utils';
@@ -19,13 +18,8 @@ import { useSchoolContext } from '@/hooks/use-school-context';
 export default function TeacherStudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [terms, setTerms] = useState<Term[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [teacherClasses, setTeacherClasses] = useState<string[]>([]);
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isSubjectsModalOpen, setIsSubjectsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
@@ -35,40 +29,9 @@ export default function TeacherStudentsPage() {
   const [filterGender, setFilterGender] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
 
-  const handleNextStudent = useCallback(() => {
-    if (!selectedStudent) return;
-    const currentIndex = filteredStudents.findIndex((s) => s.id === selectedStudent.id);
-    const nextIndex = (currentIndex + 1) % filteredStudents.length;
-    setSelectedStudent(filteredStudents[nextIndex]);
-  }, [filteredStudents, selectedStudent]);
-
-  const handlePreviousStudent = useCallback(() => {
-    if (!selectedStudent) return;
-    const currentIndex = filteredStudents.findIndex((s) => s.id === selectedStudent.id);
-    const previousIndex = (currentIndex - 1 + filteredStudents.length) % filteredStudents.length;
-    setSelectedStudent(filteredStudents[previousIndex]);
-  }, [filteredStudents, selectedStudent]);
-
   useEffect(() => {
     loadData();
   }, [schoolId]);
-
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (!isModalOpen) return;
-
-      if (event.key === 'ArrowRight') {
-        handleNextStudent();
-      } else if (event.key === 'ArrowLeft') {
-        handlePreviousStudent();
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isModalOpen, handleNextStudent, handlePreviousStudent]);
 
   const applyFilters = useCallback(() => {
     let filtered = [...students];
@@ -155,15 +118,13 @@ export default function TeacherStudentsPage() {
 
       let studentIds = allStudents.map((s: any) => s.id);
 
-      const [studentsRes, sessionsRes, termsRes, classesRes] = await Promise.all([
+      const [studentsRes, classesRes] = await Promise.all([
         supabase
           .from('students')
           .select('*')
           .in('id', studentIds)
           .eq('school_id', schoolId)
           .order('first_name'),
-        supabase.from('sessions').select('*').eq('school_id', schoolId).order('name', { ascending: false }),
-        supabase.from('terms').select('*').eq('school_id', schoolId).order('start_date', { ascending: false }),
         supabase.from('classes').select('*').eq('school_id', schoolId).order('name'),
       ]);
       if (studentsRes.data) setStudents(studentsRes.data);
@@ -199,8 +160,6 @@ export default function TeacherStudentsPage() {
 
       setStudents(studentsWithAttendance);
 
-      if (sessionsRes.data) setSessions(sessionsRes.data);
-      if (termsRes.data) setTerms(termsRes.data);
       if (classesRes.data) setClasses(classesRes.data);
     } catch (error: any) {
       toast.error('Failed to load data: ' + error.message);
@@ -209,10 +168,6 @@ export default function TeacherStudentsPage() {
     }
   }
 
-  function handleViewDetails(student: Student) {
-    setSelectedStudent(student);
-    setIsModalOpen(true);
-  }
   function handleExport() {
     const exportData = filteredStudents.map((s) => ({
       'Student ID': s.student_id,
@@ -442,18 +397,9 @@ export default function TeacherStudentsPage() {
           <CardContent>
             <StudentTable
               students={filteredStudents}
-              onViewDetails={handleViewDetails}
             />
           </CardContent>
         </Card>
-
-        <StudentDetailsModal
-          student={selectedStudent}
-          sessions={sessions}
-          terms={terms}
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-        />
 
       </div>
     </DashboardLayout>

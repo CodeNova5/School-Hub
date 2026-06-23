@@ -154,7 +154,7 @@ export function StudentDetailsModal({
             <CardContent className="p-3 md:p-6">
               <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-6">
                 <Avatar className="h-20 w-20 md:h-24 md:w-24 flex-shrink-0">
-                  <AvatarImage src={student.photo_url} />
+                  <AvatarImage src={student.image_url || student.photo_url} />
                   <AvatarFallback className="bg-blue-100 text-blue-700 text-xl md:text-2xl">
                     {getInitials(student.first_name, student.last_name)}
                   </AvatarFallback>

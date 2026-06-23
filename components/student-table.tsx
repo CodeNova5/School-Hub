@@ -140,7 +140,7 @@ export function StudentTable({
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar>
-                          <AvatarImage src={student.photo_url} />
+                          <AvatarImage src={student.image_url || student.photo_url} />
                           <AvatarFallback className="bg-blue-100 text-blue-700">
                             {getInitials(student.first_name, student.last_name)}
                           </AvatarFallback>
@@ -197,7 +197,7 @@ export function StudentTable({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <Avatar>
-                      <AvatarImage src={student.photo_url} />
+                      <AvatarImage src={student.image_url || student.photo_url} />
                       <AvatarFallback className="bg-blue-100 text-blue-700">
                         {getInitials(student.first_name, student.last_name)}
                       </AvatarFallback>

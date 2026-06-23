@@ -10,7 +10,6 @@ import { useSchoolContext } from "@/hooks/use-school-context";
 import { supabase } from "@/lib/supabase";
 import { Class, Department, Religion } from "@/lib/types";
 import { toast } from "sonner";
-import { UploadCloud } from "lucide-react";
 import {
   ArrowLeft,
   BookOpen,
@@ -18,8 +17,11 @@ import {
   Search,
   School,
   Sparkles,
+  Upload,
+  UploadCloud,
   UserPlus,
   Users,
+  X,
 } from "lucide-react";
 
 interface ExistingGuardian {
@@ -141,6 +143,10 @@ export default function NewStudentPage() {
   const [religions, setReligions] = useState<Religion[]>([]);
   const [isLoadingOptions, setIsLoadingOptions] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [studentImage, setStudentImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>("");
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   const [formData, setFormData] = useState({
     full_name: "",
@@ -341,6 +347,31 @@ export default function NewStudentPage() {
     setIsSubmitting(true);
 
     try {
+      // Upload student image if selected
+      let uploadedImageUrl = "";
+      if (studentImage) {
+        setIsUploadingImage(true);
+        const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const imageFormData = new FormData();
+        imageFormData.append("file", studentImage);
+        imageFormData.append("type", "student_photo");
+        imageFormData.append("student_id", tempId);
+
+        const uploadRes = await fetch("/api/upload", {
+          method: "POST",
+          body: imageFormData,
+        });
+
+        const uploadData = await uploadRes.json();
+
+        if (!uploadRes.ok) {
+          throw new Error(uploadData.error || "Image upload failed");
+        }
+
+        uploadedImageUrl = uploadData.fileUrl;
+        setIsUploadingImage(false);
+      }
+
       const guardiansPayload = [
         {
           guardian_id: primaryLinkedGuardian?.id,
@@ -383,6 +414,7 @@ export default function NewStudentPage() {
           guardians: guardiansPayload,
           admission_date: formData.admission_date,
           notes: formData.notes,
+          image_url: uploadedImageUrl || null,
         }),
       });
 
@@ -476,6 +508,60 @@ export default function NewStudentPage() {
                 description="Capture the student's core identity details"
                 icon={Users}
               >
+                {/* Student Photo Upload */}
+                <div className="mb-5 flex flex-col items-center gap-3 sm:flex-row sm:items-start">
+                  <div className="relative shrink-0">
+                    <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 transition-colors hover:border-sky-400 hover:bg-sky-50">
+                      {imagePreview ? (
+                        <img
+                          src={imagePreview}
+                          alt="Preview"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <Upload className="h-8 w-8 text-slate-400" />
+                      )}
+                    </div>
+                    {imagePreview && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          URL.revokeObjectURL(imagePreview);
+                          setStudentImage(null);
+                          setImagePreview("");
+                        }}
+                        className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:bg-red-50 hover:text-red-600"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex-1 self-center sm:self-auto">
+                    <p className="text-sm font-medium text-slate-700">Student Photo</p>
+                    <p className="mb-2 text-xs text-slate-500">JPG, PNG, WebP. Max 5MB.</p>
+                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-all hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700">
+                      <Upload className="h-4 w-4" />
+                      {imagePreview ? "Change Photo" : "Choose Photo"}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          if (file.size > 5 * 1024 * 1024) {
+                            toast.error("Image must be less than 5MB");
+                            return;
+                          }
+                          if (imagePreview) URL.revokeObjectURL(imagePreview);
+                          setStudentImage(file);
+                          setImagePreview(URL.createObjectURL(file));
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+
                 <div className="grid gap-4 lg:grid-cols-3">
                   <FieldGroup className="lg:col-span-2">
                     <FieldLabel htmlFor="full_name" required>

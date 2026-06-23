@@ -636,7 +636,7 @@ export default function AdminStudentPage() {
 							<CardContent className="p-8 pt-0 relative flex flex-col items-center text-center">
 								<figure className="-mt-16 mb-6 relative z-10">
 									<Avatar className="h-32 w-32 border-4 border-white shadow-xl ring-1 ring-slate-100">
-										<AvatarImage src={student.photo_url} alt={`${student.first_name} ${student.last_name}`} />
+										<AvatarImage src={student.image_url || student.photo_url} alt={`${student.first_name} ${student.last_name}`} />
 										<AvatarFallback className="bg-gradient-to-tr from-indigo-100 to-purple-100 text-indigo-700 text-3xl font-bold">{getInitials(student.first_name, student.last_name)}</AvatarFallback>
 									</Avatar>
 								</figure>

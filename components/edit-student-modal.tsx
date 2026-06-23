@@ -23,7 +23,10 @@ import { Student } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { UserRound, Phone, CalendarDays, MapPin, BadgeCheck, Sparkles } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { 
+  UserRound, Phone, CalendarDays, MapPin, BadgeCheck, Sparkles, Upload, X, Loader2 
+} from "lucide-react";
 
 interface EditStudentModalProps {
   student: Student | null;
@@ -39,6 +42,10 @@ export function EditStudentModal({
   onSuccess,
 }: EditStudentModalProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>("");
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+
   const [formData, setFormData] = useState({
     first_name: student?.first_name || "",
     last_name: student?.last_name || "",
@@ -49,8 +56,12 @@ export function EditStudentModal({
     status: student?.status || "active",
   });
 
-  // Only update formData when the student changes
+  // Reset form and image state when the student changes
   useEffect(() => {
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImageFile(null);
+    setImagePreview("");
+
     if (student) {
       setFormData({
         first_name: student.first_name || "",
@@ -93,6 +104,30 @@ export function EditStudentModal({
     setIsLoading(true);
 
     try {
+      // Upload image first if selected
+      let uploadedImageUrl = "";
+      if (imageFile && student) {
+        setIsUploadingImage(true);
+        const imageFormData = new FormData();
+        imageFormData.append("file", imageFile);
+        imageFormData.append("type", "student_photo");
+        imageFormData.append("student_id", student.id);
+
+        const uploadRes = await fetch("/api/upload", {
+          method: "POST",
+          body: imageFormData,
+        });
+
+        const uploadData = await uploadRes.json();
+
+        if (!uploadRes.ok) {
+          throw new Error(uploadData.error || "Image upload failed");
+        }
+
+        uploadedImageUrl = uploadData.fileUrl;
+        setIsUploadingImage(false);
+      }
+
       const response = await fetch("/api/admin/update-student", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -106,6 +141,7 @@ export function EditStudentModal({
             gender: formData.gender || null,
             address: formData.address || null,
             status: formData.status || "active",
+            ...(uploadedImageUrl ? { image_url: uploadedImageUrl } : {}),
           },
         }),
       });
@@ -267,6 +303,52 @@ export function EditStudentModal({
                   <div className="flex items-center gap-2">
                     <BadgeCheck className="h-4 w-4 text-emerald-600" />
                     <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">Live Preview</h3>
+                  </div>
+
+                  {/* Photo Upload */}
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="relative">
+                      <Avatar className="h-24 w-24 rounded-2xl ring-2 ring-slate-200">
+                        <AvatarImage src={imagePreview || student?.photo_url || student?.image_url || ""} />
+                        <AvatarFallback className="rounded-2xl bg-indigo-100 text-2xl font-bold text-indigo-700">
+                          {formData.first_name?.[0]?.toUpperCase() || "?"}
+                          {formData.last_name?.[0]?.toUpperCase() || "?"}
+                        </AvatarFallback>
+                      </Avatar>
+                      {imagePreview && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            URL.revokeObjectURL(imagePreview);
+                            setImageFile(null);
+                            setImagePreview("");
+                          }}
+                          className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:bg-red-50 hover:text-red-600"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-all hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700">
+                      <Upload className="h-3.5 w-3.5" />
+                      {imagePreview ? "Change Photo" : "Upload Photo"}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          if (file.size > 5 * 1024 * 1024) {
+                            toast.error("Image must be less than 5MB");
+                            return;
+                          }
+                          if (imagePreview) URL.revokeObjectURL(imagePreview);
+                          setImageFile(file);
+                          setImagePreview(URL.createObjectURL(file));
+                        }}
+                      />
+                    </label>
                   </div>
 
                   <div className="rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 p-4 text-white shadow-lg">

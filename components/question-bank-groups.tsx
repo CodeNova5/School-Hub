@@ -502,7 +502,7 @@ export function QuestionBankGroups({ role }: QuestionBankGroupsProps) {
 
       // Distribute topics across teaching weeks (round-robin)
       const teachingWeeks = [1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12];
-      const newWeeks = currentWeeks.map((w) => ({ ...w, topics: [] }));
+      const newWeeks = currentWeeks.map((w) => ({ ...w, topics: [] as string[] }));
       let topicIdx = 0;
 
       while (topicIdx < generatedTopics.length) {

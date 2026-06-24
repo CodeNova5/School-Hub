@@ -168,16 +168,16 @@ export function EditStudentModal({
   // Render
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-4xl overflow-hidden p-0 gap-0 rounded-3xl border-0 bg-white shadow-2xl">
-        <DialogHeader className="border-b bg-gradient-to-br from-slate-50 via-white to-indigo-50 px-6 py-5">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <DialogTitle className="text-2xl font-semibold tracking-tight">Edit Student</DialogTitle>
-              <p className="mt-1 text-sm text-slate-500">
+      <DialogContent className="max-w-4xl p-0 gap-0 rounded-3xl border-0 bg-white shadow-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="border-b bg-gradient-to-br from-slate-50 via-white to-indigo-50 px-4 sm:px-6 py-4 sm:py-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <DialogTitle className="text-xl sm:text-2xl font-semibold tracking-tight">Edit Student</DialogTitle>
+              <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-slate-500 line-clamp-2">
                 Update core identity and contact details in a clean, focused layout.
               </p>
             </div>
-            <Badge variant="secondary" className="rounded-full px-3 py-1 text-xs font-medium">
+            <Badge variant="secondary" className="shrink-0 rounded-full px-3 py-1 text-xs font-medium">
               <Sparkles className="mr-1 h-3.5 w-3.5" />
               Profile
             </Badge>
@@ -185,10 +185,10 @@ export function EditStudentModal({
         </DialogHeader>
 
         <div className="grid gap-0 md:grid-cols-[1.4fr_0.9fr]">
-          <div className="max-h-[70vh] overflow-y-auto px-6 py-6">
-            <div className="space-y-5">
+          <div className="px-4 sm:px-6 py-4 sm:py-6">
+            <div className="space-y-4 sm:space-y-5">
               <Card className="border-slate-200 shadow-sm">
-                <CardContent className="p-5 space-y-4">
+                <CardContent className="p-4 sm:p-5 space-y-4">
                   <div className="flex items-center gap-2">
                     <UserRound className="h-4 w-4 text-indigo-600" />
                     <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">Student Information</h3>
@@ -296,10 +296,10 @@ export function EditStudentModal({
             </div>
           </div>
 
-          <div className="border-t bg-slate-50 px-6 py-6 md:border-l md:border-t-0">
-            <div className="sticky top-6 space-y-4">
+          <div className="border-t bg-slate-50 px-4 sm:px-6 py-4 sm:py-6 md:border-l md:border-t-0">
+            <div className="md:sticky md:top-6 space-y-4">
               <Card className="border-slate-200 shadow-sm bg-white">
-                <CardContent className="p-5 space-y-4">
+                <CardContent className="p-4 sm:p-5 space-y-4">
                   <div className="flex items-center gap-2">
                     <BadgeCheck className="h-4 w-4 text-emerald-600" />
                     <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">Live Preview</h3>
@@ -398,11 +398,11 @@ export function EditStudentModal({
                 Updates here affect the student profile only. Parent and email changes are managed separately in the Danger Zone.
               </div>
 
-              <div className="flex gap-2 pt-1">
-                <Button variant="outline" onClick={onClose} disabled={isLoading} className="h-11 flex-1 rounded-xl">
+              <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                <Button variant="outline" onClick={onClose} disabled={isLoading} className="h-11 flex-1 rounded-xl order-2 sm:order-1">
                   Cancel
                 </Button>
-                <Button onClick={handleSubmit} disabled={isLoading} className="h-11 flex-1 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700">
+                <Button onClick={handleSubmit} disabled={isLoading} className="h-11 flex-1 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 order-1 sm:order-2">
                   {isLoading ? "Saving..." : "Save Changes"}
                 </Button>
               </div>
@@ -410,15 +410,7 @@ export function EditStudentModal({
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex justify-end gap-2 pt-4 border-t px-6 py-4">
-          <Button variant="outline" onClick={onClose} disabled={isLoading}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={isLoading}>
-            {isLoading ? "Saving..." : "Save Changes"}
-          </Button>
-        </div>
+
       </DialogContent>
     </Dialog>
   );

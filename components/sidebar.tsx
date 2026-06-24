@@ -19,6 +19,7 @@ import {
   History,
   TrendingUp,
   Wallet,
+  Banknote,
   X,
   Bell,
   Clock,
@@ -29,7 +30,6 @@ import {
   ChevronLeft,
   UserCheck,
   Target
-
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -144,6 +144,7 @@ export function Sidebar({
     { href: "/admin/teachers", label: "Teachers", icon: <GraduationCap className="h-5 w-5" /> },
     { href: "/admin/teachers/id-cards", label: "Teacher ID Cards", icon: <IdCard className="h-5 w-5" /> },
     { href: "/admin/finance", label: "Finance", icon: <Wallet className="h-5 w-5" /> },
+    { href: "/admin/payroll", label: "Payroll", icon: <Banknote className="h-5 w-5" /> },
     { href: "/admin/history", label: "History", icon: <History className="h-5 w-5" /> },
     { href: "/admin/promotions", label: "Promotions", icon: <TrendingUp className="h-5 w-5" /> },
     { href: "/admin/admissions", label: "Admissions", icon: <ClipboardList className="h-5 w-5" /> },

@@ -64,6 +64,41 @@ async function ensureReceipt(schoolId: string, transactionId: string, billId: st
     );
 }
 
+async function handlePayrollPayment(reference: string, nextStatus: string, paidAt: string | null) {
+  // Check if this reference belongs to a teacher payroll payment
+  const { data: payrollPayment } = await supabaseAdmin
+    .from("teacher_payroll_payments")
+    .select("id, school_id, teacher_id, amount, status")
+    .eq("reference", reference)
+    .maybeSingle();
+
+  if (!payrollPayment) {
+    return false; // Not a payroll payment
+  }
+
+  console.log("=== PAYSTACK WEBHOOK - PAYROLL PAYMENT ===");
+  console.log("Payroll Payment ID:", payrollPayment.id);
+  console.log("Reference:", reference);
+  console.log("Current status:", payrollPayment.status);
+  console.log("New status:", nextStatus);
+
+  const mappedStatus = nextStatus === "success" ? "success"
+    : nextStatus === "failed" ? "failed"
+    : nextStatus === "abandoned" ? "cancelled"
+    : nextStatus;
+
+  await supabaseAdmin
+    .from("teacher_payroll_payments")
+    .update({
+      status: mappedStatus,
+      paid_at: mappedStatus === "success" ? paidAt || new Date().toISOString() : null,
+    })
+    .eq("id", payrollPayment.id);
+
+  console.log("✓ Payroll payment updated to:", mappedStatus);
+  return true;
+}
+
 export async function POST(req: Request) {
   const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
   if (!paystackSecret) {
@@ -89,16 +124,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true });
   }
 
-  const { data: transaction } = await supabaseAdmin
-    .from("finance_transactions")
-    .select("id, school_id, bill_id, student_id, amount")
-    .eq("reference", reference)
-    .maybeSingle();
-
-  if (!transaction) {
-    return NextResponse.json({ success: true });
-  }
-
   let nextStatus: "success" | "failed" | "abandoned" | "pending" | "reversed" = "pending";
 
   if (payload.event === "charge.success") {
@@ -107,6 +132,28 @@ export async function POST(req: Request) {
     nextStatus = "failed";
   } else if (payload.event === "charge.abandoned") {
     nextStatus = "abandoned";
+  }
+
+  // ── Try payroll payment first ──
+  const isPayroll = await handlePayrollPayment(
+    reference,
+    nextStatus,
+    nextStatus === "success" ? payload.data?.paid_at || new Date().toISOString() : null
+  );
+
+  if (isPayroll) {
+    return NextResponse.json({ success: true });
+  }
+
+  // ── Student finance transaction handling (existing) ──
+  const { data: transaction } = await supabaseAdmin
+    .from("finance_transactions")
+    .select("id, school_id, bill_id, student_id, amount")
+    .eq("reference", reference)
+    .maybeSingle();
+
+  if (!transaction) {
+    return NextResponse.json({ success: true });
   }
 
   await supabaseAdmin
@@ -119,7 +166,7 @@ export async function POST(req: Request) {
     .eq("id", transaction.id);
 
   if (nextStatus === "success") {
-    console.log("=== PAYSTACK WEBHOOK - SUCCESS ===");
+    console.log("=== PAYSTACK WEBHOOK - SUCCESS (Student Payment) ===");
     console.log("Reference:", reference);
     console.log("Transaction ID:", transaction.id);
     console.log("Bill ID:", transaction.bill_id);

@@ -546,3 +546,48 @@ export interface FinanceReceipt {
   payload: Record<string, unknown>;
   created_at: string;
 }
+
+// ── Teacher Payroll Types ─────────────────────────────────────────────────
+
+export type PayrollPaymentStatus = 'pending' | 'success' | 'failed' | 'cancelled' | 'reversed';
+export type PayrollPaymentMethod = 'paystack' | 'bank_transfer' | 'cash' | 'manual';
+
+export interface TeacherPayrollSetting {
+  id: string;
+  school_id: string;
+  teacher_id: string;
+  salary_amount: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TeacherPayrollPayment {
+  id: string;
+  school_id: string;
+  teacher_id: string;
+  amount: number;
+  period_label: string;
+  status: PayrollPaymentStatus;
+  reference?: string;
+  subaccount_code?: string;
+  payment_method: PayrollPaymentMethod;
+  paid_at?: string | null;
+  notes?: string;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Extended type for UI display
+export interface TeacherPayrollPaymentWithTeacher extends TeacherPayrollPayment {
+  teachers?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    staff_id: string;
+    email: string;
+    photo_url?: string;
+    paystack_subaccount_code?: string;
+  };
+}

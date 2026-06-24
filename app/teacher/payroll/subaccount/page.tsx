@@ -8,6 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useSchoolContext } from "@/hooks/use-school-context";
@@ -25,6 +34,10 @@ import {
   Info,
   Calendar,
   Clock,
+  ChevronsUpDown,
+  Search,
+  AlertCircle,
+  Building2,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -69,12 +82,35 @@ export default function TeacherPayrollSubaccountPage() {
     accountName: "",
   });
   const [creatingSubaccount, setCreatingSubaccount] = useState(false);
+  const [banks, setBanks] = useState<{ name: string; code: string }[]>([]);
+  const [banksLoading, setBanksLoading] = useState(false);
+  const [banksFailed, setBanksFailed] = useState(false);
+  const [bankOpen, setBankOpen] = useState(false);
 
   useEffect(() => {
     if (!schoolLoading && schoolId) {
       fetchTeacherProfile();
+      fetchBanks();
     }
   }, [schoolId, schoolLoading]);
+
+  async function fetchBanks() {
+    setBanksLoading(true);
+    setBanksFailed(false);
+    try {
+      const res = await fetch("/api/teacher/payroll/banks");
+      const payload = await res.json();
+      if (res.ok && payload.success && Array.isArray(payload.data)) {
+        setBanks(payload.data);
+      } else {
+        setBanksFailed(true);
+      }
+    } catch {
+      setBanksFailed(true);
+    } finally {
+      setBanksLoading(false);
+    }
+  }
 
   async function fetchTeacherProfile() {
     if (!schoolId) return;
@@ -359,17 +395,91 @@ export default function TeacherPayrollSubaccountPage() {
                         />
                       </div>
                       <div>
-                        <Label className="text-xs text-amber-800">Bank Code</Label>
-                        <Input
-                          placeholder="e.g. 001 (GTB)"
-                          value={subaccountForm.settlementBank}
-                          onChange={(e) =>
-                            setSubaccountForm((prev) => ({ ...prev, settlementBank: e.target.value }))
-                          }
-                          className="h-10 rounded-xl border-amber-200 focus-visible:ring-amber-500"
-                        />
+                        <Label className="text-xs text-amber-800">Bank</Label>
+                        {banksFailed ? (
+                          <>
+                            <div className="flex items-center justify-between gap-2 p-2 mb-1.5 rounded-lg bg-red-50 border border-red-200">
+                              <div className="flex items-center gap-2">
+                                <AlertCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
+                                <p className="text-xs text-red-700">Could not load bank list.</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={fetchBanks}
+                                className="text-xs font-medium text-red-700 underline hover:text-red-800 shrink-0"
+                              >
+                                Retry
+                              </button>
+                            </div>
+                            <Input
+                              placeholder="e.g. 001 (GTB)"
+                              value={subaccountForm.settlementBank}
+                              onChange={(e) =>
+                                setSubaccountForm((prev) => ({ ...prev, settlementBank: e.target.value }))
+                              }
+                              className="h-10 rounded-xl border-amber-200 focus-visible:ring-amber-500"
+                            />
+                          </>
+                        ) : (
+                          <Popover open={bankOpen} onOpenChange={setBankOpen}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                aria-expanded={bankOpen}
+                                disabled={banksLoading}
+                                className="h-10 w-full justify-between rounded-xl border-amber-200 bg-white text-sm font-normal hover:bg-amber-50 focus-visible:ring-amber-500"
+                              >
+                                {banksLoading ? (
+                                  <span className="text-gray-400 flex items-center gap-2">
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    Loading banks...
+                                  </span>
+                                ) : subaccountForm.settlementBank ? (
+                                  <span className="flex items-center gap-2">
+                                    <Building2 className="h-3.5 w-3.5 text-amber-600" />
+                                    {banks.find((b) => b.code === subaccountForm.settlementBank)?.name ||
+                                      subaccountForm.settlementBank}
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-400 flex items-center gap-2">
+                                    <Search className="h-3.5 w-3.5" />
+                                    Search for your bank...
+                                  </span>
+                                )}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                              <Command>
+                                <CommandInput placeholder="Search banks..." />
+                                <CommandList>
+                                  <CommandEmpty>No bank found.</CommandEmpty>
+                                  <CommandGroup>
+                                    {banks.map((bank) => (
+                                      <CommandItem
+                                        key={bank.code}
+                                        value={bank.name}
+                                        onSelect={() => {
+                                          setSubaccountForm((prev) => ({ ...prev, settlementBank: bank.code }));
+                                          setBankOpen(false);
+                                        }}
+                                      >
+                                        <Building2 className="mr-2 h-4 w-4 text-gray-400" />
+                                        {bank.name}
+                                        {subaccountForm.settlementBank === bank.code && (
+                                          <CheckCircle2 className="ml-auto h-4 w-4 text-emerald-600" />
+                                        )}
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                        )}
                         <p className="text-xs text-amber-600 mt-0.5">
-                          Get this from Paystack bank list or your bank
+                          {banksFailed ? "Enter bank code manually" : "Search and select your bank from the list"}
                         </p>
                       </div>
                       <div>

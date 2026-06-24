@@ -1,17 +1,17 @@
 "use client";
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useSchoolContext } from '@/hooks/use-school-context';
-import { Loader2, Lock, Mail, Landmark, CheckCircle2, XCircle, DollarSign, ExternalLink, Sparkles } from 'lucide-react';
+import { Loader2, Lock, Mail, Landmark, CheckCircle2, XCircle, DollarSign, ExternalLink } from 'lucide-react';
 
 interface TeacherProfile {
   id: string;
@@ -35,14 +35,7 @@ export default function TeacherSettingsPage() {
   const [resettingPassword, setResettingPassword] = useState(false);
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
-  // Subaccount form
-  const [subaccountForm, setSubaccountForm] = useState({
-    businessName: "",
-    settlementBank: "",
-    accountNumber: "",
-    accountName: "",
-  });
-  const [creatingSubaccount, setCreatingSubaccount] = useState(false);
+  // Subaccount creation is handled on the dedicated /teacher/payroll/subaccount page
 
   useEffect(() => {
     fetchTeacherProfile();
@@ -90,46 +83,11 @@ export default function TeacherSettingsPage() {
         // Non-critical
       }
 
-      // Pre-fill business name
-      setSubaccountForm((prev) => ({
-        ...prev,
-        businessName: `${teacherData.first_name} ${teacherData.last_name}`,
-      }));
     } catch (error: any) {
       console.error('Error fetching profile:', error);
       toast.error('Failed to load profile');
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function handleCreateSubaccount() {
-    if (!subaccountForm.settlementBank || !subaccountForm.accountNumber) {
-      toast.error('Bank code and account number are required');
-      return;
-    }
-    setCreatingSubaccount(true);
-    try {
-      const res = await fetch("/api/teacher/payroll/subaccount", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          businessName: subaccountForm.businessName || teacher?.first_name + " " + teacher?.last_name,
-          settlementBank: subaccountForm.settlementBank,
-          accountNumber: subaccountForm.accountNumber,
-          accountName: subaccountForm.accountName,
-        }),
-      });
-      const payload = await res.json();
-      if (!res.ok || !payload.success) {
-        throw new Error(payload.error || "Failed to create subaccount");
-      }
-      toast.success("Paystack subaccount created! You can now receive salary payments.");
-      await fetchTeacherProfile();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to create subaccount");
-    } finally {
-      setCreatingSubaccount(false);
     }
   }
 
@@ -255,14 +213,14 @@ export default function TeacherSettingsPage() {
               Payroll & Payment Settings
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="space-y-4">
             {/* Subaccount Status */}
             <div className="rounded-xl border p-4 bg-slate-50">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-sm font-semibold text-gray-900">Paystack Subaccount</p>
                   <p className="text-xs text-gray-600 mt-1">
-                    Your subaccount is what allows the school to pay your salary directly to your bank account via Paystack checkout.
+                    Your subaccount allows the school to pay your salary directly to your bank account.
                   </p>
                 </div>
                 <div>
@@ -279,17 +237,6 @@ export default function TeacherSettingsPage() {
                   )}
                 </div>
               </div>
-
-              {teacher?.paystack_subaccount_code && (
-                <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-                  <p className="text-xs text-emerald-700 font-mono break-all">
-                    Subaccount Code: {teacher.paystack_subaccount_code}
-                  </p>
-                  <p className="text-xs text-emerald-600 mt-1">
-                    ✓ Your account is ready to receive salary payments from the school.
-                  </p>
-                </div>
-              )}
             </div>
 
             {/* Salary Info */}
@@ -318,67 +265,30 @@ export default function TeacherSettingsPage() {
               </div>
             )}
 
-            {/* Subaccount Creation Form */}
-            {!teacher?.paystack_subaccount_code && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 space-y-4">
+            {/* Link to dedicated subaccount page */}
+            <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4">
+              <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm font-semibold text-amber-900">Set Up Your Paystack Subaccount</p>
+                  <p className="text-sm font-semibold text-amber-900">
+                    {teacher?.paystack_subaccount_code ? "Manage Subaccount" : "Set Up Subaccount"}
+                  </p>
                   <p className="text-xs text-amber-700 mt-1">
-                    Enter your bank details below to create a Paystack subaccount. Once set up, the school admin can pay your salary directly to this account.
+                    {teacher?.paystack_subaccount_code
+                      ? "View your subaccount details, salary info, and payment history."
+                      : "Enter your bank details to create a Paystack subaccount and start receiving salary payments."}
                   </p>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs text-amber-800">Business/Display Name</Label>
-                    <Input
-                      placeholder="Your full name"
-                      value={subaccountForm.businessName}
-                      onChange={(e) => setSubaccountForm((prev) => ({ ...prev, businessName: e.target.value }))}
-                      className="h-10 rounded-xl border-amber-200"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-amber-800">Account Name</Label>
-                    <Input
-                      placeholder="Account holder name"
-                      value={subaccountForm.accountName}
-                      onChange={(e) => setSubaccountForm((prev) => ({ ...prev, accountName: e.target.value }))}
-                      className="h-10 rounded-xl border-amber-200"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-amber-800">Bank Code</Label>
-                    <Input
-                      placeholder="e.g. 001 (GTB)"
-                      value={subaccountForm.settlementBank}
-                      onChange={(e) => setSubaccountForm((prev) => ({ ...prev, settlementBank: e.target.value }))}
-                      className="h-10 rounded-xl border-amber-200"
-                    />
-                    <p className="text-xs text-amber-600 mt-0.5">Get this from Paystack bank list or your bank</p>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-amber-800">Account Number</Label>
-                    <Input
-                      placeholder="e.g. 0123456789"
-                      value={subaccountForm.accountNumber}
-                      onChange={(e) => setSubaccountForm((prev) => ({ ...prev, accountNumber: e.target.value }))}
-                      className="h-10 rounded-xl border-amber-200"
-                    />
-                  </div>
-                </div>
                 <Button
-                  onClick={handleCreateSubaccount}
-                  disabled={creatingSubaccount}
-                  className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl"
+                  asChild
+                  className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl shrink-0"
                 >
-                  {creatingSubaccount ? (
-                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Creating Subaccount...</>
-                  ) : (
-                    <><Sparkles className="h-4 w-4 mr-2" /> Create Paystack Subaccount</>
-                  )}
+                  <Link href="/teacher/payroll/subaccount">
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    {teacher?.paystack_subaccount_code ? "Manage" : "Set Up"}
+                  </Link>
                 </Button>
               </div>
-            )}
+            </div>
           </CardContent>
         </Card>
 

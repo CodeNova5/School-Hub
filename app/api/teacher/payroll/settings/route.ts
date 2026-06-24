@@ -36,7 +36,7 @@ export async function GET(_req: NextRequest) {
   // Get payment summary
   const { data: payments } = await supabase
     .from("teacher_payroll_payments")
-    .select("amount, status, paid_at, created_at, period_label")
+    .select("amount, status, paid_at, created_at, period_label, reference, payment_method")
     .eq("school_id", teacher.school_id)
     .eq("teacher_id", teacher.id)
     .order("created_at", { ascending: false })

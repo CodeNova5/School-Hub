@@ -172,6 +172,7 @@ export function Sidebar({
     { href: "/teacher/assignments", label: "Assignments", icon: <FileText className="h-5 w-5" /> },
     { href: "/teacher/timetable", label: "Timetable", icon: <CalendarDays className="h-5 w-5" /> }, { href: "/teacher/notifications", label: "Notifications", icon: <Bell className="h-5 w-5" /> },
     { href: "/teacher/calendar", label: "Calendar", icon: <Calendar className="h-5 w-5" /> },
+    { href: "/teacher/payroll/subaccount", label: "Payroll", icon: <Banknote className="h-5 w-5" /> },
     { href: "/teacher/settings", label: "Settings", icon: <Settings className="h-5 w-5" /> },
   ];
 

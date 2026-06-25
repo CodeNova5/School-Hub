@@ -56,6 +56,10 @@ export async function GET(_req: NextRequest) {
       email: teacher.email,
       phone: teacher.phone,
       paystack_subaccount_code: teacher.paystack_subaccount_code,
+      bank_name: teacher.bank_name,
+      bank_code: teacher.bank_code,
+      account_number: teacher.account_number,
+      account_name: teacher.account_name,
     },
     settings: settings || null,
     summary: {

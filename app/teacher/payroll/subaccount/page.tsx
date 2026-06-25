@@ -41,6 +41,8 @@ import {
   Building2,
   LayoutDashboard,
   Settings,
+  Pencil,
+  Eye,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -51,6 +53,10 @@ interface TeacherProfile {
   email: string;
   phone: string;
   paystack_subaccount_code?: string;
+  bank_name?: string;
+  bank_code?: string;
+  account_number?: string;
+  account_name?: string;
 }
 
 interface PaymentRecord {
@@ -90,6 +96,8 @@ export default function TeacherPayrollSubaccountPage() {
   const [banksLoading, setBanksLoading] = useState(false);
   const [banksFailed, setBanksFailed] = useState(false);
   const [bankOpen, setBankOpen] = useState(false);
+  const [editingSubaccount, setEditingSubaccount] = useState(false);
+  const [updatingSubaccount, setUpdatingSubaccount] = useState(false);
 
   useEffect(() => {
     if (!schoolLoading && schoolId) {
@@ -156,6 +164,22 @@ export default function TeacherPayrollSubaccountPage() {
             total_paid: payload.data.summary?.totalPaid || 0,
             pending_payments: payload.data.summary?.pendingPayments || 0,
           });
+
+          // Store bank details from the teacher payload
+          const t = payload.data.teacher;
+          if (t?.bank_code || t?.account_number) {
+            setTeacher((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    bank_name: t.bank_name,
+                    bank_code: t.bank_code,
+                    account_number: t.account_number,
+                    account_name: t.account_name,
+                  }
+                : prev
+            );
+          }
         }
       } catch {
         // Non-critical
@@ -202,6 +226,58 @@ export default function TeacherPayrollSubaccountPage() {
     } finally {
       setCreatingSubaccount(false);
     }
+  }
+
+  async function handleUpdateSubaccount() {
+    if (!subaccountForm.settlementBank || !subaccountForm.accountNumber) {
+      toast.error("Bank and account number are required");
+      return;
+    }
+    setUpdatingSubaccount(true);
+    try {
+      const res = await fetch("/api/teacher/payroll/subaccount", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessName: subaccountForm.businessName || teacher?.first_name + " " + teacher?.last_name,
+          settlementBank: subaccountForm.settlementBank,
+          accountNumber: subaccountForm.accountNumber,
+          accountName: subaccountForm.accountName,
+        }),
+      });
+      const payload = await res.json();
+      if (!res.ok || !payload.success) {
+        throw new Error(payload.error || "Failed to update subaccount");
+      }
+      toast.success("Subaccount details updated successfully!");
+      setEditingSubaccount(false);
+      await fetchTeacherProfile();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update subaccount");
+    } finally {
+      setUpdatingSubaccount(false);
+    }
+  }
+
+  function startEditing() {
+    // Pre-fill form with current bank details
+    setSubaccountForm({
+      businessName: `${teacher?.first_name || ""} ${teacher?.last_name || ""}`.trim(),
+      settlementBank: teacher?.bank_code || "",
+      accountNumber: teacher?.account_number || "",
+      accountName: teacher?.account_name || "",
+    });
+    setEditingSubaccount(true);
+  }
+
+  function cancelEditing() {
+    setEditingSubaccount(false);
+    setSubaccountForm({
+      businessName: `${teacher?.first_name || ""} ${teacher?.last_name || ""}`.trim(),
+      settlementBank: "",
+      accountNumber: "",
+      accountName: "",
+    });
   }
 
   function getStatusBadge(status: string) {
@@ -574,27 +650,246 @@ export default function TeacherPayrollSubaccountPage() {
                           )}
                         </Button>
                       </>
-                    ) : (
+                    ) : editingSubaccount ? (
                       <>
-                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center">
-                          <CheckCircle2 className="h-12 w-12 mx-auto text-emerald-500 mb-3" />
-                          <p className="text-lg font-semibold text-emerald-900">Subaccount is all set!</p>
-                          <p className="text-sm text-emerald-700 mt-1">
-                            Your payroll setup is complete. Your subaccount is ready to receive salary payments.
+                        {/* Edit Mode */}
+                        <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
+                          <div className="flex items-center gap-2 text-blue-800">
+                            <Pencil className="h-4 w-4" />
+                            <p className="text-sm font-semibold">Edit Your Bank Details</p>
+                          </div>
+                          <p className="text-xs text-blue-700 mt-1">
+                            Update your bank account information below. Changes will be applied to future salary
+                            payments.
                           </p>
-                          <div className="mt-4 p-3 bg-emerald-100/50 border border-emerald-200 rounded-lg inline-block">
-                            <p className="text-xs font-mono text-emerald-800 break-all">
-                              Subaccount Code: {teacher.paystack_subaccount_code}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-xs text-gray-700">Business/Display Name</Label>
+                            <Input
+                              placeholder="Your full name"
+                              value={subaccountForm.businessName}
+                              onChange={(e) =>
+                                setSubaccountForm((prev) => ({ ...prev, businessName: e.target.value }))
+                              }
+                              className="h-10 rounded-xl border-gray-200 focus-visible:ring-blue-500"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-gray-700">Account Name</Label>
+                            <Input
+                              placeholder="Account holder name"
+                              value={subaccountForm.accountName}
+                              onChange={(e) =>
+                                setSubaccountForm((prev) => ({ ...prev, accountName: e.target.value }))
+                              }
+                              className="h-10 rounded-xl border-gray-200 focus-visible:ring-blue-500"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-gray-700">Bank</Label>
+                            {banksFailed ? (
+                              <>
+                                <div className="flex items-center justify-between gap-2 p-2 mb-1.5 rounded-lg bg-red-50 border border-red-200">
+                                  <div className="flex items-center gap-2">
+                                    <AlertCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
+                                    <p className="text-xs text-red-700">Could not load bank list.</p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={fetchBanks}
+                                    className="text-xs font-medium text-red-700 underline hover:text-red-800 shrink-0"
+                                  >
+                                    Retry
+                                  </button>
+                                </div>
+                                <Input
+                                  placeholder="e.g. 001 (GTB)"
+                                  value={subaccountForm.settlementBank}
+                                  onChange={(e) =>
+                                    setSubaccountForm((prev) => ({ ...prev, settlementBank: e.target.value }))
+                                  }
+                                  className="h-10 rounded-xl border-gray-200 focus-visible:ring-blue-500"
+                                />
+                              </>
+                            ) : (
+                              <Popover open={bankOpen} onOpenChange={setBankOpen}>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    role="combobox"
+                                    aria-expanded={bankOpen}
+                                    disabled={banksLoading}
+                                    className="h-10 w-full justify-between rounded-xl border-gray-200 bg-white text-sm font-normal hover:bg-gray-50 focus-visible:ring-blue-500"
+                                  >
+                                    {banksLoading ? (
+                                      <span className="text-gray-400 flex items-center gap-2">
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        Loading banks...
+                                      </span>
+                                    ) : subaccountForm.settlementBank ? (
+                                      <span className="flex items-center gap-2">
+                                        <Building2 className="h-3.5 w-3.5 text-gray-500" />
+                                        {banks.find((b) => b.code === subaccountForm.settlementBank)?.name ||
+                                          subaccountForm.settlementBank}
+                                      </span>
+                                    ) : (
+                                      <span className="text-gray-400 flex items-center gap-2">
+                                        <Search className="h-3.5 w-3.5" />
+                                        Search for your bank...
+                                      </span>
+                                    )}
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                                  <Command>
+                                    <CommandInput placeholder="Search banks..." />
+                                    <CommandList>
+                                      <CommandEmpty>No bank found.</CommandEmpty>
+                                      <CommandGroup>
+                                        {banks.map((bank) => (
+                                          <CommandItem
+                                            key={bank.code}
+                                            value={bank.name}
+                                            onSelect={() => {
+                                              setSubaccountForm((prev) => ({
+                                                ...prev,
+                                                settlementBank: bank.code,
+                                              }));
+                                              setBankOpen(false);
+                                            }}
+                                          >
+                                            <Building2 className="mr-2 h-4 w-4 text-gray-400" />
+                                            {bank.name}
+                                            {subaccountForm.settlementBank === bank.code && (
+                                              <CheckCircle2 className="ml-auto h-4 w-4 text-emerald-600" />
+                                            )}
+                                          </CommandItem>
+                                        ))}
+                                      </CommandGroup>
+                                    </CommandList>
+                                  </Command>
+                                </PopoverContent>
+                              </Popover>
+                            )}
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              {banksFailed
+                                ? "Enter bank code manually"
+                                : "Search and select your bank from the list"}
                             </p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-gray-700">Account Number</Label>
+                            <Input
+                              placeholder="e.g. 0123456789"
+                              value={subaccountForm.accountNumber}
+                              onChange={(e) =>
+                                setSubaccountForm((prev) => ({ ...prev, accountNumber: e.target.value }))
+                              }
+                              className="h-10 rounded-xl border-gray-200 focus-visible:ring-blue-500"
+                            />
                           </div>
                         </div>
                         <div className="flex gap-3">
+                          <Button
+                            onClick={handleUpdateSubaccount}
+                            disabled={updatingSubaccount}
+                            className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
+                          >
+                            {updatingSubaccount ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle2 className="h-4 w-4 mr-2" /> Save Changes
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="rounded-xl"
+                            onClick={cancelEditing}
+                            disabled={updatingSubaccount}
+                          >
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Cancel
+                          </Button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        {/* View Mode - Current Account Details */}
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+                          <div className="flex items-center gap-2 mb-4">
+                            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                            <p className="text-base font-semibold text-emerald-900">Subaccount Active</p>
+                          </div>
+
+                          {/* Subaccount Code */}
+                          <div className="p-3 bg-emerald-100/50 border border-emerald-200 rounded-lg mb-4">
+                            <div className="flex items-center gap-2 text-emerald-800">
+                              <Shield className="h-4 w-4" />
+                              <p className="text-xs font-mono break-all">
+                                Code: {teacher.paystack_subaccount_code}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Bank Details */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="p-3 bg-white rounded-lg border border-emerald-100">
+                              <p className="text-xs text-gray-500 mb-1">Bank</p>
+                              <p className="text-sm font-medium text-gray-900">
+                                {teacher?.bank_name
+                                  ? teacher.bank_name
+                                  : teacher?.bank_code
+                                    ? banks.find((b) => b.code === teacher.bank_code)?.name ||
+                                      `Code: ${teacher.bank_code}`
+                                    : "—"}
+                              </p>
+                            </div>
+                            <div className="p-3 bg-white rounded-lg border border-emerald-100">
+                              <p className="text-xs text-gray-500 mb-1">Account Number</p>
+                              <p className="text-sm font-medium text-gray-900">
+                                {teacher?.account_number
+                                  ? teacher.account_number.slice(0, -4).replace(/./g, "*") +
+                                    teacher.account_number.slice(-4)
+                                  : "—"}
+                              </p>
+                            </div>
+                            <div className="p-3 bg-white rounded-lg border border-emerald-100">
+                              <p className="text-xs text-gray-500 mb-1">Account Name</p>
+                              <p className="text-sm font-medium text-gray-900">
+                                {teacher?.account_name || "—"}
+                              </p>
+                            </div>
+                            <div className="p-3 bg-white rounded-lg border border-emerald-100">
+                              <p className="text-xs text-gray-500 mb-1">Business Name</p>
+                              <p className="text-sm font-medium text-gray-900">
+                                {teacher?.first_name} {teacher?.last_name}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-3">
+                          <Button
+                            variant="default"
+                            className="rounded-xl bg-blue-600 hover:bg-blue-700"
+                            onClick={startEditing}
+                          >
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Edit Bank Details
+                          </Button>
                           <Button
                             variant="outline"
                             className="rounded-xl"
                             onClick={() => setActiveTab("overview")}
                           >
-                            <LayoutDashboard className="h-4 w-4 mr-2" />
+                            <Eye className="h-4 w-4 mr-2" />
                             View Overview
                           </Button>
                           <Button
@@ -603,7 +898,7 @@ export default function TeacherPayrollSubaccountPage() {
                             onClick={() => setActiveTab("history")}
                           >
                             <Banknote className="h-4 w-4 mr-2" />
-                            View Payment History
+                            View History
                           </Button>
                         </div>
                       </>

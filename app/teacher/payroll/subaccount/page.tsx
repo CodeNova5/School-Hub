@@ -140,7 +140,7 @@ export default function TeacherPayrollSubaccountPage() {
       // Fetch teacher profile with subaccount code
       const { data: teacherData, error } = await supabase
         .from("teachers")
-        .select("id, first_name, last_name, email, phone, paystack_subaccount_code")
+        .select("id, first_name, last_name, email, phone, paystack_subaccount_code, bank_name, bank_code, account_number, account_name")
         .eq("user_id", user.id)
         .eq("school_id", schoolId)
         .single();

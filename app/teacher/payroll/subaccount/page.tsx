@@ -57,6 +57,7 @@ interface TeacherProfile {
   bank_code?: string;
   account_number?: string;
   account_name?: string;
+  business_name?: string;
 }
 
 interface PaymentRecord {
@@ -140,7 +141,7 @@ export default function TeacherPayrollSubaccountPage() {
       // Fetch teacher profile with subaccount code
       const { data: teacherData, error } = await supabase
         .from("teachers")
-        .select("id, first_name, last_name, email, phone, paystack_subaccount_code")
+        .select("id, first_name, last_name, email, phone, paystack_subaccount_code, bank_name, bank_code, account_number, account_name")
         .eq("user_id", user.id)
         .eq("school_id", schoolId)
         .single();
@@ -151,6 +152,11 @@ export default function TeacherPayrollSubaccountPage() {
       }
 
       setTeacher(teacherData);
+
+      // Fetch live subaccount details from Paystack if code exists
+      if (teacherData?.paystack_subaccount_code) {
+        fetchPaystackSubaccount();
+      }
 
       // Fetch payroll info
       try {
@@ -225,6 +231,30 @@ export default function TeacherPayrollSubaccountPage() {
       toast.error(error.message || "Failed to create subaccount");
     } finally {
       setCreatingSubaccount(false);
+    }
+  }
+
+  async function fetchPaystackSubaccount() {
+    try {
+      const res = await fetch("/api/teacher/payroll/subaccount");
+      const payload = await res.json();
+      if (res.ok && payload.success && payload.data) {
+        const d = payload.data;
+        setTeacher((prev) =>
+          prev
+            ? {
+                ...prev,
+                bank_name: d.bank_name || prev.bank_name,
+                bank_code: d.bank_code || prev.bank_code,
+                account_number: d.account_number || prev.account_number,
+                account_name: d.account_name || prev.account_name,
+                business_name: d.business_name || prev.business_name,
+              }
+            : prev
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching Paystack details:", error);
     }
   }
 
@@ -869,7 +899,7 @@ export default function TeacherPayrollSubaccountPage() {
                             <div className="p-3 bg-white rounded-lg border border-emerald-100">
                               <p className="text-xs text-gray-500 mb-1">Business Name</p>
                               <p className="text-sm font-medium text-gray-900">
-                                {teacher?.first_name} {teacher?.last_name}
+                                {teacher?.business_name || `${teacher?.first_name} ${teacher?.last_name}`}
                               </p>
                             </div>
                           </div>

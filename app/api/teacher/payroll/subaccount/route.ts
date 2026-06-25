@@ -161,6 +161,7 @@ export async function POST(req: NextRequest) {
     .from("teachers")
     .update({
       paystack_subaccount_code: paystackData.data.subaccount_code,
+      bank_name: paystackData.data.settlement_bank,
       bank_code: body.settlementBank || null,
       account_number: body.accountNumber || null,
       account_name: body.accountName || null,
@@ -247,6 +248,7 @@ export async function PUT(req: NextRequest) {
   const { error: updateError } = await supabase
     .from("teachers")
     .update({
+      bank_name: paystackData.data?.settlement_bank,
       bank_code: body.settlementBank,
       account_number: body.accountNumber,
       account_name: body.accountName || null,

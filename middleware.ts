@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
-import { getFeatureForPath, getApiFeatureForPath, isApiPathExcluded } from "@/lib/plan-routes";
+import { getRoutes, isApiPathExcluded, getApiFeatureForPath, getFeatureForPath } from "@/lib/route-enforcer";
 
 // Portal configuration
 const PORTAL_CONFIG = {
@@ -105,15 +105,18 @@ export async function middleware(req: NextRequest) {
   const supabase = createMiddlewareClient({ req, res });
   const { pathname } = req.nextUrl;
 
+  // ── Load feature routes from DB (cached in-memory with 5-min TTL) ──
+  const routes = await getRoutes(supabase);
+
   // ── API Route Plan Enforcement ──
   if (pathname.startsWith("/api")) {
     // Skip excluded routes (webhooks, public auth endpoints, super admin, etc.)
-    if (isApiPathExcluded(pathname)) {
+    if (isApiPathExcluded(pathname, routes)) {
       return res;
     }
 
     // Check if this API path is a gated feature
-    const apiFeature = getApiFeatureForPath(pathname);
+    const apiFeature = getApiFeatureForPath(pathname, routes);
     if (!apiFeature) {
       // Not a gated feature — allow through
       return res;
@@ -300,7 +303,7 @@ export async function middleware(req: NextRequest) {
   // Only check plan if the current path matches a gated feature (Pro or Premium).
   // This avoids an extra RPC call on every page navigation.
   const portal = config.prefix.replace("/", "");
-  const matchedFeature = getFeatureForPath(pathname, portal);
+  const matchedFeature = getFeatureForPath(pathname, portal, routes);
   
   if (matchedFeature) {
     // This path requires a gated feature — fetch the school's plan.

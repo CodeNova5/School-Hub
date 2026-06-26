@@ -4,7 +4,6 @@ import { Sidebar } from "./sidebar";
 import { ReactNode, useState } from "react";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { UpgradeBanner } from "./upgrade-banner";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -60,7 +59,6 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
                ${collapsed ? "md:ml-20" : "md:ml-64"}
                `}
         >
-          <UpgradeBanner />
           {children}
         </main>
 

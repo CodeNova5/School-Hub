@@ -14,11 +14,10 @@ import {
   Zap,
 } from "lucide-react";
 import {
-  FEATURE_META,
-  FEATURE_PLAN_MAP,
   PLAN_INFO,
   getUpgradePlan,
 } from "@/lib/plan-features";
+import { usePlanFeatures } from "@/hooks/use-plan-features";
 import type { PlanFeature, SchoolPlan } from "@/lib/types";
 
 // ── Feature-to-benefits mapping ───────────────────────────────────────────
@@ -256,18 +255,20 @@ export function FeatureLockedPage({
 }: FeatureLockedPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { getRequiredPlan: getDbRequiredPlan, featureMetadata, isLoading: featuresLoading } = usePlanFeatures();
 
   // ── State ──
   const [mounted, setMounted] = useState(false);
 
   // ── Derive feature & plans ──
   const featureKeyStr = featureKey ?? searchParams.get("feature") ?? "";
-  const feature = featureKeyStr
-    ? (FEATURE_META[featureKeyStr as PlanFeature] ?? null)
+  const feature = featureKeyStr && featureMetadata
+    ? (featureMetadata[featureKeyStr] ?? null)
     : null;
 
-  const requiredPlan = feature
-    ? FEATURE_PLAN_MAP[feature.key]
+  // Required plan: DB-driven with fallback to FEATURE_PLAN_MAP logic
+  const requiredPlan = featureKeyStr
+    ? getDbRequiredPlan(featureKeyStr) as SchoolPlan | null
     : null;
 
   const planFromUrl = searchParams.get("plan") as SchoolPlan | null;
@@ -294,8 +295,8 @@ export function FeatureLockedPage({
   ) : null;
 
   // ── Benefits for this feature ──
-  const benefits = feature
-    ? FEATURE_BENEFITS[feature.key] ?? []
+  const benefits = featureKeyStr
+    ? FEATURE_BENEFITS[featureKeyStr as PlanFeature] ?? []
     : [];
 
   // ── Handle back navigation with fallback ──
@@ -308,8 +309,10 @@ export function FeatureLockedPage({
     }
   };
 
+  // ── Loading ──
+  if (!mounted || (featuresLoading && !featureMetadata)) return <UpgradePageSkeleton />;
+
   // ── No feature found ──
-  if (!mounted) return <UpgradePageSkeleton />;
   if (!feature || !requiredPlan) {
     return (
       <UpgradePageError
@@ -443,7 +446,7 @@ export function FeatureLockedPage({
               <button
                 onClick={() =>
                   router.push(
-                    `/subscription?feature=${feature.key}&plan=${upgradePlan}&from=${encodeURIComponent(window.location.pathname)}`
+                    `/subscription?feature=${featureKeyStr}&plan=${upgradePlan}&from=${encodeURIComponent(window.location.pathname)}`
                   )
                 }
                 className={`

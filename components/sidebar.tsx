@@ -29,7 +29,8 @@ import {
   Globe,
   ChevronLeft,
   UserCheck,
-  Target
+  Target,
+  ScrollText
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -147,6 +148,7 @@ export function Sidebar({
     { href: "/admin/payroll", label: "Payroll", icon: <Banknote className="h-5 w-5" /> },
     { href: "/admin/history", label: "History", icon: <History className="h-5 w-5" /> },
     { href: "/admin/promotions", label: "Promotions", icon: <TrendingUp className="h-5 w-5" /> },
+    { href: "/admin/audit-logs", label: "Audit Trail", icon: <ScrollText className="h-5 w-5" /> },
     { href: "/admin/admissions", label: "Admissions", icon: <ClipboardList className="h-5 w-5" /> },
     { href: "/admin/alumni", label: "Alumni", icon: <UserCheck className="h-5 w-5" /> },
     { href: "/admin/jamb", label: "JAMB CBT Access", icon: <Target className="h-5 w-5" /> },

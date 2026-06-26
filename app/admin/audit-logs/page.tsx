@@ -35,6 +35,8 @@ import {
   AlertCircle,
   Trash,
   Loader2,
+  Sparkles,
+  Bot,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -59,11 +61,45 @@ function AuditDetailSheet({
   onClose: () => void;
 }) {
   if (!log) return null;
+  const logId = log.id;
+
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  // Reset AI state when switching to a different log entry
+  useEffect(() => {
+    setAiSummary(null);
+    setAiLoading(false);
+    setAiError(null);
+  }, [logId]);
 
   const changes =
     log.operation === "UPDATE" && log.old_data && log.new_data
       ? getChangedFields(log.old_data, log.new_data)
       : [];
+
+  async function generateAISummary() {
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const res = await fetch("/api/admin/audit-logs/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ log_id: logId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAiError(data.error || "Failed to generate AI summary");
+        return;
+      }
+      setAiSummary(data.summary);
+    } catch (err) {
+      setAiError("Failed to generate AI summary");
+    } finally {
+      setAiLoading(false);
+    }
+  }
 
   const renderValue = (val: unknown): string => {
     if (val === null || val === undefined) return "—";
@@ -101,6 +137,54 @@ function AuditDetailSheet({
             </span>
           </SheetDescription>
         </SheetHeader>
+
+        {/* AI Summary */}
+        <div className="mb-6">
+          {aiSummary ? (
+            <div className="bg-gradient-to-br from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-4">
+              <div className="flex items-start gap-2">
+                <Bot className="w-4 h-4 text-purple-500 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-xs font-semibold text-purple-700 mb-1">
+                    AI Explanation
+                  </p>
+                  <p className="text-sm text-slate-700 leading-relaxed">
+                    {aiSummary}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : aiError ? (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-xs text-red-600">{aiError}</p>
+              <button
+                onClick={generateAISummary}
+                className="text-xs text-red-700 underline mt-1 hover:no-underline"
+              >
+                Retry
+              </button>
+            </div>
+          ) : null}
+
+          {!aiSummary && !aiLoading && !aiError && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={generateAISummary}
+              className="text-xs gap-1.5 border-purple-200 text-purple-600 hover:bg-purple-50 hover:text-purple-700 w-full"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              Explain this change with AI
+            </Button>
+          )}
+
+          {aiLoading && (
+            <div className="flex items-center gap-2 text-xs text-purple-600 bg-purple-50 border border-purple-200 rounded-lg p-3">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Generating AI explanation...
+            </div>
+          )}
+        </div>
 
         {/* Metadata */}
         <div className="space-y-3 mb-6">

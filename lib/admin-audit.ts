@@ -40,6 +40,7 @@ export const TABLE_LABELS: Record<string, string> = {
   school_departments: 'Departments',
   school_religions: 'Religions',
   school_level_subject_presets: 'Subject Presets',
+  student_guardian_links: 'Student-Guardian Links',
 };
 
 // ─── Helpers ───────────────────────────────────────────────────────────────

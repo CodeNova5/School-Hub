@@ -37,6 +37,8 @@ export async function GET(request: NextRequest) {
     const tableName = url.searchParams.get('table_name') || '';
     const operation = url.searchParams.get('operation') || '';
     const search = url.searchParams.get('search') || '';
+    const fromDate = url.searchParams.get('from_date') || '';
+    const toDate = url.searchParams.get('to_date') || '';
 
     // Build query
     let query = supabase
@@ -56,6 +58,17 @@ export async function GET(request: NextRequest) {
     // For search, we filter by changed_by_name ILIKE
     if (search) {
       query = query.ilike('changed_by_name', `%${search}%`);
+    }
+
+    // Date range filtering
+    if (fromDate) {
+      query = query.gte('created_at', fromDate);
+    }
+    if (toDate) {
+      // Add one day so the filter is inclusive of the selected day
+      const endDate = new Date(toDate);
+      endDate.setDate(endDate.getDate() + 1);
+      query = query.lt('created_at', endDate.toISOString());
     }
 
     const { data: logs, count, error } = await query.range(offset, offset + limit - 1);

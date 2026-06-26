@@ -32,7 +32,11 @@ import {
   PencilLine,
   Trash2,
   ArrowUpDown,
+  AlertCircle,
+  Trash,
+  Loader2,
 } from "lucide-react";
+import { toast } from "sonner";
 import {
   TABLE_LABELS,
   operationLabel,
@@ -208,8 +212,11 @@ export default function AuditLogsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [tableFilter, setTableFilter] = useState("all");
   const [operationFilter, setOperationFilter] = useState("all");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [selectedLog, setSelectedLog] = useState<AdminAuditLogRecord | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [isPurging, setIsPurging] = useState(false);
 
   const LIMIT = 50;
 
@@ -222,10 +229,14 @@ export default function AuditLogsPage() {
       if (tableFilter !== "all") params.set("table_name", tableFilter);
       if (operationFilter !== "all") params.set("operation", operationFilter);
       if (searchQuery.trim()) params.set("search", searchQuery.trim());
+      if (fromDate) params.set("from_date", fromDate);
+      if (toDate) params.set("to_date", toDate);
 
       const res = await fetch(`/api/admin/audit-logs?${params}`);
       if (!res.ok) {
-        console.error("Failed to load audit logs", await res.text());
+        const errText = await res.text();
+        console.error("Failed to load audit logs", errText);
+        toast.error("Failed to load audit logs");
         return;
       }
 
@@ -234,21 +245,42 @@ export default function AuditLogsPage() {
       setTotalCount(data.total || 0);
     } catch (err) {
       console.error("Failed to load audit logs", err);
+      toast.error("Failed to load audit logs. Check your connection.");
     } finally {
       setIsLoading(false);
     }
-  }, [currentPage, tableFilter, operationFilter, searchQuery]);
+  }, [currentPage, tableFilter, operationFilter, searchQuery, fromDate, toDate]);
 
   // Reload when filters change (reset to page 0)
   useEffect(() => {
     setCurrentPage(0);
-  }, [tableFilter, operationFilter, searchQuery]);
+  }, [tableFilter, operationFilter, searchQuery, fromDate, toDate]);
 
   useEffect(() => {
     loadLogs();
   }, [loadLogs]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / LIMIT));
+
+  async function handlePurge() {
+    if (!confirm('Delete all audit logs older than 90 days? This action cannot be undone.')) return;
+    setIsPurging(true);
+    try {
+      const res = await fetch('/api/admin/audit-logs/cleanup', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to purge old logs');
+        return;
+      }
+      toast.success(data.message || `Cleaned up ${data.deleted} entries.`);
+      loadLogs();
+    } catch (err) {
+      console.error('Purge error:', err);
+      toast.error('Failed to purge old logs');
+    } finally {
+      setIsPurging(false);
+    }
+  }
 
   function openDetail(log: AdminAuditLogRecord) {
     setSelectedLog(log);
@@ -294,10 +326,26 @@ export default function AuditLogsPage() {
                   Every change made by admins across the school
                 </p>
               </div>
-              <Badge variant="outline" className="text-xs gap-1.5">
-                <Clock className="w-3.5 h-3.5" />
-                {totalCount} event{totalCount !== 1 ? "s" : ""}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePurge}
+                  disabled={isPurging}
+                  className="text-xs gap-1.5 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                >
+                  {isPurging ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Trash className="w-3.5 h-3.5" />
+                  )}
+                  Purge Old Logs
+                </Button>
+                <Badge variant="outline" className="text-xs gap-1.5">
+                  <Clock className="w-3.5 h-3.5" />
+                  {totalCount} event{totalCount !== 1 ? "s" : ""}
+                </Badge>
+              </div>
             </div>
           </div>
         </div>
@@ -357,6 +405,31 @@ export default function AuditLogsPage() {
                     </Select>
                   </div>
                 </div>
+
+                <div className="flex items-center gap-3 w-full md:w-auto">
+                  <div className="flex flex-col gap-1.5 w-full md:w-40">
+                    <Label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide">
+                      From Date
+                    </Label>
+                    <Input
+                      type="date"
+                      value={fromDate}
+                      onChange={(e) => setFromDate(e.target.value)}
+                      className="h-10 text-sm"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5 w-full md:w-40">
+                    <Label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide">
+                      To Date
+                    </Label>
+                    <Input
+                      type="date"
+                      value={toDate}
+                      onChange={(e) => setToDate(e.target.value)}
+                      className="h-10 text-sm"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
@@ -384,13 +457,14 @@ export default function AuditLogsPage() {
           {!isLoading && logs.length === 0 && (
             <Card className="border-slate-200">
               <CardContent className="py-16 text-center">
-                <Clock className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                <AlertCircle className="w-12 h-12 text-slate-200 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-slate-700 mb-1">
-                  No Activity Yet
+                  No Results Found
                 </h3>
                 <p className="text-sm text-slate-500 max-w-md mx-auto">
-                  Admin actions like creating students, editing teachers, or
-                  updating classes will appear here automatically.
+                  {tableFilter !== "all" || operationFilter !== "all" || searchQuery.trim() || fromDate || toDate
+                    ? "Try adjusting your filters or search query."
+                    : "Admin actions like creating students, editing teachers, or updating classes will appear here automatically once the audit migration has been applied."}
                 </p>
               </CardContent>
             </Card>

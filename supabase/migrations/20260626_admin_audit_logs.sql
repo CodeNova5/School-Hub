@@ -80,25 +80,33 @@ BEGIN
     v_school_id := get_my_school_id();
   END IF;
 
-  INSERT INTO admin_audit_logs (
-    school_id,
-    table_name,
-    record_id,
-    operation,
-    old_data,
-    new_data,
-    changed_by,
-    changed_by_name
-  ) VALUES (
-    v_school_id,
-    TG_TABLE_NAME,
-    CASE WHEN TG_OP = 'DELETE' THEN OLD.id ELSE NEW.id END,
-    TG_OP,
-    CASE WHEN TG_OP IN ('UPDATE', 'DELETE') THEN to_jsonb(OLD) ELSE NULL END,
-    CASE WHEN TG_OP IN ('INSERT', 'UPDATE') THEN to_jsonb(NEW) ELSE NULL END,
-    v_user_id,
-    v_admin_name
-  );
+  BEGIN
+    INSERT INTO admin_audit_logs (
+      school_id,
+      table_name,
+      record_id,
+      operation,
+      old_data,
+      new_data,
+      changed_by,
+      changed_by_name
+    ) VALUES (
+      v_school_id,
+      TG_TABLE_NAME,
+      CASE WHEN TG_OP = 'DELETE' THEN OLD.id ELSE NEW.id END,
+      TG_OP,
+      CASE WHEN TG_OP IN ('UPDATE', 'DELETE') THEN to_jsonb(OLD) ELSE NULL END,
+      CASE WHEN TG_OP IN ('INSERT', 'UPDATE') THEN to_jsonb(NEW) ELSE NULL END,
+      v_user_id,
+      v_admin_name
+    );
+  EXCEPTION
+    WHEN OTHERS THEN
+      -- If audit logging fails (e.g. missing school_id, storage full), do NOT
+      -- roll back the original data change. Log the error and move on.
+      RAISE WARNING 'Admin audit log insert failed for %.% (%): %',
+        TG_TABLE_NAME, TG_OP, TG_TABLE_NAME, SQLERRM;
+  END;
 
   RETURN COALESCE(NEW, OLD);
 END;

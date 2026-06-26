@@ -339,7 +339,64 @@ $$;
 GRANT EXECUTE ON FUNCTION upsert_school_subscription TO authenticated;
 
 -- =============================================================================
--- 10. RLS
+-- 10. RPC: Check if a school can access a specific feature
+--     Returns JSON with has_access (bool) and current_plan (text)
+--     Uses subscription_plan_features (DB-driven) with fallback to hardcoded list
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION check_school_feature_access(
+  p_school_id   uuid,
+  p_feature_key text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_plan       text;
+  v_has_access boolean;
+BEGIN
+  -- Get the school's plan from the schools table
+  SELECT plan INTO v_plan FROM schools WHERE id = p_school_id;
+  IF v_plan IS NULL THEN
+    RETURN jsonb_build_object('has_access', false, 'current_plan', 'basic');
+  END IF;
+
+  -- Basic plan has no paid features
+  IF v_plan = 'basic' THEN
+    RETURN jsonb_build_object('has_access', false, 'current_plan', 'basic');
+  END IF;
+
+  -- Premium has everything
+  IF v_plan = 'premium' THEN
+    RETURN jsonb_build_object('has_access', true, 'current_plan', 'premium');
+  END IF;
+
+  -- Pro: check subscription_plan_features (DB config set by super admin)
+  SELECT f.is_enabled INTO v_has_access
+  FROM subscription_plan_features f
+  JOIN subscription_plans p ON p.id = f.plan_id
+  WHERE p.plan_key = v_plan AND f.feature_key = p_feature_key;
+
+  IF NOT FOUND THEN
+    -- Fallback: Pro has pro features (backward compat before DB config is set)
+    v_has_access := p_feature_key IN (
+      'finance', 'payroll', 'notifications', 'calendar', 'families',
+      'assignments', 'subject_analytics', 'parents_guardians',
+      'student_id_cards', 'teacher_id_cards'
+    );
+  END IF;
+
+  RETURN jsonb_build_object('has_access', v_has_access, 'current_plan', 'pro');
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION check_school_feature_access TO authenticated;
+
+-- =============================================================================
+-- 11. RLS
 -- =============================================================================
 ALTER TABLE subscription_plans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE subscription_plan_features ENABLE ROW LEVEL SECURITY;

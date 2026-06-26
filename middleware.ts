@@ -2,9 +2,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
-import type { SchoolPlan } from "@/lib/types";
 import { getFeatureForPath, getApiFeatureForPath, isApiPathExcluded } from "@/lib/plan-routes";
-import { hasFeature, getRequiredPlan } from "@/lib/plan-features";
 
 // Portal configuration
 const PORTAL_CONFIG = {
@@ -152,26 +150,26 @@ export async function middleware(req: NextRequest) {
       return res;
     }
 
-    // Fetch the school's plan
-    let schoolPlan: SchoolPlan = "basic";
+    // Check if the school can access this feature (DB-driven, super admin customizable)
+    let hasAccess = false;
     try {
-      const { data: planData } = await supabase.rpc("get_school_plan", {
+      const { data: accessResult } = await supabase.rpc("check_school_feature_access", {
         p_school_id: schoolId,
+        p_feature_key: apiFeature.feature,
       });
-      if (planData && ["basic", "pro", "premium"].includes(planData)) {
-        schoolPlan = planData as SchoolPlan;
+      if (accessResult && typeof accessResult === 'object') {
+        const result = accessResult as { has_access: boolean; current_plan: string };
+        hasAccess = result.has_access;
       }
     } catch {
-      // Default to 'basic' (most restrictive) on error
+      // Deny on error (default most restrictive)
     }
 
-    // Check if the plan allows this feature
-    if (!hasFeature(schoolPlan, apiFeature.feature)) {
+    if (!hasAccess) {
       return NextResponse.json(
         {
           error: "This feature requires an upgraded plan",
           feature: apiFeature.feature,
-          requiredPlan: getRequiredPlan(apiFeature.feature),
         },
         { status: 403 }
       );
@@ -325,23 +323,29 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(redirectUrl);
     }
 
-    let schoolPlan: SchoolPlan = 'basic';
+    // Check if the school can access this feature (DB-driven, super admin customizable)
+    let hasAccess = false;
+    let currentPlan = 'basic';
     try {
-      const { data: planData } = await supabase
-        .rpc("get_school_plan", { p_school_id: schoolId });
-      if (planData && ['basic', 'pro', 'premium'].includes(planData)) {
-        schoolPlan = planData as SchoolPlan;
+      const { data: accessResult } = await supabase.rpc("check_school_feature_access", {
+        p_school_id: schoolId,
+        p_feature_key: matchedFeature.feature,
+      });
+      if (accessResult && typeof accessResult === 'object') {
+        const result = accessResult as { has_access: boolean; current_plan: string };
+        hasAccess = result.has_access;
+        currentPlan = result.current_plan;
       }
     } catch {
-      // If plan fetch fails, default to 'basic' (most restrictive)
+      // Deny on error (default most restrictive)
     }
 
-    if (!hasFeature(schoolPlan, matchedFeature.feature)) {
+    if (!hasAccess) {
       // Plan doesn't include this feature — redirect to upgrade page
       const redirectUrl = req.nextUrl.clone();
       redirectUrl.pathname = "/upgrade";
       redirectUrl.searchParams.set("feature", matchedFeature.feature);
-      redirectUrl.searchParams.set("plan", schoolPlan);
+      redirectUrl.searchParams.set("plan", currentPlan);
       return NextResponse.redirect(redirectUrl);
     }
   }

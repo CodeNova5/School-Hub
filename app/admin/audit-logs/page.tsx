@@ -43,12 +43,6 @@ import {
   type AuditOperation,
 } from "@/lib/admin-audit";
 
-// ─── Props ────────────────────────────────────────────────────────────────
-
-interface AuditLogsPageProps {
-  role?: "admin";
-}
-
 // ─── Detail Sheet ─────────────────────────────────────────────────────────
 
 function AuditDetailSheet({
@@ -205,7 +199,8 @@ function AuditDetailSheet({
 
 // ─── Main Component ───────────────────────────────────────────────────────
 
-export default function AuditLogsPage({ role = "admin" }: AuditLogsPageProps) {
+export default function AuditLogsPage() {
+  const role = "admin"; // Moved role configuration inside the component
   const [isLoading, setIsLoading] = useState(true);
   const [logs, setLogs] = useState<AdminAuditLogRecord[]>([]);
   const [totalCount, setTotalCount] = useState(0);

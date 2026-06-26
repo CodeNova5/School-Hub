@@ -337,10 +337,11 @@ export async function middleware(req: NextRequest) {
     }
 
     if (!hasFeature(schoolPlan, matchedFeature.feature)) {
-      // Plan doesn't include this feature — redirect to dashboard with upgrade info
+      // Plan doesn't include this feature — redirect to upgrade page
       const redirectUrl = req.nextUrl.clone();
-      redirectUrl.pathname = config.dashboard;
-      redirectUrl.searchParams.set("upgrade_required", matchedFeature.feature);
+      redirectUrl.pathname = "/upgrade";
+      redirectUrl.searchParams.set("feature", matchedFeature.feature);
+      redirectUrl.searchParams.set("plan", schoolPlan);
       return NextResponse.redirect(redirectUrl);
     }
   }

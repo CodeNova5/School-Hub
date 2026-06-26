@@ -38,7 +38,11 @@ export async function GET(_: NextRequest, { params }: RouteParams) {
 
 // ---------------------------------------------------------------------------
 // PATCH /api/super-admin/schools/[id]
-// Body: partial School fields (name, subdomain, address, phone, email, is_active)
+// Body: partial School fields (name, subdomain, address, phone, email, is_active, plan)
+//
+// When the plan is changed, the database trigger (log_school_plan_change)
+// automatically inserts a row into the plan_change_log table.
+// This endpoint returns the old and new plan values in the response.
 // ---------------------------------------------------------------------------
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   const guard = await checkIsSuperAdmin();
@@ -56,12 +60,65 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     if (body.phone !== undefined) allowed.phone = String(body.phone).trim();
     if (body.email !== undefined) allowed.email = String(body.email).trim();
     if (body.is_active !== undefined) allowed.is_active = Boolean(body.is_active);
-    if (body.plan !== undefined) {
+
+    // Track whether the plan is changing (for the response)
+    let oldPlan: string | null = null;
+    let newPlan: string | null = null;
+    const planChanging = body.plan !== undefined;
+
+    if (planChanging) {
       if (!['basic', 'pro', 'premium'].includes(body.plan)) {
         return NextResponse.json({ error: "Invalid plan. Must be 'basic', 'pro', or 'premium'." }, { status: 400 });
       }
-      allowed.plan = body.plan;
+      newPlan = body.plan;
+
+      // Fetch current plan to detect if it's actually changing
+      const { data: current } = await supabaseAdmin
+        .from("schools")
+        .select("plan")
+        .eq("id", params.id)
+        .single();
+      oldPlan = current?.plan ?? 'basic';
+
+      if (oldPlan !== newPlan) {
+        // Use the atomic function that updates the plan AND logs the change
+        // in a single transaction. This correctly captures who made the change
+        // (the trigger-from-service-role pattern doesn't work across requests).
+        const supabase = createRouteHandlerClient({ cookies });
+        const { data: { user } } = await supabase.auth.getUser();
+
+        const { data: planResult, error: planError } = await supabaseAdmin
+          .rpc("change_school_plan", {
+            p_school_id: params.id,
+            p_new_plan: newPlan,
+            p_changed_by: user?.id ?? null,
+          });
+
+        if (planError) throw planError;
+
+        // Apply non-plan field updates separately
+        delete allowed.plan;
+        delete allowed.updated_at;
+
+        if (Object.keys(allowed).length > 0) {
+          allowed.updated_at = new Date().toISOString();
+          const { error: updateError } = await supabaseAdmin
+            .from("schools")
+            .update(allowed)
+            .eq("id", params.id);
+          if (updateError) throw updateError;
+        }
+
+        return NextResponse.json({
+          school: planResult,
+          planChange: { oldPlan, newPlan },
+        });
+      }
+
+      // Plan same as before — remove from allowed to skip unnecessary update
+      delete allowed.plan;
     }
+
     allowed.updated_at = new Date().toISOString();
 
     if (Object.keys(allowed).length <= 1) {
@@ -76,7 +133,11 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (error) throw error;
-    return NextResponse.json({ school: data });
+
+    return NextResponse.json({
+      school: data,
+      planChange: null,
+    });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

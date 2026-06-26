@@ -29,39 +29,43 @@ COMMENT ON COLUMN subscription_plans.icon_bg_tailwind IS 'Tailwind icon backgrou
 -- =============================================================================
 UPDATE subscription_plans SET
   label_short          = CASE plan_key
-                           WHEN 'basic'   THEN 'Basic'
-                           WHEN 'pro'     THEN 'Pro'
-                           WHEN 'premium' THEN 'Premium'
-                         END,
+                             WHEN 'basic'   THEN 'Basic'
+                             WHEN 'pro'     THEN 'Pro'
+                             WHEN 'premium' THEN 'Premium'
+                           END,
   color_tailwind       = CASE plan_key
-                           WHEN 'basic'   THEN 'text-green-600'
-                           WHEN 'pro'     THEN 'text-blue-600'
-                           WHEN 'premium' THEN 'text-purple-600'
-                         END,
+                             WHEN 'basic'   THEN 'text-green-600'
+                             WHEN 'pro'     THEN 'text-blue-600'
+                             WHEN 'premium' THEN 'text-purple-600'
+                           END,
   badge_color_tailwind = CASE plan_key
-                           WHEN 'basic'   THEN 'bg-green-100 text-green-800'
-                           WHEN 'pro'     THEN 'bg-blue-100 text-blue-800'
-                           WHEN 'premium' THEN 'bg-purple-100 text-purple-800'
-                         END,
+                             WHEN 'basic'   THEN 'bg-green-100 text-green-800'
+                             WHEN 'pro'     THEN 'bg-blue-100 text-blue-800'
+                             WHEN 'premium' THEN 'bg-purple-100 text-purple-800'
+                           END,
   price_hint           = CASE plan_key
-                           WHEN 'basic'   THEN 'Free / Low cost'
-                           WHEN 'pro'     THEN 'Mid tier'
-                           WHEN 'premium' THEN 'Top tier'
-                         END,
+                             WHEN 'basic'   THEN 'Free / Low cost'
+                             WHEN 'pro'     THEN 'Mid tier'
+                             WHEN 'premium' THEN 'Top tier'
+                           END,
   border_color_tailwind = CASE plan_key
-                            WHEN 'basic'   THEN 'border-green-200 dark:border-green-800'
-                            WHEN 'pro'     THEN 'border-blue-200 dark:border-blue-800'
-                            WHEN 'premium' THEN 'border-purple-200 dark:border-purple-800'
-                          END,
+                              WHEN 'basic'   THEN 'border-green-200 dark:border-green-800'
+                              WHEN 'pro'     THEN 'border-blue-200 dark:border-blue-800'
+                              WHEN 'premium' THEN 'border-purple-200 dark:border-purple-800'
+                            END,
   icon_bg_tailwind      = CASE plan_key
-                            WHEN 'basic'   THEN 'bg-green-100 dark:bg-green-900/30'
-                            WHEN 'pro'     THEN 'bg-blue-100 dark:bg-blue-900/30'
-                            WHEN 'premium' THEN 'bg-purple-100 dark:bg-purple-900/30'
-                          END;
+                              WHEN 'basic'   THEN 'bg-green-100 dark:bg-green-900/30'
+                              WHEN 'pro'     THEN 'bg-blue-100 dark:bg-blue-900/30'
+                              WHEN 'premium' THEN 'bg-purple-100 dark:bg-purple-900/30'
+                            END;
 
 -- =============================================================================
 -- 3. Replace get_subscription_plans RPC to include display columns
 -- =============================================================================
+
+-- FIX: Explicitly drop the old function signature first
+DROP FUNCTION IF EXISTS get_subscription_plans();
+
 CREATE OR REPLACE FUNCTION get_subscription_plans()
 RETURNS TABLE (
   id              uuid,
@@ -129,6 +133,11 @@ GRANT EXECUTE ON FUNCTION get_subscription_plans TO authenticated;
 -- =============================================================================
 -- 4. Replace update_subscription_plan RPC to include display columns
 -- =============================================================================
+
+-- FIX: Drop the function with its old signature to avoid potential argument mismatch issues
+DROP FUNCTION IF EXISTS update_subscription_plan(uuid, text, text, numeric, numeric, boolean, text, text);
+DROP FUNCTION IF EXISTS update_subscription_plan(uuid, text, text, numeric, numeric, boolean, text, text, text, text, text, text, text, text);
+
 CREATE OR REPLACE FUNCTION update_subscription_plan(
   p_plan_id       uuid,
   p_name          text DEFAULT NULL,

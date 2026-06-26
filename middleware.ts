@@ -2,6 +2,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
+import type { SchoolPlan } from "@/lib/types";
+import { getFeatureForPath, getApiFeatureForPath, isApiPathExcluded } from "@/lib/plan-routes";
+import { hasFeature, getRequiredPlan } from "@/lib/plan-features";
 
 // Portal configuration
 const PORTAL_CONFIG = {
@@ -103,6 +106,80 @@ export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
   const supabase = createMiddlewareClient({ req, res });
   const { pathname } = req.nextUrl;
+
+  // ── API Route Plan Enforcement ──
+  if (pathname.startsWith("/api")) {
+    // Skip excluded routes (webhooks, public auth endpoints, super admin, etc.)
+    if (isApiPathExcluded(pathname)) {
+      return res;
+    }
+
+    // Check if this API path is a gated feature
+    const apiFeature = getApiFeatureForPath(pathname);
+    if (!apiFeature) {
+      // Not a gated feature — allow through
+      return res;
+    }
+
+    // This API route requires a plan check — verify auth first
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      // Unauthenticated request to a gated API — return 401
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    // Get school_id: try JWT claims (admins), fall back to RPC (others)
+    let schoolId = session?.user?.user_metadata?.school_id;
+
+    if (!schoolId) {
+      try {
+        const { data: sid } = await supabase.rpc("get_my_school_id");
+        if (sid) schoolId = sid as string;
+      } catch {
+        // Ignore RPC errors
+      }
+    }
+
+    if (!schoolId) {
+      // Cannot determine school — allow through (the API handler will
+      // handle its own auth/context checks). Avoid false positives.
+      return res;
+    }
+
+    // Fetch the school's plan
+    let schoolPlan: SchoolPlan = "basic";
+    try {
+      const { data: planData } = await supabase.rpc("get_school_plan", {
+        p_school_id: schoolId,
+      });
+      if (planData && ["basic", "pro", "premium"].includes(planData)) {
+        schoolPlan = planData as SchoolPlan;
+      }
+    } catch {
+      // Default to 'basic' (most restrictive) on error
+    }
+
+    // Check if the plan allows this feature
+    if (!hasFeature(schoolPlan, apiFeature.feature)) {
+      return NextResponse.json(
+        {
+          error: "This feature requires an upgraded plan",
+          feature: apiFeature.feature,
+          requiredPlan: getRequiredPlan(apiFeature.feature),
+        },
+        { status: 403 }
+      );
+    }
+
+    // Plan allows access — let the request through
+    return res;
+  }
 
   const hostHeader = req.headers.get("x-forwarded-host") || req.headers.get("host") || "";
   const subdomain = extractSubdomain(hostHeader);
@@ -221,12 +298,62 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  // Authorized - allow access
+  // ── Plan Enforcement ──
+  // Only check plan if the current path matches a gated feature (Pro or Premium).
+  // This avoids an extra RPC call on every page navigation.
+  const portal = config.prefix.replace("/", "");
+  const matchedFeature = getFeatureForPath(pathname, portal);
+  
+  if (matchedFeature) {
+    // This path requires a gated feature — fetch the school's plan.
+    // Get school_id: try JWT claims first (admins), fall back to RPC (teachers/students/parents).
+    let schoolId = session?.user?.user_metadata?.school_id;
+    
+    if (!schoolId) {
+      try {
+        const { data: sid } = await supabase.rpc('get_my_school_id');
+        if (sid) schoolId = sid as string;
+      } catch {
+        // Ignore RPC errors
+      }
+    }
+
+    if (!schoolId) {
+      // Could not determine school_id — default to most restrictive, redirect to dashboard.
+      const redirectUrl = req.nextUrl.clone();
+      redirectUrl.pathname = config.dashboard;
+      return NextResponse.redirect(redirectUrl);
+    }
+
+    let schoolPlan: SchoolPlan = 'basic';
+    try {
+      const { data: planData } = await supabase
+        .rpc("get_school_plan", { p_school_id: schoolId });
+      if (planData && ['basic', 'pro', 'premium'].includes(planData)) {
+        schoolPlan = planData as SchoolPlan;
+      }
+    } catch {
+      // If plan fetch fails, default to 'basic' (most restrictive)
+    }
+
+    if (!hasFeature(schoolPlan, matchedFeature.feature)) {
+      // Plan doesn't include this feature — redirect to dashboard with upgrade info
+      const redirectUrl = req.nextUrl.clone();
+      redirectUrl.pathname = config.dashboard;
+      redirectUrl.searchParams.set("upgrade_required", matchedFeature.feature);
+      return NextResponse.redirect(redirectUrl);
+    }
+  }
+
+  // Authorized and plan allows access
   return res;
 }
 
 export const config = {
   matcher: [
+    // Pages: everything except static files and API (handled separately below)
     "/((?!api|_next/static|_next/image|favicon.ico).*)",
+    // API routes: apply plan enforcement to all API paths
+    "/api/:path*",
   ],
 };

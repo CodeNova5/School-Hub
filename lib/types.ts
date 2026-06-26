@@ -2,6 +2,33 @@
 
 export type UserRole = 'super_admin' | 'admin' | 'teacher' | 'student' | 'parent';
 
+// ── Plans ───────────────────────────────────────────────────────────────────
+
+export type SchoolPlan = 'basic' | 'pro' | 'premium';
+
+export type PlanFeature =
+  // Pro features
+  | 'finance'
+  | 'payroll'
+  | 'notifications'
+  | 'calendar'
+  | 'families'
+  | 'assignments'
+  | 'subject_analytics'
+  | 'parents_guardians'
+  | 'student_id_cards'
+  | 'teacher_id_cards'
+  // Premium features
+  | 'ai_assistant'
+  | 'website_builder'
+  | 'jamb_cbt'
+  | 'question_bank'
+  | 'live_classes'
+  | 'lesson_notes'
+  | 'admissions'
+  | 'alumni'
+  | 'audit_trail';
+
 export interface School {
   id: string;
   name: string;
@@ -11,6 +38,7 @@ export interface School {
   email?: string;
   logo_url?: string;
   is_active: boolean;
+  plan: SchoolPlan;
   created_at: string;
   updated_at: string;
 }

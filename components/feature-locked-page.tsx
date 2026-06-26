@@ -13,11 +13,9 @@ import {
   Star,
   Zap,
 } from "lucide-react";
-import {
-  PLAN_INFO,
-  getUpgradePlan,
-} from "@/lib/plan-features";
+import { getUpgradePlan } from "@/lib/plan-features";
 import { usePlanFeatures } from "@/hooks/use-plan-features";
+import { usePlanDisplayInfo } from "@/hooks/use-plan-display-info";
 import type { PlanFeature, SchoolPlan } from "@/lib/types";
 
 // ── Feature-to-benefits mapping ───────────────────────────────────────────
@@ -256,6 +254,7 @@ export function FeatureLockedPage({
   const router = useRouter();
   const searchParams = useSearchParams();
   const { getRequiredPlan: getDbRequiredPlan, featureMetadata, isLoading: featuresLoading } = usePlanFeatures();
+  const { getPlanInfo } = usePlanDisplayInfo();
 
   // ── State ──
   const [mounted, setMounted] = useState(false);
@@ -275,9 +274,9 @@ export function FeatureLockedPage({
   const currentPlan: SchoolPlan = propPlan ?? planFromUrl ?? "basic";
 
   const upgradePlan = currentPlan ? getUpgradePlan(currentPlan) : null;
-  const upgradeInfo = upgradePlan ? PLAN_INFO[upgradePlan] : null;
-  const currentInfo = PLAN_INFO[currentPlan];
-  const requiredInfo = requiredPlan ? PLAN_INFO[requiredPlan] : null;
+  const upgradeInfo = upgradePlan ? getPlanInfo(upgradePlan) : null;
+  const currentInfo = getPlanInfo(currentPlan);
+  const requiredInfo = requiredPlan ? getPlanInfo(requiredPlan) : null;
 
   // ── Animate in ──
   useEffect(() => {
@@ -388,12 +387,11 @@ export function FeatureLockedPage({
               <div className="flex flex-col items-center gap-1.5 min-w-0">
                 <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
                   Your Plan
-                </span>
-                <span
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold ${currentInfo.badgeColor} dark:saturate-50`}
+                </span>                  <span
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold ${currentInfo.badge_color} dark:saturate-50`}
                 >
                   <Shield className="h-3.5 w-3.5" />
-                  {currentInfo.label}
+                  {currentInfo.label_short}
                 </span>
               </div>
 
@@ -404,12 +402,11 @@ export function FeatureLockedPage({
               <div className="flex flex-col items-center gap-1.5 min-w-0">
                 <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
                   Required
-                </span>
-                <span
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold ${requiredInfo?.badgeColor ?? currentInfo.badgeColor} dark:saturate-50`}
+                </span>                  <span
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold ${requiredInfo?.badge_color ?? currentInfo.badge_color} dark:saturate-50`}
                 >
                   <Star className="h-3.5 w-3.5" />
-                  {requiredInfo?.label ?? "Basic"}
+                  {requiredInfo?.label_short ?? "Basic"}
                 </span>
               </div>
             </div>
@@ -460,7 +457,7 @@ export function FeatureLockedPage({
                 `}
               >
                 <Zap className="h-5 w-5" />
-                Upgrade to {upgradeInfo.label}
+                Upgrade to {upgradeInfo.label_short}
                 <ArrowUp className="h-4 w-4" />
               </button>
 

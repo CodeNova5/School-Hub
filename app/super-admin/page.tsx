@@ -20,7 +20,7 @@ import {
   Shield,
 } from "lucide-react";
 import type { School as SchoolType, SchoolPlan } from "@/lib/types";
-import { PLAN_INFO } from "@/lib/plan-features";
+import { usePlanDisplayInfo, PLAN_KEYS_IN_ORDER } from "@/hooks/use-plan-display-info";
 
 interface PlatformStats {
   totalSchools: number;
@@ -37,6 +37,7 @@ interface SchoolWithStats extends SchoolType {
 }
 
 export default function SuperAdminDashboard() {
+  const { getPlanInfo } = usePlanDisplayInfo();
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [schools, setSchools] = useState<SchoolWithStats[]>([]);
   const [loading, setLoading] = useState(true);
@@ -190,9 +191,9 @@ export default function SuperAdminDashboard() {
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-4">
-              {(['basic', 'pro', 'premium'] as SchoolPlan[]).map((plan) => {
-                const info = PLAN_INFO[plan];
-                const count = stats?.planDistribution[plan] ?? 0;
+              {PLAN_KEYS_IN_ORDER.map((plan) => {
+                const info = getPlanInfo(plan);
+                const count = stats?.planDistribution[plan as SchoolPlan] ?? 0;
                 const total = stats?.totalSchools ?? 1;
                 const pct = Math.round((count / total) * 100);
                 return (
@@ -202,7 +203,7 @@ export default function SuperAdminDashboard() {
                   >
                     <Shield className={`h-6 w-6 mb-2 ${info.color}`} />
                     <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      {info.labelShort}
+                      {info.label_short}
                     </span>
                     <span className="text-3xl font-bold mt-1">{count}</span>
                     <span className="text-xs text-muted-foreground mt-1">{pct}% of schools</span>

@@ -49,6 +49,12 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       p_monthly_price: body.monthly_price != null ? Number(body.monthly_price) : null,
       p_yearly_price: body.yearly_price != null ? Number(body.yearly_price) : null,
       p_is_active: body.is_active != null ? Boolean(body.is_active) : null,
+      p_label_short: body.label_short ?? null,
+      p_color_tailwind: body.color_tailwind ?? null,
+      p_badge_color_tailwind: body.badge_color_tailwind ?? null,
+      p_price_hint: body.price_hint ?? null,
+      p_border_color_tailwind: body.border_color_tailwind ?? null,
+      p_icon_bg_tailwind: body.icon_bg_tailwind ?? null,
     });
 
     if (error) throw error;

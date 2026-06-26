@@ -49,7 +49,7 @@ import {
   Shield,
 } from "lucide-react";
 import type { School as SchoolType, SchoolPlan } from "@/lib/types";
-import { PLAN_INFO } from "@/lib/plan-features";
+import { usePlanDisplayInfo, PLAN_KEYS_IN_ORDER } from "@/hooks/use-plan-display-info";
 
 interface SchoolWithStats extends SchoolType {
   studentCount?: number;
@@ -60,6 +60,7 @@ const emptyForm = { name: "", subdomain: "", address: "", phone: "", email: "", 
 
 export default function SchoolsManagementPage() {
   const { toast } = useToast();
+  const { getPlanInfo, isLoading: plansLoading } = usePlanDisplayInfo();
   const [schools, setSchools] = useState<SchoolWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -318,9 +319,9 @@ export default function SchoolsManagementPage() {
                       </TableCell>
                       <TableCell>
                         <Badge
-                          className={PLAN_INFO[school.plan ?? 'basic'].badgeColor}
+                          className={getPlanInfo(school.plan ?? 'basic').badge_color}
                         >
-                          {PLAN_INFO[school.plan ?? 'basic'].labelShort}
+                          {getPlanInfo(school.plan ?? 'basic').label_short}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
@@ -450,14 +451,14 @@ export default function SchoolsManagementPage() {
               <div className="space-y-2">
                 <Label htmlFor="s-plan">Subscription Plan</Label>
                 <div className="grid grid-cols-3 gap-2">
-                  {(['basic', 'pro', 'premium'] as SchoolPlan[]).map((plan) => {
-                    const info = PLAN_INFO[plan];
+                  {PLAN_KEYS_IN_ORDER.map((plan) => {
+                    const info = getPlanInfo(plan);
                     const isSelected = form.plan === plan;
                     return (
                       <button
                         key={plan}
                         type="button"
-                        onClick={() => setForm({ ...form, plan })}
+                        onClick={() => setForm({ ...form, plan: plan as SchoolPlan })}
                         className={`relative flex flex-col items-center gap-1 p-3 rounded-lg border-2 text-center transition-all ${
                           isSelected
                             ? 'border-purple-500 bg-purple-50 dark:bg-purple-950'
@@ -465,8 +466,8 @@ export default function SchoolsManagementPage() {
                         }`}
                       >
                         <Shield className={`h-5 w-5 ${info.color}`} />
-                        <span className="text-sm font-semibold">{info.labelShort}</span>
-                        <span className="text-xs text-muted-foreground">{info.priceHint}</span>
+                        <span className="text-sm font-semibold">{info.label_short}</span>
+                        <span className="text-xs text-muted-foreground">{info.price_hint}</span>
                       </button>
                     );
                   })}

@@ -83,6 +83,12 @@ interface SubscriptionPlan {
   yearly_paystack_plan_code: string | null;
   is_active: boolean;
   sort_order: number;
+  label_short: string;
+  color_tailwind: string;
+  badge_color_tailwind: string;
+  price_hint: string;
+  border_color_tailwind: string;
+  icon_bg_tailwind: string;
   features: PlanFeature[];
 }
 
@@ -104,14 +110,6 @@ interface FeatureRoute {
   is_excluded: boolean;
   created_at: string;
 }
-
-// ── Constants ──────────────────────────────────────────────────────────────
-
-const PLAN_COLORS: Record<string, { color: string; badge: string }> = {
-  basic: { color: "text-green-600", badge: "bg-green-100 text-green-800" },
-  pro: { color: "text-blue-600", badge: "bg-blue-100 text-blue-800" },
-  premium: { color: "text-purple-600", badge: "bg-purple-100 text-purple-800" },
-};
 
 const PORTALS = [
   { value: "", label: "None (cross-portal)" },
@@ -194,7 +192,12 @@ function PlansTab() {
 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<SubscriptionPlan | null>(null);
-  const [editForm, setEditForm] = useState({ name: "", description: "", monthly_price: "", yearly_price: "" });
+  const [editForm, setEditForm] = useState({
+    name: "", description: "",
+    monthly_price: "", yearly_price: "",
+    label_short: "", color_tailwind: "", badge_color_tailwind: "", price_hint: "",
+    border_color_tailwind: "", icon_bg_tailwind: "",
+  });
 
   const [featureDialogOpen, setFeatureDialogOpen] = useState(false);
   const [featurePlanId, setFeaturePlanId] = useState<string | null>(null);
@@ -247,6 +250,12 @@ function PlansTab() {
       description: plan.description,
       monthly_price: String(plan.monthly_price),
       yearly_price: String(plan.yearly_price),
+      label_short: plan.label_short ?? "",
+      color_tailwind: plan.color_tailwind ?? "",
+      badge_color_tailwind: plan.badge_color_tailwind ?? "",
+      price_hint: plan.price_hint ?? "",
+      border_color_tailwind: plan.border_color_tailwind ?? "",
+      icon_bg_tailwind: plan.icon_bg_tailwind ?? "",
     });
     setEditDialogOpen(true);
   }
@@ -263,6 +272,12 @@ function PlansTab() {
           description: editForm.description.trim(),
           monthly_price: Number(editForm.monthly_price),
           yearly_price: Number(editForm.yearly_price),
+          label_short: editForm.label_short.trim(),
+          color_tailwind: editForm.color_tailwind.trim(),
+          badge_color_tailwind: editForm.badge_color_tailwind.trim(),
+          price_hint: editForm.price_hint.trim(),
+          border_color_tailwind: editForm.border_color_tailwind.trim(),
+          icon_bg_tailwind: editForm.icon_bg_tailwind.trim(),
         }),
       });
       const data = await res.json();
@@ -335,31 +350,28 @@ function PlansTab() {
           {["basic", "pro", "premium"].map((key) => {
             const plan = plans.find((p) => p.plan_key === key);
             if (!plan) return null;
-            const colors = PLAN_COLORS[key] ?? PLAN_COLORS.basic;
+            const planColors = {
+              color: plan.color_tailwind || "text-green-600",
+              badge: plan.badge_color_tailwind || "bg-green-100 text-green-800",
+              border: plan.border_color_tailwind || "border-green-200 dark:border-green-800",
+              iconBg: plan.icon_bg_tailwind || "bg-green-100 dark:bg-green-900/30",
+            };
             const enabledFeatures = plan.features.filter((f) => f.is_enabled);
             const hasPaystack = plan.monthly_paystack_plan_code || plan.yearly_paystack_plan_code;
             return (
-              <Card key={plan.id} className={`relative overflow-hidden border-2 ${
-                key === "basic" ? "border-green-200 dark:border-green-800" :
-                key === "pro" ? "border-blue-200 dark:border-blue-800" :
-                "border-purple-200 dark:border-purple-800"
-              }`}>
+              <Card key={plan.id} className={`relative overflow-hidden border-2 ${planColors.border}`}>
                 <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div className={`p-2 rounded-lg ${
-                        key === "basic" ? "bg-green-100 dark:bg-green-900/30" :
-                        key === "pro" ? "bg-blue-100 dark:bg-blue-900/30" :
-                        "bg-purple-100 dark:bg-purple-900/30"
-                      }`}>
-                        <Shield className={`h-5 w-5 ${colors.color}`} />
+                      <div className={`p-2 rounded-lg ${planColors.iconBg}`}>
+                        <Shield className={`h-5 w-5 ${planColors.color}`} />
                       </div>
                       <div>
                         <CardTitle className="text-lg">{plan.name}</CardTitle>
                         <p className="text-xs text-muted-foreground mt-0.5">{plan.plan_key}</p>
                       </div>
                     </div>
-                    <Badge className={colors.badge}>{plan.is_active ? "Active" : "Inactive"}</Badge>
+                    <Badge className={planColors.badge}>{plan.is_active ? "Active" : "Inactive"}</Badge>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-5">
@@ -423,9 +435,10 @@ function PlansTab() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Edit {editingPlan?.name} Plan</DialogTitle>
-            <DialogDescription>Update pricing and description. Sync to Paystack after changes.</DialogDescription>
+            <DialogDescription>Update pricing, description, and display settings. Sync to Paystack after price changes.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-4 py-2 max-h-[60vh] overflow-y-auto">
+            {/* Basic Info */}
             <div className="space-y-2">
               <Label htmlFor="ep-name">Plan Name</Label>
               <Input id="ep-name" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
@@ -448,6 +461,84 @@ function PlansTab() {
                 <p className="text-xs text-muted-foreground">{formatPrice(Number(editForm.yearly_price))}</p>
               </div>
             </div>
+
+            {/* Display Settings */}
+            <div className="pt-4 border-t">
+              <h4 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+                <Settings className="h-4 w-4" />
+                Display Settings
+              </h4>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="space-y-2">
+                  <Label htmlFor="ep-short">Short Label</Label>
+                  <Input id="ep-short" value={editForm.label_short}
+                    onChange={(e) => setEditForm({ ...editForm, label_short: e.target.value })}
+                    placeholder="Pro" />
+                  <p className="text-xs text-muted-foreground">Used in badges and compact UI.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ep-hint">Price Hint</Label>
+                  <Input id="ep-hint" value={editForm.price_hint}
+                    onChange={(e) => setEditForm({ ...editForm, price_hint: e.target.value })}
+                    placeholder="Mid tier" />
+                </div>
+              </div>
+              <div className="space-y-2 mb-4">
+                <Label htmlFor="ep-color">Text Color (Tailwind)</Label>
+                <Input id="ep-color" value={editForm.color_tailwind}
+                  onChange={(e) => setEditForm({ ...editForm, color_tailwind: e.target.value })}
+                  placeholder="text-blue-600" />
+                <p className="text-xs text-muted-foreground">
+                  Preview: <span className={editForm.color_tailwind || "text-muted-foreground"}>
+                    {editingPlan?.name ?? "Plan"}
+                  </span>
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ep-badge">Badge Color (Tailwind)</Label>
+                <Input id="ep-badge" value={editForm.badge_color_tailwind}
+                  onChange={(e) => setEditForm({ ...editForm, badge_color_tailwind: e.target.value })}
+                  placeholder="bg-blue-100 text-blue-800" />
+                <p className="text-xs text-muted-foreground">
+                  Preview:{' '}
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${editForm.badge_color_tailwind || "bg-muted text-muted-foreground"}`}>
+                    {editingPlan?.name ?? "Plan"}
+                  </span>
+                </p>
+              </div>
+            </div>
+
+              {/* Card Accent Settings */}
+              <div className="pt-4 border-t">
+                <h4 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+                  <Settings className="h-4 w-4" />
+                  Card Accents
+                </h4>
+                <div className="space-y-2 mb-4">
+                  <Label htmlFor="ep-border">Border Color (Tailwind)</Label>
+                  <Input id="ep-border" value={editForm.border_color_tailwind}
+                    onChange={(e) => setEditForm({ ...editForm, border_color_tailwind: e.target.value })}
+                    placeholder="border-blue-200 dark:border-blue-800" />
+                  <p className="text-xs text-muted-foreground">
+                    Preview:{' '}
+                    <span className={`inline-block px-2 py-1 rounded text-xs font-medium border-2 ${editForm.border_color_tailwind || "border-gray-200"}`}>
+                      Card Border
+                    </span>
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ep-iconbg">Icon Background (Tailwind)</Label>
+                  <Input id="ep-iconbg" value={editForm.icon_bg_tailwind}
+                    onChange={(e) => setEditForm({ ...editForm, icon_bg_tailwind: e.target.value })}
+                    placeholder="bg-blue-100 dark:bg-blue-900/30" />
+                  <p className="text-xs text-muted-foreground">
+                    Preview:{' '}
+                    <span className={`inline-flex items-center justify-center w-6 h-6 rounded text-xs ${editForm.icon_bg_tailwind || "bg-muted"}`}>
+                      <Shield className="h-3 w-3" />
+                    </span>
+                  </p>
+                </div>
+              </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditDialogOpen(false)} disabled={saving}>Cancel</Button>

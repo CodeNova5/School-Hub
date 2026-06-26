@@ -46,15 +46,17 @@ import {
   CheckCircle2,
   XCircle,
   Trash2,
+  Shield,
 } from "lucide-react";
-import type { School as SchoolType } from "@/lib/types";
+import type { School as SchoolType, SchoolPlan } from "@/lib/types";
+import { PLAN_INFO } from "@/lib/plan-features";
 
 interface SchoolWithStats extends SchoolType {
   studentCount?: number;
   teacherCount?: number;
 }
 
-const emptyForm = { name: "", subdomain: "", address: "", phone: "", email: "" };
+const emptyForm = { name: "", subdomain: "", address: "", phone: "", email: "", plan: 'basic' as SchoolPlan };
 
 export default function SchoolsManagementPage() {
   const { toast } = useToast();
@@ -118,6 +120,7 @@ export default function SchoolsManagementPage() {
       address: school.address ?? "",
       phone: school.phone ?? "",
       email: school.email ?? "",
+      plan: school.plan ?? 'basic',
     });
     setDialogOpen(true);
   }
@@ -132,19 +135,21 @@ export default function SchoolsManagementPage() {
       setSaving(true);
 
       if (editingSchool) {
-        // Update
-        const { error } = await supabase
-          .from("schools")
-          .update({
+        // Update — use PATCH API for plan changes (it has validation)
+        const res = await fetch(`/api/super-admin/schools/${editingSchool.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
             name: form.name.trim(),
             subdomain: form.subdomain.trim() || null,
             address: form.address.trim(),
             phone: form.phone.trim(),
             email: form.email.trim(),
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", editingSchool.id);
-        if (error) throw error;
+            plan: form.plan,
+          }),
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error ?? "Failed to update school");
         toast({ title: "Saved", description: "School updated successfully." });
       } else {
         // Create via API (to handle admin user setup if needed)
@@ -269,6 +274,7 @@ export default function SchoolsManagementPage() {
                     <TableHead className="text-right">Students</TableHead>
                     <TableHead className="text-right">Teachers</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Plan</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -308,6 +314,13 @@ export default function SchoolsManagementPage() {
                               <XCircle className="h-3 w-3 mr-1" />Suspended
                             </>
                           )}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          className={PLAN_INFO[school.plan ?? 'basic'].badgeColor}
+                        >
+                          {PLAN_INFO[school.plan ?? 'basic'].labelShort}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
@@ -377,9 +390,7 @@ export default function SchoolsManagementPage() {
                 ? "Update the school details below."
                 : "Fill in the details to register a new school on the platform."}
             </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2">
+          </DialogHeader>            <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label htmlFor="s-name">School Name *</Label>
               <Input
@@ -434,6 +445,34 @@ export default function SchoolsManagementPage() {
                 placeholder="123 School Road, Lagos"
               />
             </div>
+            {/* Plan selector — only shown when editing */}
+            {editingSchool && (
+              <div className="space-y-2">
+                <Label htmlFor="s-plan">Subscription Plan</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['basic', 'pro', 'premium'] as SchoolPlan[]).map((plan) => {
+                    const info = PLAN_INFO[plan];
+                    const isSelected = form.plan === plan;
+                    return (
+                      <button
+                        key={plan}
+                        type="button"
+                        onClick={() => setForm({ ...form, plan })}
+                        className={`relative flex flex-col items-center gap-1 p-3 rounded-lg border-2 text-center transition-all ${
+                          isSelected
+                            ? 'border-purple-500 bg-purple-50 dark:bg-purple-950'
+                            : 'border-gray-200 hover:border-gray-300 bg-white dark:bg-gray-900'
+                        }`}
+                      >
+                        <Shield className={`h-5 w-5 ${info.color}`} />
+                        <span className="text-sm font-semibold">{info.labelShort}</span>
+                        <span className="text-xs text-muted-foreground">{info.priceHint}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           <DialogFooter>

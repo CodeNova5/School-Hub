@@ -3,13 +3,15 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import type { SchoolPlan } from '@/lib/types';
 
 /**
  * Custom hook to get the current user's school_id from the admins table.
  * Uses the get_my_school_id() RPC function from the database.
+ * Also fetches the school's plan.
  * 
  * Usage:
- *   const { schoolId, isLoading } = useSchoolContext();
+ *   const { schoolId, schoolPlan, isLoading } = useSchoolContext();
  *   
  *   if (isLoading) return <div>Loading...</div>;
  *   if (!schoolId) return <div>Unable to determine school</div>;
@@ -17,16 +19,25 @@ import { toast } from 'sonner';
  *   // Now use schoolId to filter your queries:
  *   const { data } = await supabase.from('table').select('*').eq('school_id', schoolId);
  */
-export function useSchoolContext() {
+
+interface SchoolContextResult {
+  schoolId: string | null;
+  schoolPlan: SchoolPlan | null;
+  isLoading: boolean;
+  error: string | null;
+}
+
+export function useSchoolContext(): SchoolContextResult {
   const [schoolId, setSchoolId] = useState<string | null>(null);
+  const [schoolPlan, setSchoolPlan] = useState<SchoolPlan | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getSchoolId();
+    getSchoolContext();
   }, []);
 
-  const getSchoolId = async () => {
+  const getSchoolContext = async () => {
     try {
       setIsLoading(true);
       
@@ -43,16 +54,28 @@ export function useSchoolContext() {
       }
 
       setSchoolId(currentSchoolId);
+
+      // Fetch the school's plan
+      const { data: planData } = await supabase
+        .rpc('get_school_plan', { p_school_id: currentSchoolId });
+
+      if (planData && ['basic', 'pro', 'premium'].includes(planData)) {
+        setSchoolPlan(planData as SchoolPlan);
+      } else {
+        setSchoolPlan('basic'); // Default fallback
+      }
+
       setError(null);
     } catch (err: any) {
       const errorMsg = err.message || 'Failed to load school context';
       setError(errorMsg);
       toast.error(errorMsg);
       setSchoolId(null);
+      setSchoolPlan(null);
     } finally {
       setIsLoading(false);
     }
   };
 
-  return { schoolId, isLoading, error };
+  return { schoolId, schoolPlan, isLoading, error };
 }

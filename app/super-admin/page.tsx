@@ -17,8 +17,10 @@ import {
   ExternalLink,
   CheckCircle2,
   XCircle,
+  Shield,
 } from "lucide-react";
-import type { School as SchoolType } from "@/lib/types";
+import type { School as SchoolType, SchoolPlan } from "@/lib/types";
+import { PLAN_INFO } from "@/lib/plan-features";
 
 interface PlatformStats {
   totalSchools: number;
@@ -26,6 +28,7 @@ interface PlatformStats {
   suspendedSchools: number;
   totalStudents: number;
   totalTeachers: number;
+  planDistribution: Record<SchoolPlan, number>;
 }
 
 interface SchoolWithStats extends SchoolType {
@@ -80,12 +83,18 @@ export default function SuperAdminDashboard() {
       // Platform-level stats
       const allStudents = enriched.reduce((s, sc) => s + (sc.studentCount ?? 0), 0);
       const allTeachers = enriched.reduce((s, sc) => s + (sc.teacherCount ?? 0), 0);
+      const planDist: Record<SchoolPlan, number> = { basic: 0, pro: 0, premium: 0 };
+      for (const sc of enriched) {
+        const plan = (sc.plan ?? 'basic') as SchoolPlan;
+        planDist[plan] = (planDist[plan] || 0) + 1;
+      }
       setStats({
         totalSchools: enriched.length,
         activeSchools: enriched.filter((s) => s.is_active).length,
         suspendedSchools: enriched.filter((s) => !s.is_active).length,
         totalStudents: allStudents,
         totalTeachers: allTeachers,
+        planDistribution: planDist,
       });
     } catch (err) {
       console.error("Failed to load platform data:", err);
@@ -166,6 +175,44 @@ export default function SuperAdminDashboard() {
               </Card>
             ))}
       </div>
+
+      {/* Plan Distribution */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Plan Distribution</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex gap-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-24 w-full" />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-4">
+              {(['basic', 'pro', 'premium'] as SchoolPlan[]).map((plan) => {
+                const info = PLAN_INFO[plan];
+                const count = stats?.planDistribution[plan] ?? 0;
+                const total = stats?.totalSchools ?? 1;
+                const pct = Math.round((count / total) * 100);
+                return (
+                  <div
+                    key={plan}
+                    className="flex flex-col items-center p-4 rounded-xl border bg-muted/30"
+                  >
+                    <Shield className={`h-6 w-6 mb-2 ${info.color}`} />
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      {info.labelShort}
+                    </span>
+                    <span className="text-3xl font-bold mt-1">{count}</span>
+                    <span className="text-xs text-muted-foreground mt-1">{pct}% of schools</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Schools List */}
       <Card>

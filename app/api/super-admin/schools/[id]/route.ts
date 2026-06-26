@@ -56,6 +56,12 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     if (body.phone !== undefined) allowed.phone = String(body.phone).trim();
     if (body.email !== undefined) allowed.email = String(body.email).trim();
     if (body.is_active !== undefined) allowed.is_active = Boolean(body.is_active);
+    if (body.plan !== undefined) {
+      if (!['basic', 'pro', 'premium'].includes(body.plan)) {
+        return NextResponse.json({ error: "Invalid plan. Must be 'basic', 'pro', or 'premium'." }, { status: 400 });
+      }
+      allowed.plan = body.plan;
+    }
     allowed.updated_at = new Date().toISOString();
 
     if (Object.keys(allowed).length <= 1) {

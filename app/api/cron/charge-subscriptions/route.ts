@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   sendPaymentFailureAlert,
   sendPaymentSuccessConfirmation,
+  sendSuperAdminAtRiskAlert,
 } from "@/lib/subscription-email";
 
 const supabaseAdmin = createClient(
@@ -356,6 +357,13 @@ async function handleCron(req: NextRequest) {
           await sendPaymentFailureAlert(school.school_id, chargeResult.gatewayResponse);
         } catch (err: any) {
           console.error(`Cron: Failed to send failure email for ${school.school_id}:`, err.message);
+        }
+
+        // Notify super admins about the at-risk school (non-fatal)
+        try {
+          await sendSuperAdminAtRiskAlert(school.school_id);
+        } catch (err: any) {
+          console.error(`Cron: Failed to send super admin alert for ${school.school_id}:`, err.message);
         }
       }
 

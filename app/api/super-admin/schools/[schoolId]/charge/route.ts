@@ -2,6 +2,7 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
+import { sendSuperAdminAtRiskAlert, sendPaymentFailureAlert } from "@/lib/subscription-email";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -246,6 +247,20 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
       });
 
       console.warn(`Manual charge: ✗ ${school.name} — failed: ${chargeData.data?.gateway_response}`);
+
+      // Notify the school's admin about the failed payment (non-fatal)
+      try {
+        await sendPaymentFailureAlert(schoolId, chargeData.data?.gateway_response || "Unknown error");
+      } catch (err: any) {
+        console.error(`Manual charge: Failed to send payment failure alert for ${school.name}:`, err.message);
+      }
+
+      // Notify super admins about the at-risk school (non-fatal)
+      try {
+        await sendSuperAdminAtRiskAlert(schoolId);
+      } catch (err: any) {
+        console.error(`Manual charge: Failed to send super admin alert for ${school.name}:`, err.message);
+      }
     }
 
     return NextResponse.json({

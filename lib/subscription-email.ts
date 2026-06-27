@@ -347,6 +347,122 @@ export async function sendSubscriptionDowngradedAlert(
   }
 }
 
+// ============================================================================
+// Email #5: Super Admin At-Risk Alert (sent when a subscription enters past_due)
+// ============================================================================
+
+/**
+ * Fetch all super admin email addresses for alerting.
+ */
+async function getSuperAdminEmails(): Promise<string[]> {
+  try {
+    // Super admins have school_id = NULL in the admins table
+    const { data: admins } = await supabaseAdmin
+      .from("admins")
+      .select("email")
+      .is("school_id", null)
+      .eq("is_active", true);
+    return (admins ?? []).map((a) => a.email).filter(Boolean);
+  } catch (err) {
+    console.error("Failed to fetch super admin emails:", err);
+    return [];
+  }
+}
+
+/**
+ * Notify super admins when a school's subscription transitions to past_due.
+ * Accepts just schoolId, consistent with the other subscription email functions.
+ */
+export async function sendSuperAdminAtRiskAlert(schoolId: string): Promise<void> {
+  try {
+    const info = await getSubscriptionInfo(schoolId);
+    if (!info) {
+      console.warn(`No subscription info found for school ${schoolId} — skipping at-risk alert`);
+      return;
+    }
+
+    const emails = await getSuperAdminEmails();
+    if (emails.length === 0) {
+      console.warn(`No super admin emails found — skipping at-risk alert for ${info.school_name}`);
+      return;
+    }
+
+    const price = formatPrice(info.amount);
+    const formattedDate = formatDate(new Date());
+
+    const subject = `🚨 At-Risk: ${info.school_name} — ${info.plan_name} payment failed (${formattedDate})`;
+
+    const body = [
+      `⚠️ **Subscription at risk** — ${info.school_name}`,
+      ``,
+      `━━━ School Details ━━━`,
+      `School: ${info.school_name}`,
+      `Plan: ${info.plan_name}`,
+      `Amount Due: ${price}`,
+      `Status: Past Due`,
+      `Date: ${formattedDate}`,
+      `━━━━━━━━━━━━━━━━━━━`,
+      ``,
+      `This school's subscription payment has failed. They are now in a **7-day grace period**.`,
+      ``,
+      `🔧 **Actions needed:**`,
+      `• Log in to the super admin panel → Subscriptions`,
+      `• Review the school's payment status and history`,
+      `• Use the "Charge Now" button to retry payment`,
+      `• Contact the school admin if needed`,
+      ``,
+      `If payment is not received within 7 days, the school will be automatically downgraded to the Basic plan.`,
+      ``,
+      `— School Hub System`,
+    ].join("\n");
+
+    const html = buildEmailTemplate(subject, body, "Super Admin");
+    const fromName = buildSchoolSenderName("School Hub", "System");
+
+    // Send to each super admin sequentially
+    for (const email of emails) {
+      try {
+        const error = await sendEmailSafe({
+          to: email,
+          subject,
+          html,
+          fromName,
+        });
+
+        if (error) {
+          console.error(`Failed to send at-risk alert to super admin ${email}:`, error);
+        } else {
+          console.log(`✅ At-risk alert sent to super admin ${email} for school ${info.school_name}`);
+        }
+      } catch (err) {
+        console.error(`Error sending at-risk alert to super admin ${email}:`, err);
+      }
+    }
+
+    // Log the email
+    try {
+      await supabaseAdmin
+        .from("email_logs")
+        .insert({
+          school_id: schoolId,
+          title: subject,
+          body,
+          target: "super_admin",
+          target_value: emails.join(", "),
+          target_name: "at_risk_alert",
+          success_count: 1,
+          failure_count: 0,
+          total_recipients: emails.length,
+          sent_by: "00000000-0000-0000-0000-000000000000",
+        });
+    } catch (err) {
+      console.error("Failed to log at-risk alert email:", err);
+    }
+  } catch (err: any) {
+    console.error(`Error sending super admin at-risk alert for school ${schoolId}:`, err.message);
+  }
+}
+
 export async function sendPaymentSuccessConfirmation(
   schoolId: string
 ): Promise<string | null> {

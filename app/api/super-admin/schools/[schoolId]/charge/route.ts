@@ -36,10 +36,10 @@ function generateReference(): string {
   return `SUB-MANUAL-${timestamp}-${random}`;
 }
 
-type RouteParams = { params: { schoolId: string } };
+type RouteParams = { params: { id: string } };
 
 // ---------------------------------------------------------------------------
-// POST /api/super-admin/schools/[schoolId]/charge
+// POST /api/super-admin/schools/[id]/charge
 // Manually charges a school's stored authorization code.
 // Only usable by super admin.
 // ---------------------------------------------------------------------------
@@ -53,7 +53,7 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
   }
 
   try {
-    const schoolId = params.schoolId;
+    const schoolId = params.id;
 
     // 1. Fetch school + subscription info
     const { data: school } = await supabaseAdmin

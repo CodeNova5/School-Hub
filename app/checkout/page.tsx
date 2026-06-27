@@ -80,11 +80,9 @@ function CheckoutContent() {
   const [error, setError] = useState<string | null>(null);
 
   const planInfo = getPlanInfo(planKey);
-  const price = billingInterval === "termly" ? planInfo.monthly_price : planInfo.yearly_price;
-  // Note: we need termly_price — fallback to monthly_price * 3 if not available
-  const effectivePrice = billingInterval === "termly" && planInfo.monthly_price > 0
-    ? planInfo.monthly_price * 3
-    : price;
+  const price = billingInterval === "termly"
+    ? (planInfo.termly_price || planInfo.monthly_price * 3)
+    : planInfo.yearly_price;
 
   // ── Animate in ──
   useEffect(() => {
@@ -254,13 +252,12 @@ function CheckoutContent() {
                     <span className="text-sm text-slate-600 dark:text-slate-300">
                       {billingInterval === "termly" ? "Per Term" : "Yearly"} billing
                     </span>
-                  </div>
-                  <span className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-                    {formatPrice(effectivePrice)}
+                  </div>                    <span className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+                    {formatPrice(price)}
                   </span>
                 </div>
 
-                {billingInterval === "termly" && effectivePrice > 0 && (
+                {billingInterval === "termly" && price > 0 && (
                   <div className="mt-3 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
                     <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-300">
                       <Check className="h-4 w-4" />
@@ -308,7 +305,7 @@ function CheckoutContent() {
                       {planInfo.label_short} Plan ({billingInterval === "termly" ? "Termly" : "Yearly"})
                     </span>
                     <span className="font-medium text-slate-700 dark:text-slate-300">
-                      {formatPrice(effectivePrice)}
+                      {formatPrice(price)}
                     </span>
                   </div>
                   <div className="border-t border-slate-200 dark:border-slate-700 pt-3 flex items-center justify-between">
@@ -316,7 +313,7 @@ function CheckoutContent() {
                       Total Due Today
                     </span>
                     <span className="text-xl font-bold text-slate-900 dark:text-slate-100">
-                      {formatPrice(effectivePrice)}
+                      {formatPrice(price)}
                     </span>
                   </div>
                 </div>

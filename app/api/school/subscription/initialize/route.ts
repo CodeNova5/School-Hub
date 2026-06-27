@@ -110,9 +110,12 @@ export async function POST(req: NextRequest) {
 
   const reference = generateReference();
   const email = admin.email || user.email!;
+  // Redirect back to /checkout page after Paystack completes so the
+  // verification useEffect on the checkout page can handle the result.
+  // The checkout page will then navigate to /checkout/success on success.
   const callbackUrl =
     body.callbackUrl ||
-    `${req.nextUrl.origin}/checkout/success?reference=${reference}&planId=${body.planId}&interval=${body.billingInterval}`;
+    `${req.nextUrl.origin}/checkout?reference=${reference}&plan=${body.planId}&interval=${body.billingInterval}`;
 
   // Create or retrieve Paystack customer
   // First, try to find existing customer by email

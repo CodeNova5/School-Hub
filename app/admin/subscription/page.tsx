@@ -121,6 +121,15 @@ interface CurrentTermInfo {
   next_term?: NextTermInfo | null;
 }
 
+interface YearlyCoveredTerm {
+  id: string;
+  name: string;
+  session_name: string;
+  start_date: string;
+  end_date: string;
+  weeks: number;
+}
+
 interface ApiResponse {
   subscription: Subscription | null;
   school: School | null;
@@ -128,6 +137,7 @@ interface ApiResponse {
   transactions: Transaction[];
   status: StatusResult | null;
   current_term: CurrentTermInfo | null;
+  yearly_covered_terms: YearlyCoveredTerm[] | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -328,7 +338,7 @@ export default function AdminSubscriptionPage() {
     );
   }
 
-  const { subscription, school, plans, transactions, status, current_term } = data ?? {};
+  const { subscription, school, plans, transactions, status, current_term, yearly_covered_terms } = data ?? {};
   const currentPlanKey = subscription?.plan_key || school?.plan || "basic";
   const currentPlanInfo = getPlanInfo(currentPlanKey);
   const PlanIcon = getPlanIcon(currentPlanKey);
@@ -562,16 +572,52 @@ export default function AdminSubscriptionPage() {
                     </p>
                   </div>
 
-                  {/* Covered Term (termly only) — spans full width as a hero card */}
-                  {subscription?.billing_interval === "termly" && (
-                    <div className={`sm:col-span-2 p-4 rounded-lg ${current_term ? "bg-blue-50 border border-blue-200" : "bg-gray-50"}`}>
+                  {/* Covered Terms — full-width card for both termly and yearly */}
+                  {(subscription?.billing_interval === "termly" || yearly_covered_terms) && (
+                    <div className={`sm:col-span-2 p-4 rounded-lg ${current_term || yearly_covered_terms ? "bg-blue-50 border border-blue-200" : "bg-gray-50"}`}>
                       <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
                         <span className="flex items-center gap-1.5">
                           <BookOpen className="h-3.5 w-3.5 text-blue-500" />
-                          Covered Term
+                          {yearly_covered_terms ? "Covered Terms (Yearly)" : "Covered Term"}
                         </span>
                       </p>
-                      {current_term ? (
+
+                      {/* Yearly: show all covered terms */}
+                      {yearly_covered_terms && yearly_covered_terms.length > 0 ? (
+                        <div className="mt-2 space-y-1.5">
+                          {yearly_covered_terms.map((ct, idx) => (
+                            <div key={ct.id} className="flex items-center gap-3 text-sm">
+                              <div className={`
+                                w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0
+                                ${idx === yearly_covered_terms.length - 1
+                                  ? "bg-blue-200 text-blue-700"
+                                  : "bg-blue-100 text-blue-500"
+                                }
+                              `}>
+                                {idx + 1}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-gray-900">
+                                  {ct.name}
+                                  <span className="text-xs font-normal text-gray-500 ml-1">· {ct.session_name}</span>
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className="text-xs text-gray-500">
+                                  {new Date(ct.start_date).toLocaleDateString("en-NG", { day: "numeric", month: "short" })} – {new Date(ct.end_date).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "2-digit" })}
+                                </span>
+                                <span className="text-[10px] font-medium text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-full">
+                                  {ct.weeks}wk
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                          <p className="text-[10px] text-blue-500 mt-1.5 pl-9">
+                            Yearly billing covers 3 terms. Next renewal: {formatDate(subscription?.next_billing_date)}
+                          </p>
+                        </div>
+                      ) : subscription?.billing_interval === "termly" && current_term ? (
+                        /* Termly: show single term */
                         <div className="mt-1.5 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-gray-900">

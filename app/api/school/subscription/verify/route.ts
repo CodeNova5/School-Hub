@@ -131,27 +131,102 @@ export async function GET(req: NextRequest) {
       termForBilling = currentTerm;
     }
 
-    // Calculate next billing date based on interval
-    let nextBillingDate: Date;
-    if (tx.billing_interval === "termly" && termForBilling) {
-      // Next billing = end of selected term + 3 day buffer
-      nextBillingDate = new Date(termForBilling.end_date);
-      nextBillingDate.setDate(nextBillingDate.getDate() + 3);
-    } else if (tx.billing_interval === "yearly") {
-      nextBillingDate = new Date();
-      nextBillingDate.setFullYear(nextBillingDate.getFullYear() + 1);
+    // ── Yearly rollover: allocate 3 terms when upgrading from termly ──
+    // If the subscriber was termly and paid yearly, the yearly payment
+    // covers 3 terms (remaining terms in current session + next session).
+    // Set current_term_id to the LAST covered term so banners naturally
+    // defer to whatever comes after it.
+    let yearlyAllocatedTerms: { id: string; name: string; session_name: string; start_date: string; end_date: string }[] | null = null;
+    let billingTermId = termForBilling?.id || null;
+    let billingPeriodEnd: Date;
+
+    if (tx.billing_interval === "yearly") {
+      // Check if the subscriber was previously on termly — fetch their existing subscription
+      const { data: existingSub } = await supabaseAdmin
+        .rpc("get_school_subscription", { p_school_id: tx.school_id });
+      const existing = Array.isArray(existingSub) ? existingSub[0] : existingSub;
+      const wasTermly = existing?.billing_interval === "termly" && existing?.current_term_id;
+
+      if (wasTermly) {
+        // Fetch the next 3 terms after the current one
+        const { data: currentTermData } = await supabaseAdmin
+          .from("terms")
+          .select("end_date")
+          .eq("id", existing.current_term_id)
+          .maybeSingle();
+
+        if (currentTermData) {
+          const { data: upcomingTerms } = await supabaseAdmin
+            .from("terms")
+            .select(`
+              id,
+              name,
+              start_date,
+              end_date,
+              session_id,
+              sessions!inner(name)
+            `)
+            .eq("school_id", tx.school_id)
+            .gt("start_date", currentTermData.end_date)
+            .order("start_date", { ascending: true })
+            .limit(3);
+
+          if (upcomingTerms && upcomingTerms.length > 0) {
+            const allocated = upcomingTerms.slice(0, 3).map((t: any) => ({
+              id: t.id,
+              name: t.name,
+              session_name: (t as any).sessions?.name || "",
+              start_date: t.start_date,
+              end_date: t.end_date,
+            }));
+
+            yearlyAllocatedTerms = allocated;
+            // Set current_term_id to the LAST term in the allocation
+            billingTermId = allocated[allocated.length - 1].id;
+            // Period ends at the end of the last allocated term
+            billingPeriodEnd = new Date(allocated[allocated.length - 1].end_date);
+          } else {
+            billingPeriodEnd = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+          }
+        } else {
+          billingPeriodEnd = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+        }
+      } else {
+        // Standard yearly (no upgrade) — 365 days
+        billingPeriodEnd = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+      }
     } else {
-      // Default: next billing in 4 months (rough term length)
-      nextBillingDate = new Date();
-      nextBillingDate.setMonth(nextBillingDate.getMonth() + 4);
+      // Termly billing — period ends at term end
+      billingPeriodEnd = termForBilling
+        ? new Date(termForBilling.end_date)
+        : new Date(Date.now() + 120 * 24 * 60 * 60 * 1000);
     }
 
-    // Calculate period end
-    const periodEnd = tx.billing_interval === "yearly"
-      ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
-      : termForBilling
-        ? new Date(termForBilling.end_date)
-        : new Date(Date.now() + 120 * 24 * 60 * 60 * 1000); // ~4 months for term
+    // Calculate next billing date
+    let nextBillingDate: Date;
+    if (tx.billing_interval === "termly" && termForBilling) {
+      nextBillingDate = new Date(termForBilling.end_date);
+      nextBillingDate.setDate(nextBillingDate.getDate() + 3);
+    } else {
+      // Yearly: 1 year from now
+      nextBillingDate = new Date();
+      nextBillingDate.setFullYear(nextBillingDate.getFullYear() + 1);
+    }
+
+    // Build metadata with allocation info
+    const txMeta = tx.metadata as Record<string, unknown> || {};
+    const updatedMetadata = {
+      ...txMeta,
+      paystack_authorization: verifyData.data.authorization,
+      paystack_customer: verifyData.data.customer,
+      ...(yearlyAllocatedTerms ? { yearly_covered_terms: yearlyAllocatedTerms } : {}),
+    };
+
+    // Update transaction with metadata
+    await supabaseAdmin
+      .from("school_subscription_transactions")
+      .update({ metadata: updatedMetadata })
+      .eq("id", tx.id);
 
     // Upsert school subscription
     const authCode = verifyData.data.authorization?.authorization_code || null;
@@ -164,12 +239,12 @@ export async function GET(req: NextRequest) {
       p_billing_interval: tx.billing_interval,
       p_status: "active",
       p_current_period_start: new Date().toISOString(),
-      p_current_period_end: periodEnd.toISOString(),
+      p_current_period_end: billingPeriodEnd.toISOString(),
       p_auth_code: authCode,
       p_customer_email: customerEmail,
       p_paystack_customer_code: customerCode,
       p_next_billing_date: nextBillingDate.toISOString(),
-      p_current_term_id: termForBilling?.id || null,
+      p_current_term_id: billingTermId,
     });
 
     // Update the school's plan

@@ -50,6 +50,8 @@ import { useSchoolContext } from '@/hooks/use-school-context';
 import { supabase } from '@/lib/supabase';
 import { SubscriptionGraceBanner } from '@/components/subscription-grace-banner';
 import { SubscriptionTermBanner } from '@/components/subscription-term-banner';
+import { SubscriptionHolidayBanner } from '@/components/subscription-holiday-banner';
+import { SubscriptionYearlyTimeline } from '@/components/subscription-yearly-timeline';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
@@ -256,6 +258,12 @@ export default function AdminDashboard() {
 
         {/* Pre-Term Payment Reminder */}
         <SubscriptionTermBanner />
+
+        {/* Holiday Break Banner */}
+        <SubscriptionHolidayBanner />
+
+        {/* Yearly Covered Terms Timeline */}
+        <SubscriptionYearlyTimeline />
 
         {/* Header Section */}
         <div className="flex items-center justify-between">

@@ -152,6 +152,59 @@ export async function GET(_req: NextRequest) {
       }
     }
 
+    // ── Fetch yearly covered terms ──
+    // For yearly subscriptions, show the chain of covered terms
+    // by looking back from current_term_id to find all 3 terms
+    let yearlyCoveredTerms: {
+      id: string;
+      name: string;
+      session_name: string;
+      start_date: string;
+      end_date: string;
+      weeks: number;
+    }[] | null = null;
+
+    if (normalizedSub?.billing_interval === "yearly" && normalizedSub?.current_term_id) {
+      // Start from current_term_id (last covered term) and go back 2 more
+      const { data: currentTermRow } = await supabaseAdmin
+        .from("terms")
+        .select("start_date")
+        .eq("id", normalizedSub.current_term_id)
+        .maybeSingle();
+
+      if (currentTermRow) {
+        const { data: coveredTerms } = await supabaseAdmin
+          .from("terms")
+          .select(`
+            id,
+            name,
+            start_date,
+            end_date,
+            session_id,
+            sessions!inner(name)
+          `)
+          .eq("school_id", schoolId)
+          .lte("start_date", currentTermRow.start_date)
+          .order("start_date", { ascending: true });
+
+        if (coveredTerms && coveredTerms.length > 0) {
+          // Take the last 3 (or fewer if not enough)
+          const lastTerms = coveredTerms.slice(-3);
+          yearlyCoveredTerms = lastTerms.map((t: any) => {
+            const tMs = new Date(t.end_date).getTime() - new Date(t.start_date).getTime();
+            return {
+              id: t.id,
+              name: t.name,
+              session_name: (t as any).sessions?.name || "",
+              start_date: t.start_date,
+              end_date: t.end_date,
+              weeks: Math.round(tMs / (1000 * 60 * 60 * 24 * 7)),
+            };
+          });
+        }
+      }
+    }
+
     return NextResponse.json({
       subscription: normalizedSub ?? null,
       school: school ?? null,
@@ -159,6 +212,7 @@ export async function GET(_req: NextRequest) {
       transactions: transactions ?? [],
       status: statusResult ?? null,
       current_term: currentTerm,
+      yearly_covered_terms: yearlyCoveredTerms,
     });
   } catch (err: any) {
     console.error("Admin subscription API error:", err);

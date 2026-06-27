@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   XCircle,
   Shield,
+  BarChart3,
 } from "lucide-react";
 import type { School as SchoolType, SchoolPlan } from "@/lib/types";
 import { usePlanDisplayInfo, PLAN_KEYS_IN_ORDER } from "@/hooks/use-plan-display-info";
@@ -143,12 +144,20 @@ export default function SuperAdminDashboard() {
           <h1 className="text-3xl font-bold">Platform Overview</h1>
           <p className="text-muted-foreground mt-1">Manage all schools on the platform</p>
         </div>
-        <Link href="/super-admin/schools">
-          <Button className="bg-purple-600 hover:bg-purple-700">
-            <Plus className="h-4 w-4 mr-2" />
-            New School
-          </Button>
-        </Link>
+        <div className="flex gap-3">
+          <Link href="/super-admin/analytics">
+            <Button variant="outline" className="text-purple-600 border-purple-200 hover:bg-purple-50">
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Analytics
+            </Button>
+          </Link>
+          <Link href="/super-admin/schools">
+            <Button className="bg-purple-600 hover:bg-purple-700">
+              <Plus className="h-4 w-4 mr-2" />
+              New School
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Stats */}

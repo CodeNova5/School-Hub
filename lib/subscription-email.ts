@@ -117,7 +117,7 @@ async function logSubscriptionEmail(
   subject: string,
   body: string,
   recipientEmail: string,
-  emailType: "renewal_reminder" | "payment_failure" | "payment_success"
+  emailType: "renewal_reminder" | "payment_failure" | "payment_success" | "downgraded"
 ): Promise<void> {
   try {
     await supabaseAdmin
@@ -279,6 +279,73 @@ export async function sendPaymentFailureAlert(
 // ============================================================================
 // Email #3: Payment Success Confirmation (optional, sent after successful cron charge)
 // ============================================================================
+
+// ============================================================================
+// Email #4: Subscription Downgraded Alert (sent after grace period expires)
+// ============================================================================
+
+export async function sendSubscriptionDowngradedAlert(
+  schoolId: string
+): Promise<string | null> {
+  try {
+    const info = await getSubscriptionInfo(schoolId);
+    if (!info) return "School not found";
+
+    const recipientEmail = info.admin_email || info.school_email;
+    if (!recipientEmail || !recipientEmail.includes("@")) {
+      return `No valid admin email for school ${schoolId}`;
+    }
+
+    const previousPlan = info.plan_name;
+
+    const subject = `ℹ️ Subscription Downgraded — ${info.school_name} is now on the Basic Plan`;
+
+    const body = [
+      `Dear Administrator,`,
+      ``,
+      `Your **${previousPlan}** subscription for **${info.school_name}** has been downgraded to the **Basic plan** because the grace period for your outstanding payment has expired.`,
+      ``,
+      `━━━ What this means ━━━`,
+      `• Your previous plan: ${previousPlan}`,
+      `• Current plan: Basic (Free)`,
+      `• Paid features (finance, payroll, JAMB, AI, etc.) are now locked`,
+      `• Core school operations (students, classes, attendance) remain available`,
+      `━━━━━━━━━━━━━━━━━━━`,
+      ``,
+      `🔧 **To restore your ${previousPlan} features:**`,
+      `1. Log in to your dashboard`,
+      `2. Go to the Subscription page`,
+      `3. Renew your plan with an updated payment method`,
+      ``,
+      `If you have any questions or need assistance, please contact our support team.`,
+      ``,
+      `Thank you,`,
+      `— The School Hub Team`,
+    ].join("\n");
+
+    const html = buildEmailTemplate(subject, body, info.school_name);
+    const fromName = buildSchoolSenderName(info.school_name, "Billing");
+
+    const error = await sendEmailSafe({
+      to: recipientEmail,
+      subject,
+      html,
+      fromName,
+    });
+
+    if (error) {
+      console.error(`Failed to send downgrade alert to ${recipientEmail}:`, error);
+    } else {
+      console.log(`✅ Downgrade alert sent to ${recipientEmail} for school ${schoolId}`);
+      await logSubscriptionEmail(schoolId, subject, body, recipientEmail, "downgraded");
+    }
+
+    return error;
+  } catch (err: any) {
+    console.error(`Error sending downgrade alert for school ${schoolId}:`, err.message);
+    return err.message || "Unknown error";
+  }
+}
 
 export async function sendPaymentSuccessConfirmation(
   schoolId: string

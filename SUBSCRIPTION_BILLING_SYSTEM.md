@@ -384,6 +384,45 @@ curl -X GET https://yourdomain.com/api/cron/subscription-reminders \
   -H "Authorization: Bearer your-cron-secret"
 ```
 
+### Job 3: `POST/GET /api/cron/downgrade-expired`
+
+| Property | Value |
+|----------|-------|
+| **Schedule** | Daily (recommended: after midnight `0 1 * * *`) |
+| **Auth** | `CRON_SECRET` via `Authorization: Bearer <secret>` or `x-api-key: <secret>` |
+| **Idempotent** | Yes — `downgrade_school_to_basic()` returns false if already downgraded |
+| **Timeout** | Allow 30+ seconds |
+| **Logs** | Console output + `email_logs` table |
+
+**Process:**
+1. Calls `get_expired_grace_period_schools()` — returns schools where `status = 'past_due'` and `grace_period_ends_at < now()`
+2. For each school, calls `downgrade_school_to_basic(p_school_id)` — sets plan to Basic, subscription status to expired
+3. Sends `sendSubscriptionDowngradedAlert()` email explaining what was lost and how to restore
+4. Skips schools where the RPC returns false (already on Basic)
+
+**Example call:**
+```bash
+curl -X POST https://yourdomain.com/api/cron/downgrade-expired \
+  -H "x-api-key: your-cron-secret"
+```
+
+**Example response:**
+```json
+{
+  "success": true,
+  "message": "Processed 3 schools (3 downgraded, 0 skipped, 0 failed)",
+  "downgraded": 3,
+  "skipped": 0,
+  "failed": 0,
+  "total": 3,
+  "results": [
+    { "school_id": "...", "school_name": "Bright Stars Academy", "status": "downgraded" },
+    { "school_id": "...", "school_name": "Royal College", "status": "downgraded" }
+  ],
+  "duration_ms": 1200
+}
+```
+
 ### Setup: Vercel Cron Jobs
 
 In `vercel.json`:
@@ -397,6 +436,10 @@ In `vercel.json`:
     {
       "path": "/api/cron/subscription-reminders",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/downgrade-expired",
+      "schedule": "0 1 * * *"
     }
   ]
 }
@@ -404,12 +447,15 @@ In `vercel.json`:
 
 ### Setup: cron-job.org
 
-Create two cron jobs:
+Create three cron jobs:
 1. **URL:** `https://yourdomain.com/api/cron/charge-subscriptions`  
    **Schedule:** `0 0 * * *`  
    **Headers:** `x-api-key: your-cron-secret`
 2. **URL:** `https://yourdomain.com/api/cron/subscription-reminders`  
    **Schedule:** `0 8 * * *`  
+   **Headers:** `x-api-key: your-cron-secret`
+3. **URL:** `https://yourdomain.com/api/cron/downgrade-expired`  
+   **Schedule:** `0 1 * * *`  
    **Headers:** `x-api-key: your-cron-secret`
 
 ---

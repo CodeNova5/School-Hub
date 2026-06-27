@@ -47,6 +47,7 @@ import {
   XCircle,
   Trash2,
   Shield,
+  Zap,
 } from "lucide-react";
 import type { School as SchoolType, SchoolPlan } from "@/lib/types";
 import { usePlanDisplayInfo, PLAN_KEYS_IN_ORDER } from "@/hooks/use-plan-display-info";
@@ -71,9 +72,17 @@ export default function SchoolsManagementPage() {
   const [editingSchool, setEditingSchool] = useState<SchoolWithStats | null>(null);
   const [form, setForm] = useState(emptyForm);
 
-  // Suspend/Delete confirm
+  // Suspend/Delete/Charge confirm
   const [confirmSchool, setConfirmSchool] = useState<SchoolWithStats | null>(null);
-  const [confirmAction, setConfirmAction] = useState<"suspend" | "activate" | "delete" | null>(null);
+  const [confirmAction, setConfirmAction] = useState<"suspend" | "activate" | "delete" | "charge" | null>(null);
+  const [charging, setCharging] = useState(false);
+  const [chargeResult, setChargeResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [chargePreview, setChargePreview] = useState<{
+    plan_name: string;
+    billing_interval: string;
+    amount: number;
+  } | null>(null);
+  const [chargePreviewLoading, setChargePreviewLoading] = useState(false);
 
   useEffect(() => {
     fetchSchools();
@@ -175,6 +184,36 @@ export default function SchoolsManagementPage() {
 
   async function handleConfirmAction() {
     if (!confirmSchool || !confirmAction) return;
+
+    if (confirmAction === "charge") {
+      setCharging(true);
+      setChargeResult(null);
+      try {
+        const res = await fetch(`/api/super-admin/schools/${confirmSchool.id}/charge`, {
+          method: "POST",
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setChargeResult({ success: false, message: data.error || "Charge failed" });
+        } else if (data.success) {
+          setChargeResult({
+            success: true,
+            message: `✅ Charged ₦${(data.amount / 100).toLocaleString()} — ${data.school}`,
+          });
+          fetchSchools();
+        } else {
+          setChargeResult({
+            success: false,
+            message: `❌ Charge failed: ${data.gateway_response || data.message}`,
+          });
+        }
+      } catch (err: any) {
+        setChargeResult({ success: false, message: err.message || "Charge failed" });
+      } finally {
+        setCharging(false);
+      }
+      return;
+    }
 
     try {
       setSaving(true);
@@ -362,6 +401,40 @@ export default function SchoolsManagementPage() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            title="Charge Now"
+                            onClick={async () => {
+                              setChargeResult(null);
+                              setChargePreview(null);
+                              setChargePreviewLoading(true);
+                              setConfirmSchool(school);
+                              setConfirmAction("charge");
+                              // Fetch subscription preview info
+                              try {
+                                const { data: sub } = await supabase
+                                  .rpc("get_school_subscription", { p_school_id: school.id });
+                                const subscription = Array.isArray(sub) ? sub[0] : sub;
+                                if (subscription) {
+                                  const amount = subscription.billing_interval === "termly"
+                                    ? subscription.termly_price
+                                    : subscription.yearly_price;
+                                  setChargePreview({
+                                    plan_name: subscription.plan_name,
+                                    billing_interval: subscription.billing_interval,
+                                    amount: Number(amount) || 0,
+                                  });
+                                }
+                              } catch (err) {
+                                console.error("Failed to fetch subscription preview:", err);
+                              } finally {
+                                setChargePreviewLoading(false);
+                              }
+                            }}
+                          >
+                            <Zap className="h-4 w-4 text-blue-500" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             title="Delete"
                             onClick={() => {
                               setConfirmSchool(school);
@@ -494,7 +567,7 @@ export default function SchoolsManagementPage() {
 
       {/* Confirm Action Dialog */}
       <AlertDialog
-        open={!!confirmSchool && !!confirmAction}
+        open={!!confirmSchool && !!confirmAction && confirmAction !== "charge"}
         onOpenChange={() => {
           setConfirmSchool(null);
           setConfirmAction(null);
@@ -548,6 +621,108 @@ export default function SchoolsManagementPage() {
                 ? "Suspend"
                 : "Activate"}
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Charge Dialog (separate, with result states) */}
+      <AlertDialog
+        open={!!confirmSchool && confirmAction === "charge"}
+        onOpenChange={() => {
+          if (!charging) {
+            setConfirmSchool(null);
+            setConfirmAction(null);
+            setChargeResult(null);
+            setChargePreview(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {chargeResult ? (
+                chargeResult.success ? "Charge Successful" : "Charge Failed"
+              ) : (
+                <>Charge {confirmSchool?.name}?</>
+              )}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {chargeResult ? (
+                <span className={chargeResult.success ? "text-green-600" : "text-red-600"}>
+                  {chargeResult.message}
+                </span>
+              ) : charging ? (
+                <div className="flex items-center gap-3 py-2">
+                  <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                  <span>Charging stored authorization code...</span>
+                </div>
+              ) : chargePreviewLoading ? (
+                <div className="flex items-center gap-3 py-2">
+                  <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                  <span>Loading subscription details...</span>
+                </div>
+              ) : chargePreview ? (
+                <div className="space-y-4 py-2">
+                  <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">School</span>
+                      <span className="text-sm font-semibold">{confirmSchool?.name}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Plan</span>
+                      <span className="text-sm font-semibold capitalize">
+                        {chargePreview.plan_name}
+                        <span className="text-xs text-muted-foreground ml-1">
+                          ({chargePreview.billing_interval === "termly" ? "Per Term" : "Yearly"})
+                        </span>
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between pt-2 border-t">
+                      <span className="text-sm font-medium">Amount to charge</span>
+                      <span className="text-lg font-bold text-blue-600">
+                        ₦{(chargePreview.amount / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    This will charge the school&apos;s stored payment method. The money goes to the platform&apos;s Paystack account.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  This will charge the school&apos;s stored payment method for their current subscription.
+                  The money goes to the platform&apos;s Paystack account.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            {chargeResult ? (
+              <AlertDialogAction
+                onClick={() => {
+                  setConfirmSchool(null);
+                  setConfirmAction(null);
+                  setChargeResult(null);
+                }}
+              >
+                Done
+              </AlertDialogAction>
+            ) : (
+              <>
+                <AlertDialogCancel disabled={charging}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleConfirmAction}
+                  disabled={charging}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {charging ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Charging...</>
+                  ) : (
+                    <><Zap className="h-4 w-4 mr-2" /> Charge Now</>
+                  )}
+                </AlertDialogAction>
+              </>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

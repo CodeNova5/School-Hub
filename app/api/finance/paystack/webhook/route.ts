@@ -145,6 +145,116 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true });
   }
 
+  // ── School subscription payment handling ──
+  // Check if this reference belongs to a school subscription transaction
+  // Subscription references start with 'SUB-'
+  if (reference.startsWith('SUB-')) {
+    const { data: subTx } = await supabaseAdmin
+      .from("school_subscription_transactions")
+      .select("*")
+      .eq("reference", reference)
+      .maybeSingle();
+
+    if (subTx) {
+      console.log("=== PAYSTACK WEBHOOK - SUBSCRIPTION PAYMENT ===");
+      console.log("Reference:", reference);
+      console.log("School ID:", subTx.school_id);
+      console.log("Plan ID:", subTx.plan_id);
+      console.log("Billing Interval:", subTx.billing_interval);
+      console.log("Event:", payload.event);
+
+      if (nextStatus === "success") {
+        // Extract auth code from payload
+        const eventData = payload.data as any;
+        const authCode = eventData?.authorization?.authorization_code || null;
+        const customerCode = eventData?.customer?.customer_code || null;
+        const customerEmail = eventData?.customer?.email || '';
+
+        // Update transaction
+        await supabaseAdmin
+          .from("school_subscription_transactions")
+          .update({
+            status: 'success',
+            auth_code: authCode,
+            paid_at: payload.data?.paid_at || new Date().toISOString(),
+            metadata: {
+              ...((subTx.metadata as Record<string, unknown>) || {}),
+              webhook_authorization: eventData?.authorization,
+              webhook_customer: eventData?.customer,
+            },
+          })
+          .eq("id", subTx.id);
+
+        // Get the current academic term for this school
+        const { data: currentTerm } = await supabaseAdmin
+          .from("terms")
+          .select("id, end_date")
+          .eq("school_id", subTx.school_id)
+          .eq("is_current", true)
+          .maybeSingle();
+
+        // Calculate next billing date
+        let nextBillingDate: Date;
+        if (subTx.billing_interval === 'termly' && currentTerm) {
+          nextBillingDate = new Date(currentTerm.end_date);
+          nextBillingDate.setDate(nextBillingDate.getDate() + 3);
+        } else if (subTx.billing_interval === 'yearly') {
+          nextBillingDate = new Date();
+          nextBillingDate.setFullYear(nextBillingDate.getFullYear() + 1);
+        } else {
+          nextBillingDate = new Date();
+          nextBillingDate.setMonth(nextBillingDate.getMonth() + 4);
+        }
+
+        // Period end
+        const periodEnd = subTx.billing_interval === 'yearly'
+          ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+          : currentTerm
+            ? new Date(currentTerm.end_date)
+            : new Date(Date.now() + 120 * 24 * 60 * 60 * 1000);
+
+        // Upsert school subscription
+        await supabaseAdmin.rpc('upsert_school_subscription', {
+          p_school_id: subTx.school_id,
+          p_plan_id: subTx.plan_id,
+          p_billing_interval: subTx.billing_interval,
+          p_status: 'active',
+          p_current_period_start: new Date().toISOString(),
+          p_current_period_end: periodEnd.toISOString(),
+          p_auth_code: authCode,
+          p_customer_email: customerEmail,
+          p_paystack_customer_code: customerCode,
+          p_next_billing_date: nextBillingDate.toISOString(),
+          p_current_term_id: currentTerm?.id || null,
+        });
+
+        // Update the school's plan
+        const { data: plan } = await supabaseAdmin
+          .from('subscription_plans')
+          .select('plan_key')
+          .eq('id', subTx.plan_id)
+          .single();
+
+        if (plan) {
+          await supabaseAdmin
+            .from('schools')
+            .update({ plan: plan.plan_key, updated_at: new Date().toISOString() })
+            .eq('id', subTx.school_id);
+        }
+
+        console.log("✓ School subscription activated for school:", subTx.school_id);
+      } else {
+        // Failed or abandoned
+        await supabaseAdmin
+          .from("school_subscription_transactions")
+          .update({ status: nextStatus })
+          .eq("id", subTx.id);
+      }
+
+      return NextResponse.json({ success: true });
+    }
+  }
+
   // ── Student finance transaction handling (existing) ──
   const { data: transaction } = await supabaseAdmin
     .from("finance_transactions")

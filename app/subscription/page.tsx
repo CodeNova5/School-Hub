@@ -15,6 +15,7 @@ import {
   Clock,
   Calendar,
   ChevronRight,
+  GraduationCap,
 } from "lucide-react";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -65,7 +66,7 @@ function SubscriptionPageContent() {
   const { planFeatures, featureMetadata, isLoading: featuresLoading, error: featuresError, isFeatureEnabled } = usePlanFeatures();
 
   // ── State ──
-  const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
+  const [billingInterval, setBillingInterval] = useState<"termly" | "yearly">("termly");
   const [mounted, setMounted] = useState(false);
 
   // ── Query params from upgrade flow ──
@@ -158,15 +159,18 @@ function SubscriptionPageContent() {
           {/* Billing Toggle */}
           <div className="inline-flex items-center gap-3 mt-8 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 transition-all duration-300">
             <button
-              onClick={() => setBillingInterval("monthly")}
+              onClick={() => setBillingInterval("termly")}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                billingInterval === "monthly"
+                billingInterval === "termly"
                   ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm"
                   : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
               }`}
             >
-              <Clock className="h-3.5 w-3.5" />
-              Monthly
+              <GraduationCap className="h-3.5 w-3.5" />
+              Per Term
+              <span className="text-[10px] font-semibold text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded">
+                Recommended
+              </span>
             </button>
             <button
               onClick={() => setBillingInterval("yearly")}
@@ -179,7 +183,7 @@ function SubscriptionPageContent() {
               <Calendar className="h-3.5 w-3.5" />
               Yearly
               <span className="text-[10px] font-semibold text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded">
-                Save up to 16%
+                Best value
               </span>
             </button>
           </div>
@@ -190,7 +194,7 @@ function SubscriptionPageContent() {
           {PLAN_KEYS_IN_ORDER.map((key, index) => {
             const info = getPlanInfo(key);
             const isCurrentPlan = currentPlan === key;
-            const price = billingInterval === "monthly" ? info.monthly_price : info.yearly_price;
+            const price = billingInterval === "termly" ? (info.termly_price || info.monthly_price * 3) : info.yearly_price;
 
             return (
               <div
@@ -262,12 +266,17 @@ function SubscriptionPageContent() {
                             {formatPrice(price)}
                           </span>
                           <span className="text-sm text-slate-400 dark:text-slate-500">
-                            /{billingInterval === "monthly" ? "mo" : "yr"}
+                            /{billingInterval === "termly" ? "term" : "yr"}
                           </span>
                         </div>
                         {billingInterval === "yearly" && info.monthly_price > 0 && (
                           <p className="text-xs text-green-600 dark:text-green-400 mt-1">
                             {formatPrice(info.monthly_price)}/mo billed annually
+                          </p>
+                        )}
+                        {billingInterval === "termly" && info.yearly_price > 0 && (
+                          <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                            3 terms per year · No charges during holidays
                           </p>
                         )}
                       </div>
@@ -282,6 +291,7 @@ function SubscriptionPageContent() {
                       const params = new URLSearchParams();
                       if (featureKey) params.set("feature", featureKey);
                       params.set("plan", key);
+                      params.set("interval", billingInterval);
                       if (returnPath) params.set("from", returnPath);
                       router.push(`/checkout?${params.toString()}`);
                     }}
@@ -393,7 +403,10 @@ function SubscriptionPageContent() {
         {/* ── Footer ── */}
         <div className={`mt-12 text-center transition-all duration-500 delay-700 ease-out ${mounted ? "opacity-100" : "opacity-0"}`}>
           <p className="text-xs text-slate-400 dark:text-slate-500">
-            All plans include core school management features. Prices are in Nigerian Naira (₦).
+            {billingInterval === "termly"
+              ? "Termly billing aligns with your school calendar. Pay once per term — no charges during holidays."
+              : "All plans include core school management features."}
+            Prices are in Nigerian Naira (₦).
             <br />
             Need help choosing?{" "}
             <button className="text-blue-600 dark:text-blue-400 hover:underline underline-offset-2">

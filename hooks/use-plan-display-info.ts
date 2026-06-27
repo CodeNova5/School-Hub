@@ -15,6 +15,7 @@ export interface PlanDisplayInfo {
   border_color: string;
   icon_bg: string;
   monthly_price: number;
+  termly_price: number;
   yearly_price: number;
 }
 
@@ -33,6 +34,7 @@ const FALLBACK_PLANS: Record<string, PlanDisplayInfo> = {
     price_hint: "Free / Low cost",
     border_color: "border-green-200 dark:border-green-800",
     icon_bg: "bg-green-100 dark:bg-green-900/30",
+    termly_price: 0,
     monthly_price: 0,
     yearly_price: 0,
   },
@@ -46,6 +48,7 @@ const FALLBACK_PLANS: Record<string, PlanDisplayInfo> = {
     price_hint: "Mid tier",
     border_color: "border-blue-200 dark:border-blue-800",
     icon_bg: "bg-blue-100 dark:bg-blue-900/30",
+    termly_price: 99700,
     monthly_price: 29900,
     yearly_price: 299000,
   },
@@ -59,6 +62,7 @@ const FALLBACK_PLANS: Record<string, PlanDisplayInfo> = {
     price_hint: "Top tier",
     border_color: "border-purple-200 dark:border-purple-800",
     icon_bg: "bg-purple-100 dark:bg-purple-900/30",
+    termly_price: 233000,
     monthly_price: 69900,
     yearly_price: 699000,
   },

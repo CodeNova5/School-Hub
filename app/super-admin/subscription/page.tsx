@@ -53,6 +53,7 @@ import {
   Zap,
   Clock,
   Calendar,
+  GraduationCap,
   Settings,
   Globe,
   Trash2,
@@ -194,7 +195,7 @@ function PlansTab() {
   const [editingPlan, setEditingPlan] = useState<SubscriptionPlan | null>(null);
   const [editForm, setEditForm] = useState({
     name: "", description: "",
-    monthly_price: "", yearly_price: "",
+    monthly_price: "", termly_price: "", yearly_price: "",
     label_short: "", color_tailwind: "", badge_color_tailwind: "", price_hint: "",
     border_color_tailwind: "", icon_bg_tailwind: "",
   });
@@ -249,6 +250,7 @@ function PlansTab() {
       name: plan.name,
       description: plan.description,
       monthly_price: String(plan.monthly_price),
+      termly_price: String((plan as any).termly_price ?? plan.monthly_price * 3),
       yearly_price: String(plan.yearly_price),
       label_short: plan.label_short ?? "",
       color_tailwind: plan.color_tailwind ?? "",
@@ -271,6 +273,7 @@ function PlansTab() {
           name: editForm.name.trim(),
           description: editForm.description.trim(),
           monthly_price: Number(editForm.monthly_price),
+          termly_price: Number(editForm.termly_price),
           yearly_price: Number(editForm.yearly_price),
           label_short: editForm.label_short.trim(),
           color_tailwind: editForm.color_tailwind.trim(),
@@ -374,13 +377,18 @@ function PlansTab() {
                     <Badge className={planColors.badge}>{plan.is_active ? "Active" : "Inactive"}</Badge>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-5">
-                  <div className="grid grid-cols-2 gap-3">
+                <CardContent className="space-y-5">                    <div className="grid grid-cols-3 gap-2">
                     <div className="p-3 rounded-lg bg-muted/30 border">
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                         <Clock className="h-3 w-3" /> Monthly
                       </div>
                       <p className="text-xl font-bold">{formatPrice(plan.monthly_price)}</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-muted/30 border">
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+                        <GraduationCap className="h-3 w-3" /> Termly
+                      </div>
+                      <p className="text-xl font-bold">{formatPrice((plan as any).termly_price ?? plan.monthly_price * 3)}</p>
                     </div>
                     <div className="p-3 rounded-lg bg-muted/30 border">
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
@@ -447,15 +455,21 @@ function PlansTab() {
               <Label htmlFor="ep-desc">Description</Label>
               <Input id="ep-desc" value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-3">
               <div className="space-y-2">
-                <Label htmlFor="ep-monthly">Monthly Price (kobo)</Label>
+                <Label htmlFor="ep-monthly">Monthly (kobo)</Label>
                 <Input id="ep-monthly" type="number" min="0" step="100" value={editForm.monthly_price}
                   onChange={(e) => setEditForm({ ...editForm, monthly_price: e.target.value })} />
                 <p className="text-xs text-muted-foreground">{formatPrice(Number(editForm.monthly_price))}</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="ep-yearly">Yearly Price (kobo)</Label>
+                <Label htmlFor="ep-termly">Termly (kobo)</Label>
+                <Input id="ep-termly" type="number" min="0" step="100" value={editForm.termly_price}
+                  onChange={(e) => setEditForm({ ...editForm, termly_price: e.target.value })} />
+                <p className="text-xs text-muted-foreground">{formatPrice(Number(editForm.termly_price))}</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ep-yearly">Yearly (kobo)</Label>
                 <Input id="ep-yearly" type="number" min="0" step="100" value={editForm.yearly_price}
                   onChange={(e) => setEditForm({ ...editForm, yearly_price: e.target.value })} />
                 <p className="text-xs text-muted-foreground">{formatPrice(Number(editForm.yearly_price))}</p>

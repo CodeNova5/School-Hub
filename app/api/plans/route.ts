@@ -38,6 +38,7 @@ export async function GET() {
       border_color: plan.border_color_tailwind,
       icon_bg: plan.icon_bg_tailwind,
       monthly_price: plan.monthly_price,
+      termly_price: plan.termly_price ?? plan.monthly_price * 3,
       yearly_price: plan.yearly_price,
     }));
 

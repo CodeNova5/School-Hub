@@ -222,7 +222,7 @@ export function SubscriptionGraceBanner({
                 <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-300">
                   <CreditCard className="h-4 w-4 text-amber-500" />
                   <span>
-                    Amount due:{" "}
+                    Next billing:{" "}
                     {getNextBillingLabel(status.next_billing_date)}
                   </span>
                 </div>

@@ -104,20 +104,39 @@ export async function GET(req: NextRequest) {
     .eq("id", tx.id);
 
   if (mappedStatus === "success") {
-    // Get the current academic term for this school
-    const { data: currentTerm } = await supabaseAdmin
-      .from("terms")
-      .select("id, session_id, end_date")
-      .eq("school_id", tx.school_id)
-      .eq("is_current", true)
-      .maybeSingle();
+    const txMetadata = tx.metadata as Record<string, unknown> || {};
+    const selectedTermId = txMetadata.selected_term_id as string | null;
+
+    // Use the selected term (from checkout) or fall back to current term
+    let termForBilling: { id: string; end_date: string; name?: string; session_id?: string } | null = null;
+
+    if (tx.billing_interval === "termly" && selectedTermId) {
+      // Fetch the term the user selected during checkout
+      const { data: selectedTerm } = await supabaseAdmin
+        .from("terms")
+        .select("id, session_id, end_date, name")
+        .eq("id", selectedTermId)
+        .maybeSingle();
+      termForBilling = selectedTerm;
+    }
+
+    // Fallback: get the current active term
+    if (!termForBilling) {
+      const { data: currentTerm } = await supabaseAdmin
+        .from("terms")
+        .select("id, session_id, end_date")
+        .eq("school_id", tx.school_id)
+        .eq("is_current", true)
+        .maybeSingle();
+      termForBilling = currentTerm;
+    }
 
     // Calculate next billing date based on interval
     let nextBillingDate: Date;
-    if (tx.billing_interval === "termly" && currentTerm) {
-      // Next billing = end of current term + 1 day (start of next term)
-      nextBillingDate = new Date(currentTerm.end_date);
-      nextBillingDate.setDate(nextBillingDate.getDate() + 3); // Small buffer
+    if (tx.billing_interval === "termly" && termForBilling) {
+      // Next billing = end of selected term + 3 day buffer
+      nextBillingDate = new Date(termForBilling.end_date);
+      nextBillingDate.setDate(nextBillingDate.getDate() + 3);
     } else if (tx.billing_interval === "yearly") {
       nextBillingDate = new Date();
       nextBillingDate.setFullYear(nextBillingDate.getFullYear() + 1);
@@ -130,8 +149,8 @@ export async function GET(req: NextRequest) {
     // Calculate period end
     const periodEnd = tx.billing_interval === "yearly"
       ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
-      : currentTerm
-        ? new Date(currentTerm.end_date)
+      : termForBilling
+        ? new Date(termForBilling.end_date)
         : new Date(Date.now() + 120 * 24 * 60 * 60 * 1000); // ~4 months for term
 
     // Upsert school subscription
@@ -150,7 +169,7 @@ export async function GET(req: NextRequest) {
       p_customer_email: customerEmail,
       p_paystack_customer_code: customerCode,
       p_next_billing_date: nextBillingDate.toISOString(),
-      p_current_term_id: currentTerm?.id || null,
+      p_current_term_id: termForBilling?.id || null,
     });
 
     // Update the school's plan

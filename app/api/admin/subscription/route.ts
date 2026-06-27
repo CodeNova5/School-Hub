@@ -80,12 +80,74 @@ export async function GET(_req: NextRequest) {
     // Normalize subscription (RPC returns array for TABLE returns)
     const normalizedSub = Array.isArray(subscription) ? subscription[0] : subscription;
 
+    // Fetch current term details if subscription has a current_term_id
+    let currentTerm = null;
+    if (normalizedSub?.current_term_id) {
+      const { data: term } = await supabaseAdmin
+        .from("terms")
+        .select(`
+          id,
+          name,
+          start_date,
+          end_date,
+          is_current,
+          session_id,
+          sessions!inner(name)
+        `)
+        .eq("id", normalizedSub.current_term_id)
+        .maybeSingle();
+
+      if (term) {
+        const ms = new Date(term.end_date).getTime() - new Date(term.start_date).getTime();
+        const weeks = Math.round(ms / (1000 * 60 * 60 * 24 * 7));
+        currentTerm = {
+          id: term.id,
+          name: term.name,
+          session_name: (term as any).sessions?.name || "",
+          start_date: term.start_date,
+          end_date: term.end_date,
+          is_current: term.is_current,
+          weeks,
+        };
+
+        // Fetch the next term after the current one (for holiday break detection)
+        const { data: nextTermData } = await supabaseAdmin
+          .from("terms")
+          .select(`
+            id,
+            name,
+            start_date,
+            end_date,
+            session_id,
+            sessions!inner(name)
+          `)
+          .eq("school_id", schoolId)
+          .gt("start_date", term.end_date)
+          .order("start_date", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        if (nextTermData) {
+          const nextMs = new Date(nextTermData.end_date).getTime() - new Date(nextTermData.start_date).getTime();
+          currentTerm.next_term = {
+            id: nextTermData.id,
+            name: nextTermData.name,
+            session_name: (nextTermData as any).sessions?.name || "",
+            start_date: nextTermData.start_date,
+            end_date: nextTermData.end_date,
+            weeks: Math.round(nextMs / (1000 * 60 * 60 * 24 * 7)),
+          };
+        }
+      }
+    }
+
     return NextResponse.json({
       subscription: normalizedSub ?? null,
       school: school ?? null,
       plans: plans ?? [],
       transactions: transactions ?? [],
       status: statusResult ?? null,
+      current_term: currentTerm,
     });
   } catch (err: any) {
     console.error("Admin subscription API error:", err);

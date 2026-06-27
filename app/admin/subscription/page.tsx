@@ -35,6 +35,8 @@ import {
   ExternalLink,
   Receipt,
   GraduationCap,
+  BookOpen,
+  Umbrella,
 } from "lucide-react";
 import { usePlanDisplayInfo } from "@/hooks/use-plan-display-info";
 
@@ -98,12 +100,33 @@ interface StatusResult {
   grace_period_ends_at: string | null;
 }
 
+interface NextTermInfo {
+  id: string;
+  name: string;
+  session_name: string;
+  start_date: string;
+  end_date: string;
+  weeks: number;
+}
+
+interface CurrentTermInfo {
+  id: string;
+  name: string;
+  session_name: string;
+  start_date: string;
+  end_date: string;
+  is_current: boolean;
+  weeks: number;
+  next_term?: NextTermInfo | null;
+}
+
 interface ApiResponse {
   subscription: Subscription | null;
   school: School | null;
   plans: Plan[];
   transactions: Transaction[];
   status: StatusResult | null;
+  current_term: CurrentTermInfo | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -303,7 +326,7 @@ export default function AdminSubscriptionPage() {
     );
   }
 
-  const { subscription, school, plans, transactions, status } = data ?? {};
+  const { subscription, school, plans, transactions, status, current_term } = data ?? {};
   const currentPlanKey = subscription?.plan_key || school?.plan || "basic";
   const currentPlanInfo = getPlanInfo(currentPlanKey);
   const PlanIcon = getPlanIcon(currentPlanKey);
@@ -312,6 +335,15 @@ export default function AdminSubscriptionPage() {
   const effectiveStatus = status?.status || subscription?.status || "active";
   const isGraceActive = effectiveStatus === "past_due" && !status?.should_degrade;
   const isGraceExpired = effectiveStatus === "past_due" && status?.should_degrade;
+
+  // Detect holiday break (termly + active + current term ended + next term exists)
+  const now = new Date();
+  const isHolidayBreak =
+    subscription?.billing_interval === "termly" &&
+    effectiveStatus === "active" &&
+    current_term?.end_date &&
+    new Date(current_term.end_date) < now &&
+    current_term?.next_term != null;
 
   // Check if any upgrades are available
   const availablePlans = plans?.filter(
@@ -396,6 +428,76 @@ export default function AdminSubscriptionPage() {
           </Card>
         )}
 
+        {/* Holiday Break Banner */}
+        {isHolidayBreak && current_term?.next_term && (
+          <Card className="border-teal-200 bg-gradient-to-r from-teal-50 to-emerald-50">
+            <CardContent className="p-4 flex items-start gap-4">
+              <div className="flex-shrink-0 mt-0.5">
+                <div className="h-10 w-10 rounded-lg bg-teal-100 flex items-center justify-center">
+                  <Umbrella className="h-5 w-5 text-teal-600" />
+                </div>
+              </div>
+              <div className="flex-1">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="font-semibold text-teal-900 text-sm">On Holiday Break</p>
+                    <p className="text-sm text-teal-700 mt-1">
+                      <span className="font-semibold">{current_term.name} · {current_term.session_name}</span>{" "}
+                      has ended. Your school is currently on break — all features remain available.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Next term info */}
+                <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <GraduationCap className="h-4 w-4 text-teal-500" />
+                    <span className="text-teal-800">
+                      <span className="font-semibold">{current_term.next_term.name}</span>
+                      <span className="text-teal-500 ml-1">· {current_term.next_term.session_name}</span>
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Calendar className="h-4 w-4 text-teal-500" />
+                    <span className="text-teal-800">
+                      Starts {new Date(current_term.next_term.start_date).toLocaleDateString("en-NG", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Clock className="h-4 w-4 text-teal-500" />
+                    <span className="text-teal-800">{current_term.next_term.weeks} weeks</span>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex gap-3">
+                  <Button
+                    size="sm"
+                    className="bg-teal-600 hover:bg-teal-700 text-white shadow-sm"
+                    onClick={() =>
+                      router.push(
+                        `/checkout?plan=${currentPlanKey}&interval=termly&termId=${current_term.next_term!.id}`
+                      )
+                    }
+                  >
+                    <CreditCard className="h-4 w-4 mr-1.5" />
+                    Pay for {current_term.next_term.name}
+                    <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-teal-300 text-teal-800 hover:bg-teal-100"
+                    onClick={() => router.push("/admin/subscription")}
+                  >
+                    <BookOpen className="h-4 w-4 mr-1.5" />
+                    View Details
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Main Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column — Current Plan + Info */}
@@ -419,6 +521,7 @@ export default function AdminSubscriptionPage() {
               <CardContent className="p-6 space-y-6">
                 {/* Subscription Details */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Billing Interval */}
                   <div className="p-4 bg-gray-50 rounded-lg">
                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Billing Interval</p>
                     <p className="text-lg font-semibold text-gray-900 mt-1 capitalize">
@@ -436,6 +539,7 @@ export default function AdminSubscriptionPage() {
                     </p>
                   </div>
 
+                  {/* Price */}
                   <div className="p-4 bg-gray-50 rounded-lg">
                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Price</p>
                     <p className="text-lg font-semibold text-gray-900 mt-1">
@@ -448,6 +552,51 @@ export default function AdminSubscriptionPage() {
                     </p>
                   </div>
 
+                  {/* Covered Term (termly only) — spans full width as a hero card */}
+                  {subscription?.billing_interval === "termly" && (
+                    <div className={`sm:col-span-2 p-4 rounded-lg ${current_term ? "bg-blue-50 border border-blue-200" : "bg-gray-50"}`}>
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <span className="flex items-center gap-1.5">
+                          <BookOpen className="h-3.5 w-3.5 text-blue-500" />
+                          Covered Term
+                        </span>
+                      </p>
+                      {current_term ? (
+                        <div className="mt-1.5 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-900">
+                              {current_term.name}
+                              <span className="text-xs font-normal text-gray-500 ml-1.5">
+                                · {current_term.session_name}
+                              </span>
+                            </p>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              {formatDate(current_term.start_date)} — {formatDate(current_term.end_date)}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">
+                              <Clock className="h-2.5 w-2.5" />
+                              {current_term.weeks}wk
+                            </span>
+                            {current_term.is_current ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-green-600 bg-green-100 px-2 py-0.5 rounded-full border border-green-200">
+                                Current
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">
+                                Upcoming
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-400 mt-1">Not yet assigned</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Current Period */}
                   <div className="p-4 bg-gray-50 rounded-lg">
                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Current Period</p>
                     <p className="text-sm font-semibold text-gray-900 mt-1">
@@ -455,6 +604,7 @@ export default function AdminSubscriptionPage() {
                     </p>
                   </div>
 
+                  {/* Next Billing */}
                   <div className="p-4 bg-gray-50 rounded-lg">
                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Next Billing</p>
                     <p className="text-sm font-semibold text-gray-900 mt-1">

@@ -3,6 +3,18 @@
 import { useEffect, useState, Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { usePlanDisplayInfo } from "@/hooks/use-plan-display-info";
+// ── Types ────────────────────────────────────────────────────────────────
+
+interface AvailableTerm {
+  id: string;
+  name: string;
+  session_name: string;
+  session_id: string;
+  start_date: string;
+  end_date: string;
+  is_current: boolean;
+  weeks: number;
+}
 import {
   Shield,
   Zap,
@@ -16,9 +28,9 @@ import {
   ChevronRight,
   Lock,
   CreditCard,
-  Building2,
-  Mail,
   Receipt,
+  GraduationCap,
+  BookOpen,
 } from "lucide-react";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -26,6 +38,17 @@ import {
 function formatPrice(cents: number): string {
   if (cents === 0) return "Free";
   return `₦${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+}
+
+function formatDateRange(start: string, end: string): string {
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" });
+  return `${fmt(start)} – ${fmt(end)}`;
+}
+
+function getWeeksBetween(start: string, end: string): number {
+  const ms = new Date(end).getTime() - new Date(start).getTime();
+  return Math.round(ms / (1000 * 60 * 60 * 24 * 7));
 }
 
 // ── Loading Skeleton ──────────────────────────────────────────────────────
@@ -61,6 +84,121 @@ function CheckoutError({ title, message }: { title: string; message: string }) {
   );
 }
 
+// ── Term Selector ─────────────────────────────────────────────────────────
+
+function TermSelector({
+  terms,
+  selectedId,
+  onSelect,
+  loading,
+}: {
+  terms: AvailableTerm[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-20 rounded-xl bg-slate-100 dark:bg-slate-800 animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  if (terms.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-amber-200 bg-amber-50 dark:bg-amber-950/20 p-5 text-center">
+        <BookOpen className="h-6 w-6 text-amber-400 mx-auto mb-2" />
+        <p className="text-sm font-medium text-amber-800 dark:text-amber-300">No upcoming terms available</p>
+        <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+          Set up your academic sessions and terms first, then subscribe.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2.5">
+      {terms.map((term) => {
+        const isSelected = selectedId === term.id;
+        const isCurrent = term.is_current;
+        const now = new Date();
+        const termStart = new Date(term.start_date);
+        const termEnd = new Date(term.end_date);
+        const isActive = now >= termStart && now <= termEnd;
+        const daysUntilStart = Math.ceil((termStart.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+        return (
+          <button
+            key={term.id}
+            type="button"
+            onClick={() => onSelect(term.id)}
+            className={`
+              w-full text-left rounded-xl border-2 p-4 transition-all duration-200
+              ${isSelected
+                ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30 shadow-md shadow-blue-500/10"
+                : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/50 hover:border-blue-300 hover:bg-blue-50/50 dark:hover:bg-blue-950/20"
+              }
+            `}
+          >
+            <div className="flex items-start justify-between gap-3">
+              {/* Left: Term info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold text-sm text-slate-900 dark:text-slate-100">
+                    {term.name}
+                  </span>
+                  <span className="text-xs text-slate-400">·</span>
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                    {term.session_name} Session
+                  </span>
+                  {isCurrent && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border border-green-200 dark:border-green-800">
+                      Current
+                    </span>
+                  )}
+                  {!isCurrent && isActive && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                      In Progress
+                    </span>
+                  )}
+                  {daysUntilStart > 0 && !isActive && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                      Starts in {daysUntilStart}d
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  {formatDateRange(term.start_date, term.end_date)}
+                </p>
+              </div>
+
+              {/* Right: Duration + Selection */}
+              <div className="flex items-center gap-3 shrink-0">
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-full">
+                  <Clock className="h-3 w-3" />
+                  {term.weeks}wk
+                </span>
+                <div className={`
+                  w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200
+                  ${isSelected
+                    ? "border-blue-500 bg-blue-500"
+                    : "border-slate-300 dark:border-slate-600"
+                  }
+                `}>
+                  {isSelected && <Check className="h-3 w-3 text-white" />}
+                </div>
+              </div>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Main Checkout Content ────────────────────────────────────────────────
 
 function CheckoutContent() {
@@ -71,7 +209,6 @@ function CheckoutContent() {
   // ── Params ──
   const planKey = searchParams.get("plan") || "";
   const billingInterval = (searchParams.get("interval") || "termly") as "termly" | "yearly";
-  const featureKey = searchParams.get("feature") || "";
   const returnPath = searchParams.get("from") || "";
 
   // ── State ──
@@ -79,10 +216,17 @@ function CheckoutContent() {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Term selection
+  const [availableTerms, setAvailableTerms] = useState<AvailableTerm[]>([]);
+  const [termsLoading, setTermsLoading] = useState(true);
+  const [selectedTermId, setSelectedTermId] = useState<string | null>(null);
+
   const planInfo = getPlanInfo(planKey);
   const price = billingInterval === "termly"
     ? (planInfo.termly_price || planInfo.monthly_price * 3)
     : planInfo.yearly_price;
+
+  const selectedTerm = availableTerms.find((t) => t.id === selectedTermId) || null;
 
   // ── Animate in ──
   useEffect(() => {
@@ -90,27 +234,54 @@ function CheckoutContent() {
     return () => clearTimeout(timer);
   }, []);
 
+  // ── Fetch available terms for termly billing ──
+  useEffect(() => {
+    if (billingInterval !== "termly") {
+      setTermsLoading(false);
+      return;
+    }
+    setTermsLoading(true);
+    fetch("/api/school/subscription/available-terms")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.terms && data.terms.length > 0) {
+          setAvailableTerms(data.terms);
+          // Pre-select the first term (current or soonest upcoming)
+          const currentOrFirst = data.terms.find((t: AvailableTerm) => t.is_current) || data.terms[0];
+          setSelectedTermId(currentOrFirst.id);
+        }
+      })
+      .catch((err) => console.error("Failed to load terms:", err))
+      .finally(() => setTermsLoading(false));
+  }, [billingInterval]);
+
   // ── Handle payment ──
   const handleProceedToPayment = useCallback(async () => {
     if (!planKey || processing) return;
+
+    // Validate term selection for termly
+    if (billingInterval === "termly" && !selectedTermId) {
+      setError("Please select a term to pay for.");
+      return;
+    }
+
     setProcessing(true);
     setError(null);
 
     try {
-      // Initialize payment — server accepts plan_key directly (e.g., "pro")
       const initRes = await fetch("/api/school/subscription/initialize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           planId: planKey,
           billingInterval,
+          termId: selectedTermId,
         }),
       });
 
       const initData = await initRes.json();
       if (!initRes.ok) throw new Error(initData.error || "Failed to initialize payment");
 
-      // Redirect to Paystack
       if (initData.authorizationUrl) {
         window.location.href = initData.authorizationUrl;
       } else {
@@ -120,12 +291,13 @@ function CheckoutContent() {
       setError(err.message || "An unexpected error occurred");
       setProcessing(false);
     }
-  }, [planKey, billingInterval, processing]);
+  }, [planKey, billingInterval, selectedTermId, processing]);
 
   // ── Handle success from Paystack redirect ──
   useEffect(() => {
     const reference = searchParams.get("reference");
     const txRef = searchParams.get("trxref");
+    const termFromRedirect = searchParams.get("termId") || searchParams.get("term");
 
     if (reference || txRef) {
       const ref = reference || txRef!;
@@ -136,7 +308,18 @@ function CheckoutContent() {
         .then((data) => {
           setProcessing(false);
           if (data.status === "success") {
-            router.push(`/checkout/success?plan=${planKey}&interval=${billingInterval}`);
+            const successParams = new URLSearchParams({ plan: planKey, interval: billingInterval });
+            // Pass term info to success page using the term from URL (always present on redirect)
+            if (termFromRedirect) {
+              successParams.set("term", termFromRedirect);
+              // Also include a readable name if we have it from state
+              if (selectedTerm) {
+                const fmtStart = new Date(selectedTerm.start_date).toLocaleDateString("en-NG", { day: "numeric", month: "short" });
+                const fmtEnd = new Date(selectedTerm.end_date).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" });
+                successParams.set("termName", `${selectedTerm.name} · ${selectedTerm.session_name} (${fmtStart} – ${fmtEnd})`);
+              }
+            }
+            router.push(`/checkout/success?${successParams.toString()}`);
           } else if (data.status === "abandoned") {
             setError("Payment was cancelled. You can try again.");
           } else {
@@ -215,12 +398,12 @@ function CheckoutContent() {
             Complete Your Purchase
           </h1>
           <p className="mt-3 text-sm sm:text-base text-slate-500 dark:text-slate-400 max-w-xl mx-auto leading-relaxed">
-            Review your plan selection and proceed to payment
+            Review your plan and term selection, then proceed to payment
           </p>
         </div>
 
         <div className={`grid grid-cols-1 lg:grid-cols-5 gap-8 transition-all duration-500 delay-100 ease-out ${animClass}`}>
-          {/* ── Order Summary ── */}
+          {/* ── Left Column: Plan Summary + Term Selection ── */}
           <div className="lg:col-span-3 space-y-6">
             {/* Plan Summary Card */}
             <div className={`rounded-2xl border-2 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl ${planColors.border} overflow-hidden`}>
@@ -245,14 +428,15 @@ function CheckoutContent() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     {billingInterval === "termly" ? (
-                      <Clock className="h-4 w-4 text-slate-400" />
+                      <GraduationCap className="h-4 w-4 text-slate-400" />
                     ) : (
                       <Calendar className="h-4 w-4 text-slate-400" />
                     )}
                     <span className="text-sm text-slate-600 dark:text-slate-300">
-                      {billingInterval === "termly" ? "Per Term" : "Yearly"} billing
+                      {billingInterval === "termly" ? "Termly billing" : "Yearly billing"}
                     </span>
-                  </div>                    <span className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+                  </div>
+                  <span className="text-2xl font-bold text-slate-900 dark:text-slate-100">
                     {formatPrice(price)}
                   </span>
                 </div>
@@ -267,6 +451,33 @@ function CheckoutContent() {
                 )}
               </div>
             </div>
+
+            {/* ── Term Selector (termly only) ── */}
+            {billingInterval === "termly" && (
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-900/50 p-6 sm:p-8">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                      Select Your Term
+                    </h3>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                      Choose which academic term this payment covers
+                    </p>
+                  </div>
+                  {selectedTerm && (
+                    <span className="text-xs text-blue-600 dark:text-blue-400 font-medium bg-blue-50 dark:bg-blue-950/30 px-2.5 py-1 rounded-full border border-blue-200 dark:border-blue-800">
+                      {selectedTerm.weeks} weeks
+                    </span>
+                  )}
+                </div>
+                <TermSelector
+                  terms={availableTerms}
+                  selectedId={selectedTermId}
+                  onSelect={setSelectedTermId}
+                  loading={termsLoading}
+                />
+              </div>
+            )}
 
             {/* What You'll Get */}
             <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-900/50 p-6 sm:p-8">
@@ -302,12 +513,38 @@ function CheckoutContent() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-slate-500 dark:text-slate-400">
-                      {planInfo.label_short} Plan ({billingInterval === "termly" ? "Termly" : "Yearly"})
+                      {planInfo.label_short} Plan
                     </span>
                     <span className="font-medium text-slate-700 dark:text-slate-300">
                       {formatPrice(price)}
                     </span>
                   </div>
+
+                  {/* Selected term line item */}
+                  {billingInterval === "termly" && selectedTerm && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                        <GraduationCap className="h-3.5 w-3.5" />
+                        {selectedTerm.name}
+                      </span>
+                      <span className="text-xs text-slate-400 dark:text-slate-500">
+                        {formatDateRange(selectedTerm.start_date, selectedTerm.end_date)}
+                      </span>
+                    </div>
+                  )}
+
+                  {billingInterval === "yearly" && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                        <Calendar className="h-3.5 w-3.5" />
+                        Yearly
+                      </span>
+                      <span className="text-xs text-slate-400 dark:text-slate-500">
+                        Full academic year
+                      </span>
+                    </div>
+                  )}
+
                   <div className="border-t border-slate-200 dark:border-slate-700 pt-3 flex items-center justify-between">
                     <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                       Total Due Today
@@ -334,7 +571,7 @@ function CheckoutContent() {
                 {/* CTA */}
                 <button
                   onClick={handleProceedToPayment}
-                  disabled={processing || !planKey}
+                  disabled={processing || !planKey || (billingInterval === "termly" && !selectedTermId)}
                   className={`
                     w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-sm font-semibold
                     text-white shadow-lg transition-all duration-200

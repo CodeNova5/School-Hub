@@ -49,6 +49,7 @@ import { useNotificationSetup } from '@/hooks/use-notification-setup';
 import { useSchoolContext } from '@/hooks/use-school-context';
 import { supabase } from '@/lib/supabase';
 import { SubscriptionGraceBanner } from '@/components/subscription-grace-banner';
+import { SubscriptionTermBanner } from '@/components/subscription-term-banner';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
@@ -252,6 +253,9 @@ export default function AdminDashboard() {
       <div className="space-y-8">
         {/* Grace Period Banner */}
         <SubscriptionGraceBanner />
+
+        {/* Pre-Term Payment Reminder */}
+        <SubscriptionTermBanner />
 
         {/* Header Section */}
         <div className="flex items-center justify-between">

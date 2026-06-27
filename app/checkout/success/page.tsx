@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle, ChevronRight, Sparkles, Shield } from "lucide-react";
+import { CheckCircle, ChevronRight, Sparkles, GraduationCap, Calendar } from "lucide-react";
 
 function SuccessSkeleton() {
   return (
@@ -24,6 +24,7 @@ function SuccessContent() {
 
   const planKey = searchParams.get("plan") || "basic";
   const interval = searchParams.get("interval") || "termly";
+  const termName = searchParams.get("termName");
 
   useEffect(() => {
     const timer = setTimeout(() => setMounted(true), 80);
@@ -33,6 +34,8 @@ function SuccessContent() {
   const animClass = mounted
     ? "opacity-100 translate-y-0"
     : "opacity-0 translate-y-6";
+
+  const planLabel = planKey.charAt(0).toUpperCase() + planKey.slice(1);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-green-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 flex items-center justify-center p-6">
@@ -49,10 +52,43 @@ function SuccessContent() {
               Payment Successful!
             </h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Your {planKey.charAt(0).toUpperCase() + planKey.slice(1)} plan has been activated with{" "}
-              {interval === "termly" ? "termly" : "yearly"} billing.
+              Your <span className="font-semibold text-slate-700 dark:text-slate-300">{planLabel}</span> plan has
+              been activated with {interval === "termly" ? "termly" : "yearly"} billing.
             </p>
           </div>
+
+          {/* Term info */}
+          {interval === "termly" && termName && (
+            <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 flex items-center gap-3 text-left">
+              <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/50 shrink-0">
+                <GraduationCap className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-blue-500 dark:text-blue-400 uppercase tracking-wider">
+                  Covered Term
+                </p>
+                <p className="text-sm font-semibold text-blue-900 dark:text-blue-200 truncate">
+                  {termName}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {interval === "yearly" && (
+            <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 flex items-center gap-3 text-left">
+              <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/50 shrink-0">
+                <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-blue-500 dark:text-blue-400 uppercase tracking-wider">
+                  Billing Period
+                </p>
+                <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">
+                  Full academic year
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Benefits */}
           <div className="p-4 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-left space-y-2">
@@ -60,7 +96,9 @@ function SuccessContent() {
               "All features are now unlocked",
               "Access to premium tools and integrations",
               "Priority support available",
-              "Next billing will be processed automatically",
+              interval === "termly"
+                ? "Next term payment will be due before the next term starts"
+                : "Next billing will be processed in one year",
             ].map((item, i) => (
               <div key={i} className="flex items-start gap-2 text-sm text-green-700 dark:text-green-300">
                 <Sparkles className="h-4 w-4 mt-0.5 flex-shrink-0" />

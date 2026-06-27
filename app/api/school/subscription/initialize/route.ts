@@ -11,6 +11,7 @@ const supabaseAdmin = createClient(
 interface InitializePayload {
   planId: string;
   billingInterval: "termly" | "yearly";
+  termId?: string | null;
   callbackUrl?: string;
 }
 
@@ -35,7 +36,7 @@ function generateReference(): string {
 // Initializes a Paystack transaction for a school subscription purchase.
 // On success, creates a pending transaction and returns the authorization URL.
 //
-// Body: { planId, billingInterval, callbackUrl? }
+// Body: { planId, billingInterval, termId?, callbackUrl? }
 // ---------------------------------------------------------------------------
 export async function POST(req: NextRequest) {
   const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
@@ -86,6 +87,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Validate termId for termly billing
+  if (body.billingInterval === "termly" && !body.termId) {
+    return NextResponse.json(
+      { error: "termId is required for termly billing" },
+      { status: 400 }
+    );
+  }
+
   // Accept plan_key (e.g., "pro") instead of UUID for convenience
   // plan_key is UNIQUE so this is safe
   const { data: plan, error: planError } = await supabaseAdmin
@@ -115,7 +124,7 @@ export async function POST(req: NextRequest) {
   // The checkout page will then navigate to /checkout/success on success.
   const callbackUrl =
     body.callbackUrl ||
-    `${req.nextUrl.origin}/checkout?reference=${reference}&plan=${body.planId}&interval=${body.billingInterval}`;
+    `${req.nextUrl.origin}/checkout?reference=${reference}&plan=${body.planId}&interval=${body.billingInterval}${body.termId ? `&termId=${body.termId}` : ""}`;
 
   // Create or retrieve Paystack customer
   // First, try to find existing customer by email
@@ -166,6 +175,7 @@ export async function POST(req: NextRequest) {
       plan_key: plan.plan_key,
       billing_interval: body.billingInterval,
       type: "subscription",
+      ...(body.termId ? { selected_term_id: body.termId } : {}),
     },
   };
 
@@ -207,6 +217,7 @@ export async function POST(req: NextRequest) {
       metadata: {
         authorization_url: paystackData.data.authorization_url,
         access_code: paystackData.data.access_code,
+        ...(body.termId ? { selected_term_id: body.termId } : {}),
       },
       created_by: user.id,
     });

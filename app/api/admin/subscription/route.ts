@@ -100,15 +100,6 @@ export async function GET(_req: NextRequest) {
       if (term) {
         const ms = new Date(term.end_date).getTime() - new Date(term.start_date).getTime();
         const weeks = Math.round(ms / (1000 * 60 * 60 * 24 * 7));
-        currentTerm = {
-          id: term.id,
-          name: term.name,
-          session_name: (term as any).sessions?.name || "",
-          start_date: term.start_date,
-          end_date: term.end_date,
-          is_current: term.is_current,
-          weeks,
-        };
 
         // Fetch the next term after the current one (for holiday break detection)
         const { data: nextTermData } = await supabaseAdmin
@@ -127,9 +118,18 @@ export async function GET(_req: NextRequest) {
           .limit(1)
           .maybeSingle();
 
+        let nextTermValue: {
+          id: string;
+          name: string;
+          session_name: string;
+          start_date: string;
+          end_date: string;
+          weeks: number;
+        } | null = null;
+
         if (nextTermData) {
           const nextMs = new Date(nextTermData.end_date).getTime() - new Date(nextTermData.start_date).getTime();
-          currentTerm.next_term = {
+          nextTermValue = {
             id: nextTermData.id,
             name: nextTermData.name,
             session_name: (nextTermData as any).sessions?.name || "",
@@ -138,6 +138,17 @@ export async function GET(_req: NextRequest) {
             weeks: Math.round(nextMs / (1000 * 60 * 60 * 24 * 7)),
           };
         }
+
+        currentTerm = {
+          id: term.id,
+          name: term.name,
+          session_name: (term as any).sessions?.name || "",
+          start_date: term.start_date,
+          end_date: term.end_date,
+          is_current: term.is_current,
+          weeks,
+          next_term: nextTermValue,
+        };
       }
     }
 

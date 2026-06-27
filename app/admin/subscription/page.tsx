@@ -29,6 +29,7 @@ import {
   ArrowRight,
   Download,
   RefreshCw,
+  X,
   CheckCircle2,
   XCircle,
   HelpCircle,
@@ -283,6 +284,7 @@ export default function AdminSubscriptionPage() {
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [holidayDismissed, setHolidayDismissed] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -429,7 +431,7 @@ export default function AdminSubscriptionPage() {
         )}
 
         {/* Holiday Break Banner */}
-        {isHolidayBreak && current_term?.next_term && (
+        {isHolidayBreak && !holidayDismissed && current_term?.next_term && (
           <Card className="border-teal-200 bg-gradient-to-r from-teal-50 to-emerald-50">
             <CardContent className="p-4 flex items-start gap-4">
               <div className="flex-shrink-0 mt-0.5">
@@ -446,6 +448,14 @@ export default function AdminSubscriptionPage() {
                       has ended. Your school is currently on break — all features remain available.
                     </p>
                   </div>
+                  {/* Dismiss */}
+                  <button
+                    onClick={() => setHolidayDismissed(true)}
+                    className="flex-shrink-0 p-1 rounded-md text-teal-400 hover:text-teal-600 hover:bg-teal-100 transition-colors"
+                    aria-label="Dismiss banner"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 </div>
 
                 {/* Next term info */}

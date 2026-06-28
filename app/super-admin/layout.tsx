@@ -14,6 +14,7 @@ import {
   X,
   UserCog,
   DollarSign,
+  Gift,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
@@ -21,6 +22,7 @@ import { supabase } from "@/lib/supabase";
 const navItems = [
   { href: "/super-admin", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
   { href: "/super-admin/schools", label: "Schools", icon: <School className="h-5 w-5" /> },
+  { href: "/super-admin/grants", label: "Grants", icon: <Gift className="h-5 w-5" /> },
   { href: "/super-admin/admins", label: "Admins", icon: <UserCog className="h-5 w-5" /> },
   { href: "/super-admin/subscription", label: "Subscription", icon: <DollarSign className="h-5 w-5" /> },
 ];

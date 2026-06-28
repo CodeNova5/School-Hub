@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS school_plan_grants (
   plan_key          text NOT NULL CHECK (plan_key IN ('pro', 'premium')),
   grant_type        text NOT NULL CHECK (grant_type IN ('term', 'session', 'custom')),
   term_id           uuid REFERENCES terms(id) ON DELETE SET NULL,
-  session_id        uuid REFERENCES sessions_start_dates(id) ON DELETE SET NULL,
+  session_id        uuid REFERENCES sessions(id) ON DELETE SET NULL,
   start_date        date NOT NULL,
   end_date          date NOT NULL,
   include_holidays  boolean NOT NULL DEFAULT true,
@@ -235,7 +235,7 @@ AS $$
   FROM school_plan_grants g
   JOIN schools s ON s.id = g.school_id
   LEFT JOIN terms t ON t.id = g.term_id
-  LEFT JOIN sessions_start_dates sess ON sess.id = g.session_id
+  LEFT JOIN sessions sess ON sess.id = g.session_id
   WHERE (p_school_id IS NULL OR g.school_id = p_school_id)
     AND (p_active_only = false OR g.is_active = true)
   ORDER BY g.created_at DESC;

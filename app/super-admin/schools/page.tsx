@@ -34,7 +34,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
 import {
   Plus,
   Search,
@@ -48,6 +50,7 @@ import {
   Trash2,
   Shield,
   Zap,
+  Gift,
 } from "lucide-react";
 import type { School as SchoolType, SchoolPlan } from "@/lib/types";
 import { usePlanDisplayInfo, PLAN_KEYS_IN_ORDER } from "@/hooks/use-plan-display-info";
@@ -61,6 +64,7 @@ const emptyForm = { name: "", subdomain: "", address: "", phone: "", email: "", 
 
 export default function SchoolsManagementPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const { getPlanInfo, isLoading: plansLoading } = usePlanDisplayInfo();
   const [schools, setSchools] = useState<SchoolWithStats[]>([]);
   const [loading, setLoading] = useState(true);
@@ -266,10 +270,18 @@ export default function SchoolsManagementPage() {
             {schools.length} school{schools.length !== 1 ? "s" : ""} registered
           </p>
         </div>
-        <Button onClick={openCreateDialog} className="bg-purple-600 hover:bg-purple-700">
-          <Plus className="h-4 w-4 mr-2" />
-          Add School
-        </Button>
+        <div className="flex gap-2">
+          <Link href="/super-admin/grants">
+            <Button variant="outline" className="border-purple-200 text-purple-600 hover:bg-purple-50 dark:border-purple-800 dark:hover:bg-purple-950">
+              <Gift className="h-4 w-4 mr-2" />
+              Grant Plan
+            </Button>
+          </Link>
+          <Button onClick={openCreateDialog} className="bg-purple-600 hover:bg-purple-700">
+            <Plus className="h-4 w-4 mr-2" />
+            Add School
+          </Button>
+        </div>
       </div>
 
       {/* Search */}

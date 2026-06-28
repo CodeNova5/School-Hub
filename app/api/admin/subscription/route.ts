@@ -80,6 +80,19 @@ export async function GET(_req: NextRequest) {
     // Normalize subscription (RPC returns array for TABLE returns)
     const normalizedSub = Array.isArray(subscription) ? subscription[0] : subscription;
 
+    // ── Helper to format a term row ──
+    const formatTerm = (t: any) => {
+      const ms = new Date(t.end_date).getTime() - new Date(t.start_date).getTime();
+      return {
+        id: t.id,
+        name: t.name,
+        session_name: (t as any).sessions?.name || "",
+        start_date: t.start_date,
+        end_date: t.end_date,
+        weeks: Math.round(ms / (1000 * 60 * 60 * 24 * 7)),
+      };
+    };
+
     // Fetch current term details if subscription has a current_term_id
     let currentTerm = null;
     if (normalizedSub?.current_term_id) {
@@ -98,9 +111,6 @@ export async function GET(_req: NextRequest) {
         .maybeSingle();
 
       if (term) {
-        const ms = new Date(term.end_date).getTime() - new Date(term.start_date).getTime();
-        const weeks = Math.round(ms / (1000 * 60 * 60 * 24 * 7));
-
         // Fetch the next term after the current one (for holiday break detection)
         const { data: nextTermData } = await supabaseAdmin
           .from("terms")
@@ -118,36 +128,10 @@ export async function GET(_req: NextRequest) {
           .limit(1)
           .maybeSingle();
 
-        let nextTermValue: {
-          id: string;
-          name: string;
-          session_name: string;
-          start_date: string;
-          end_date: string;
-          weeks: number;
-        } | null = null;
-
-        if (nextTermData) {
-          const nextMs = new Date(nextTermData.end_date).getTime() - new Date(nextTermData.start_date).getTime();
-          nextTermValue = {
-            id: nextTermData.id,
-            name: nextTermData.name,
-            session_name: (nextTermData as any).sessions?.name || "",
-            start_date: nextTermData.start_date,
-            end_date: nextTermData.end_date,
-            weeks: Math.round(nextMs / (1000 * 60 * 60 * 24 * 7)),
-          };
-        }
-
         currentTerm = {
-          id: term.id,
-          name: term.name,
-          session_name: (term as any).sessions?.name || "",
-          start_date: term.start_date,
-          end_date: term.end_date,
+          ...formatTerm(term),
           is_current: term.is_current,
-          weeks,
-          next_term: nextTermValue,
+          next_term: nextTermData ? formatTerm(nextTermData) : null,
         };
       }
     }
@@ -155,14 +139,7 @@ export async function GET(_req: NextRequest) {
     // ── Fetch yearly covered terms ──
     // For yearly subscriptions, show the chain of covered terms
     // by looking back from current_term_id to find all 3 terms
-    let yearlyCoveredTerms: {
-      id: string;
-      name: string;
-      session_name: string;
-      start_date: string;
-      end_date: string;
-      weeks: number;
-    }[] | null = null;
+    let yearlyCoveredTerms: ReturnType<typeof formatTerm>[] | null = null;
 
     if (normalizedSub?.billing_interval === "yearly" && normalizedSub?.current_term_id) {
       // Start from current_term_id (last covered term) and go back 2 more
@@ -188,20 +165,38 @@ export async function GET(_req: NextRequest) {
           .order("start_date", { ascending: true });
 
         if (coveredTerms && coveredTerms.length > 0) {
-          // Take the last 3 (or fewer if not enough)
           const lastTerms = coveredTerms.slice(-3);
-          yearlyCoveredTerms = lastTerms.map((t: any) => {
-            const tMs = new Date(t.end_date).getTime() - new Date(t.start_date).getTime();
-            return {
-              id: t.id,
-              name: t.name,
-              session_name: (t as any).sessions?.name || "",
-              start_date: t.start_date,
-              end_date: t.end_date,
-              weeks: Math.round(tMs / (1000 * 60 * 60 * 24 * 7)),
-            };
-          });
+          yearlyCoveredTerms = lastTerms.map(formatTerm);
         }
+      }
+    }
+
+    // ── Fetch upcoming terms (for pay-in-advance) ──
+    // Terms that start after the current covered period
+    let upcomingTerms: ReturnType<typeof formatTerm>[] | null = null;
+
+    const coveredPeriodEnd = normalizedSub?.billing_interval === "yearly" && yearlyCoveredTerms
+      ? yearlyCoveredTerms[yearlyCoveredTerms.length - 1].end_date
+      : currentTerm?.end_date;
+
+    if (coveredPeriodEnd) {
+      const { data: upcoming } = await supabaseAdmin
+        .from("terms")
+        .select(`
+          id,
+          name,
+          start_date,
+          end_date,
+          session_id,
+          sessions!inner(name)
+        `)
+        .eq("school_id", schoolId)
+        .gt("start_date", coveredPeriodEnd)
+        .order("start_date", { ascending: true })
+        .limit(6);
+
+      if (upcoming && upcoming.length > 0) {
+        upcomingTerms = upcoming.map(formatTerm);
       }
     }
 
@@ -213,6 +208,7 @@ export async function GET(_req: NextRequest) {
       status: statusResult ?? null,
       current_term: currentTerm,
       yearly_covered_terms: yearlyCoveredTerms,
+      upcoming_terms: upcomingTerms,
     });
   } catch (err: any) {
     console.error("Admin subscription API error:", err);

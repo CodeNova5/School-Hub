@@ -69,10 +69,41 @@ function SubscriptionPageContent() {
   const [billingInterval, setBillingInterval] = useState<"termly" | "yearly">("termly");
   const [mounted, setMounted] = useState(false);
 
+  // ── School's actual current plan from DB ──
+  const [actualPlan, setActualPlan] = useState<string | null>(null);
+  const [actualPlanLoading, setActualPlanLoading] = useState(true);
+
   // ── Query params from upgrade flow ──
   const featureKey = searchParams.get("feature");
-  const currentPlan = searchParams.get("plan");
+  const currentPlanParam = searchParams.get("plan");
   const returnPath = searchParams.get("from");
+
+  // ── Fetch school's actual current plan ──
+  useEffect(() => {
+    let cancelled = false;
+    setActualPlanLoading(true);
+    fetch("/api/admin/subscription")
+      .then((res) => {
+        if (!res.ok) throw new Error("Not available");
+        return res.json();
+      })
+      .then((data) => {
+        if (!cancelled) {
+          setActualPlan(data.school?.plan || data.subscription?.plan_key || null);
+        }
+      })
+      .catch(() => {
+        // Non-admin users can't access this endpoint — silently fall back to URL param
+      })
+      .finally(() => {
+        if (!cancelled) setActualPlanLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  // ── Resolve the effective current plan ──
+  // URL param takes priority (for upgrade flow), then DB data
+  const effectivePlan = currentPlanParam || actualPlan;
 
   // ── Animate in ──
   useEffect(() => {
@@ -143,16 +174,20 @@ function SubscriptionPageContent() {
             Choose Your Plan
           </h1>
           <p className="mt-3 text-sm sm:text-base text-slate-500 dark:text-slate-400 max-w-xl mx-auto leading-relaxed">
-            {featureKey && currentPlan
+            {featureKey && currentPlanParam
               ? `Upgrade your plan to unlock ${featureMetadata?.[featureKey]?.label ?? "this feature"}. Pick the tier that fits your school.`
               : "Pick the plan that fits your school. Upgrade or downgrade anytime."}
           </p>
 
-          {currentPlan && (
+          {/* Current Plan indicator — either from URL param (upgrade flow) or from DB */}
+          {effectivePlan && !actualPlanLoading && (
             <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100 dark:bg-slate-800 text-sm text-slate-600 dark:text-slate-300">
               <Shield className="h-4 w-4" />
-              Current plan:{" "}
-              <span className="font-semibold">{getPlanInfo(currentPlan).label_short}</span>
+              {currentPlanParam ? (
+                <>Current plan: <span className="font-semibold">{getPlanInfo(effectivePlan).label_short}</span></>
+              ) : (
+                <>You're on the <span className="font-semibold">{getPlanInfo(effectivePlan).label_short}</span> plan</>
+              )}
             </div>
           )}
 
@@ -193,7 +228,7 @@ function SubscriptionPageContent() {
         <div className={`grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8 transition-all duration-500 delay-100 ease-out ${animClass}`}>
           {PLAN_KEYS_IN_ORDER.map((key, index) => {
             const info = getPlanInfo(key);
-            const isCurrentPlan = currentPlan === key;
+            const isCurrentPlan = (currentPlanParam || effectivePlan) === key;
             const price = billingInterval === "termly" ? (info.termly_price || info.monthly_price * 3) : info.yearly_price;
 
             return (

@@ -130,6 +130,15 @@ interface YearlyCoveredTerm {
   weeks: number;
 }
 
+interface UpcomingTerm {
+  id: string;
+  name: string;
+  session_name: string;
+  start_date: string;
+  end_date: string;
+  weeks: number;
+}
+
 interface ApiResponse {
   subscription: Subscription | null;
   school: School | null;
@@ -138,6 +147,7 @@ interface ApiResponse {
   status: StatusResult | null;
   current_term: CurrentTermInfo | null;
   yearly_covered_terms: YearlyCoveredTerm[] | null;
+  upcoming_terms: UpcomingTerm[] | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -246,6 +256,42 @@ function getPlanColor(planKey: string): string {
   }
 }
 
+// ── Term Progress Bar ─────────────────────────────────────────────────────
+
+function TermProgressBar({ startDate, endDate }: { startDate: string; endDate: string }) {
+  const start = new Date(startDate).getTime();
+  const end = new Date(endDate).getTime();
+  const now = Date.now();
+  const total = end - start;
+  const elapsed = now - start;
+  const pct = total > 0 ? Math.min(100, Math.max(0, Math.round((elapsed / total) * 100))) : 0;
+  const remainingMs = end - now;
+  const remainingDays = Math.ceil(remainingMs / (1000 * 60 * 60 * 24));
+  const isPast = now > end;
+  const isFuture = now < start;
+
+  return (
+    <div className="mt-2">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[10px] font-medium text-gray-500">
+          {isPast ? 'Completed' : isFuture ? 'Not started' : `${pct}% complete`}
+        </span>
+        {!isPast && !isFuture && remainingDays > 0 && (
+          <span className="text-[10px] text-gray-400">{remainingDays}d remaining</span>
+        )}
+      </div>
+      <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${
+            isPast ? 'bg-emerald-400' : pct > 75 ? 'bg-emerald-500' : pct > 50 ? 'bg-blue-500' : pct > 25 ? 'bg-blue-400' : 'bg-blue-300'
+          }`}
+          style={{ width: isPast ? '100%' : isFuture ? '0%' : `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ── Skeleton ──────────────────────────────────────────────────────────────
 
 function SubscriptionPageSkeleton() {
@@ -338,7 +384,7 @@ export default function AdminSubscriptionPage() {
     );
   }
 
-  const { subscription, school, plans, transactions, status, current_term, yearly_covered_terms } = data ?? {};
+  const { subscription, school, plans, transactions, status, current_term, yearly_covered_terms, upcoming_terms } = data ?? {};
   const currentPlanKey = subscription?.plan_key || school?.plan || "basic";
   const currentPlanInfo = getPlanInfo(currentPlanKey);
   const PlanIcon = getPlanIcon(currentPlanKey);
@@ -694,6 +740,194 @@ export default function AdminSubscriptionPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* ── Subscription Timeline (Pay in Advance) ── */}
+            {upcoming_terms && upcoming_terms.length > 0 && (
+              <Card className="shadow-lg">
+                <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-emerald-50 pb-6">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <Calendar className="h-5 w-5 text-emerald-600" />
+                      Subscription Timeline
+                    </CardTitle>
+                    <Badge variant="outline" className="text-emerald-700 border-emerald-300 bg-emerald-50">
+                      {upcoming_terms.length} upcoming
+                    </Badge>
+                  </div>
+                  <CardDescription>
+                    {subscription?.billing_interval === "yearly"
+                      ? "Your yearly subscription covers 3 consecutive terms. Pre-pay for the next academic year in advance."
+                      : "Your current subscription covers one term at a time. Pre-pay for upcoming terms in advance."}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <div className="space-y-0">
+                    {/* ── Paid terms ── */}
+                    {subscription?.billing_interval === "yearly" && yearly_covered_terms ? (
+                      /* Yearly: show all 3 covered terms as paid */
+                      yearly_covered_terms.map((ct, idx) => (
+                        <div key={ct.id} className="relative pb-6 pl-8 border-l-2 border-emerald-300 last:border-l-2">
+                          <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white shadow-sm" />
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-sm font-semibold text-gray-900">{ct.name}</p>
+                                <span className="text-xs text-gray-400">·</span>
+                                <span className="text-xs text-gray-500">{ct.session_name}</span>
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${idx === 0 ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : idx === yearly_covered_terms.length - 1 ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-emerald-100 text-emerald-700 border-emerald-200'}`}>
+                                  {idx === yearly_covered_terms.length - 1 ? (
+                                    <><Calendar className="h-2.5 w-2.5" /> Current</>
+                                  ) : (
+                                    <><CheckCircle2 className="h-2.5 w-2.5" /> Paid</>
+                                  )}
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                {new Date(ct.start_date).toLocaleDateString("en-NG", { day: "numeric", month: "short" })} – {new Date(ct.end_date).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}
+                              </p>
+                            </div>
+                            <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full shrink-0 border border-emerald-200">
+                              <Clock className="h-2.5 w-2.5" />
+                              {ct.weeks}wk
+                            </span>
+                          </div>
+                          {/* Progress bar for this term */}
+                          <TermProgressBar startDate={ct.start_date} endDate={ct.end_date} />
+                          {idx < yearly_covered_terms.length - 1 && (
+                            <p className="text-[10px] text-emerald-600 mt-1.5 flex items-center gap-1">
+                              <CreditCard className="h-3 w-3" />
+                              Covered by yearly subscription
+                            </p>
+                          )}
+                          {idx === yearly_covered_terms.length - 1 && (
+                            <p className="text-[10px] text-blue-600 mt-1.5 flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              Currently in session — {formatDate(subscription?.next_billing_date)} renewal
+                            </p>
+                          )}
+                        </div>
+                      ))
+                    ) : current_term ? (
+                      /* Termly: show single covered term as paid */
+                      <div className="relative pb-6 pl-8 border-l-2 border-emerald-300 last:border-l-2">
+                        <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white shadow-sm" />
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-semibold text-gray-900">{current_term.name}</p>
+                              <span className="text-xs text-gray-400">·</span>
+                              <span className="text-xs text-gray-500">{current_term.session_name}</span>
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                <CheckCircle2 className="h-2.5 w-2.5" />
+                                Paid
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              {new Date(current_term.start_date).toLocaleDateString("en-NG", { day: "numeric", month: "short" })} – {new Date(current_term.end_date).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}
+                            </p>
+                          </div>
+                          <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full shrink-0 border border-emerald-200">
+                            <Clock className="h-2.5 w-2.5" />
+                            {current_term.weeks}wk
+                          </span>
+                        </div>
+                        {/* Progress bar */}
+                        <TermProgressBar startDate={current_term.start_date} endDate={current_term.end_date} />
+                        <p className="text-[10px] text-emerald-600 mt-1.5 flex items-center gap-1">
+                          <CreditCard className="h-3 w-3" />
+                          Paid — covered by current subscription
+                        </p>
+                      </div>
+                    ) : null}
+
+                    {/* ── Upcoming terms (pay in advance) ── */}
+                    {upcoming_terms.map((term, idx) => {
+                      const daysUntilStart = Math.ceil(
+                        (new Date(term.start_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+                      );
+                      const isYearly = subscription?.billing_interval === "yearly";
+                      // For yearly, group upcoming terms into batches of 3 (one academic year)
+                      const batchIndex = Math.floor(idx / 3);
+                      const inBatch = idx % 3;
+                      const isFirstInBatch = inBatch === 0;
+                      return (
+                        <div key={term.id} className={`relative pb-6 pl-8 border-l-2 border-slate-200 last:border-l-2 last:pb-0 ${isFirstInBatch && isYearly && batchIndex > 0 ? 'mt-4 pt-2' : ''}`}>
+                          <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-slate-300 border-2 border-white" />
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-sm font-semibold text-gray-900">{term.name}</p>
+                                <span className="text-xs text-gray-400">·</span>
+                                <span className="text-xs text-gray-500">{term.session_name}</span>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                                  Term {inBatch + 1} of 3
+                                </span>
+                                {daysUntilStart > 0 && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">
+                                    Starts in {daysUntilStart}d
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                {new Date(term.start_date).toLocaleDateString("en-NG", { day: "numeric", month: "short" })} – {new Date(term.end_date).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}
+                              </p>
+                            </div>
+                            <span className="flex items-center gap-1 text-[10px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full shrink-0">
+                              <Clock className="h-2.5 w-2.5" />
+                              {term.weeks}wk
+                            </span>
+                          </div>
+                          {/* Show a yearly batch header + pay button on the first term of each batch */}
+                          {isFirstInBatch && isYearly ? (
+                            <div className="mt-3 p-3 rounded-lg border border-dashed border-purple-200 bg-purple-50">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-xs font-semibold text-purple-800">
+                                    Academic Year {batchIndex + 1}
+                                  </p>
+                                  <p className="text-[10px] text-purple-600 mt-0.5">
+                                    Covers 3 terms — same plan, renewed annually
+                                  </p>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  className="bg-purple-600 hover:bg-purple-700 text-white shadow-sm shrink-0"
+                                  onClick={() =>
+                                    router.push(
+                                      `/checkout?plan=${currentPlanKey}&interval=yearly&termId=${term.id}`
+                                    )
+                                  }
+                                >
+                                  <CreditCard className="h-3.5 w-3.5 mr-1.5" />
+                                  Pre-pay Year {batchIndex + 1} — {formatPrice(subscription?.yearly_price || 0)}
+                                  <ArrowRight className="h-3 w-3 ml-1" />
+                                </Button>
+                              </div>
+                            </div>
+                          ) : !isYearly ? (
+                            <div className="mt-2">
+                              <Button
+                                size="sm"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                                onClick={() =>
+                                  router.push(
+                                    `/checkout?plan=${currentPlanKey}&interval=termly&termId=${term.id}`
+                                  )
+                                }
+                              >
+                                <CreditCard className="h-3.5 w-3.5 mr-1.5" />
+                                Pay in Advance — {formatPrice(subscription?.termly_price || 0)}
+                                <ArrowRight className="h-3 w-3 ml-1" />
+                              </Button>
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Billing History */}
             <Card className="shadow-lg">

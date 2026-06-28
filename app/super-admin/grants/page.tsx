@@ -268,18 +268,33 @@ export default function GrantsManagementPage() {
   function setGrantForm(partial: Partial<typeof emptyForm>) {
     const updated = { ...form, ...partial };
 
+    // Reset dependent fields
+    if ("school_id" in partial) {
+      updated.term_id = "";
+    }
+    if ("grant_type" in partial) {
+      updated.term_id = "";
+      updated.session_id = "";
+    }
+
     // Auto-fill dates based on grant type
-    if (partial.grant_type === "term" && partial.term_id) {
-      const term = terms.find((t) => t.id === partial.term_id);
+    if (updated.grant_type === "term") {
+      const term = terms.find((t) => t.id === updated.term_id);
       if (term) {
         updated.start_date = term.start_date;
         updated.end_date = term.end_date;
+      } else {
+        updated.start_date = "";
+        updated.end_date = "";
       }
-    } else if (partial.grant_type === "session" && partial.session_id) {
-      const session = sessions.find((s) => s.id === partial.session_id);
+    } else if (updated.grant_type === "session") {
+      const session = sessions.find((s) => s.id === updated.session_id);
       if (session) {
         updated.start_date = session.start_date.split("T")[0];
         updated.end_date = session.end_date.split("T")[0];
+      } else {
+        updated.start_date = "";
+        updated.end_date = "";
       }
     }
 

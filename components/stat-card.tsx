@@ -7,11 +7,15 @@ interface StatCardProps {
   icon: LucideIcon;
   trend?: string;
   trendUp?: boolean;
+  onClick?: () => void;
 }
 
-export function StatCard({ title, value, icon: Icon, trend, trendUp }: StatCardProps) {
+export function StatCard({ title, value, icon: Icon, trend, trendUp, onClick }: StatCardProps) {
   return (
-    <Card>
+    <Card
+      className={onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}
+      onClick={onClick}
+    >
       <CardContent className="p-6">
         <div className="flex items-center justify-between">
           <div>

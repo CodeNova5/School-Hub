@@ -165,8 +165,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         p_end_date: body.end_date,
         p_include_holidays: body.include_holidays ?? true,
         p_notes: body.notes?.trim() ?? "",
-        p_term_id: body.term_id ?? null,
-        p_session_id: body.session_id ?? null,
+        p_term_id: body.term_id || null,
+        p_session_id: body.session_id || null,
         p_granted_by: guard.user?.id,
         p_granted_by_name: grantorName,
       }

@@ -3,7 +3,7 @@
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Edit, Trash2, AlertCircle, Calendar, ChevronRight, Copy, CheckCircle2, Clock, BookOpen, GraduationCap } from 'lucide-react';
+import { Plus, Edit, Trash2, AlertCircle, Calendar, ChevronRight, Copy, CheckCircle2, Clock, BookOpen, GraduationCap, Sparkles } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSchoolContext } from '@/hooks/use-school-context';
@@ -20,6 +20,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { SessionsSkeleton } from '@/components/skeletons';
+import { shiftDateByOneAcademicYear, getNextSessionName } from './utils/term-dates';
 
 // ─── Nigerian academic calendar defaults ───────────────────────────────────
 // Based on typical private school term patterns in Nigeria
@@ -329,6 +330,107 @@ function CreateSessionDialog({
   );
 }
 
+// ─── Rollover Confirmation Dialog ──────────────────────────────────────
+type RolloverPreviewTerm = { name: string; start: string; end: string };
+type RolloverPreviewItem = {
+  sessionName: string;
+  exists: boolean;
+  terms: RolloverPreviewTerm[];
+};
+
+type RolloverConfirmDialogProps = {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  preview: RolloverPreviewItem[] | null;
+  onConfirm: () => void;
+  isLoading: boolean;
+};
+
+function RolloverConfirmDialog({ open, onOpenChange, preview, onConfirm, isLoading }: RolloverConfirmDialogProps) {
+  const createdCount = preview?.filter(p => !p.exists).length ?? 0;
+  const skippedCount = preview?.filter(p => p.exists).length ?? 0;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto max-w-xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-blue-600" />
+            Generate Academic Sessions
+          </DialogTitle>
+          <p className="text-sm text-gray-500 mt-1">
+            The following sessions will be created using the 52-week rollover from the most recent session.
+          </p>
+        </DialogHeader>
+
+        {preview && preview.length > 0 && (
+          <div className="space-y-3 mt-2">
+            {/* Summary badge */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {createdCount > 0 && (
+                <span className="text-xs bg-green-50 text-green-700 border border-green-200 rounded-full px-2.5 py-0.5">
+                  {createdCount} to create
+                </span>
+              )}
+              {skippedCount > 0 && (
+                <span className="text-xs bg-gray-50 text-gray-500 border border-gray-200 rounded-full px-2.5 py-0.5">
+                  {skippedCount} already exist
+                </span>
+              )}
+            </div>
+
+            {/* Preview rows */}
+            {preview.map((item, i) => (
+              <div
+                key={item.sessionName}
+                className={`rounded-lg border p-3 ${item.exists ? 'bg-gray-50 border-gray-200 opacity-70' : 'bg-white border-blue-100'}`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-sm">{item.sessionName}</p>
+                    {item.exists ? (
+                      <Badge variant="outline" className="text-xs text-gray-400 border-gray-200">Exists</Badge>
+                    ) : (
+                      <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-xs">New</Badge>
+                    )}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  {item.terms.map(t => (
+                    <div key={t.name} className="flex items-center gap-2 text-xs text-gray-500">
+                      <span className="w-20 shrink-0 font-medium">{t.name}</span>
+                      <span>{formatDateLong(t.start)}</span>
+                      <span className="text-gray-300">—</span>
+                      <span>{formatDateLong(t.end)}</span>
+                      <DurationChip weeks={getWeeksBetween(t.start, t.end)} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
+            Cancel
+          </Button>
+          <Button onClick={onConfirm} disabled={isLoading || createdCount === 0}>
+            {isLoading ? (
+              <span className="flex items-center gap-2">
+                <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                Creating…
+              </span>
+            ) : (
+              <>Create {createdCount} Session{createdCount !== 1 ? 's' : ''}</>
+            )}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Term Card ────────────────────────────────────────────────────────────
 type TermCardProps = {
   term: Term;
@@ -443,6 +545,13 @@ export default function SessionsPage() {
   const [editingTerm, setEditingTerm] = useState<Term | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rolloverCount, setRolloverCount] = useState(1);
+  const [isRolloverConfirmOpen, setIsRolloverConfirmOpen] = useState(false);
+  const [rolloverPreview, setRolloverPreview] = useState<{
+    sessionName: string;
+    exists: boolean;
+    terms: { name: string; start: string; end: string }[];
+  }[] | null>(null);
 
   useEffect(() => {
     if (schoolId) {
@@ -685,6 +794,142 @@ export default function SessionsPage() {
     }
   }
 
+  // ─── Rollover Confirmation ─────────────────────────────────────
+  function handleOpenRolloverConfirm() {
+    setError(null);
+
+    const sorted = [...sessions].sort((a, b) => b.name.localeCompare(a.name));
+    const lastSession = sorted[0];
+    if (!lastSession) {
+      setError('No previous session found. Use "New Session" to create the first one.');
+      return;
+    }
+
+    const lastTerms = terms
+      .filter(t => t.session_id === lastSession.id)
+      .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
+
+    if (lastTerms.length === 0) {
+      setError('The previous session has no terms to copy from.');
+      return;
+    }
+
+    const existingNames = new Set(sessions.map(s => s.name));
+    const preview = [];
+    let currentName: string = lastSession.name;
+
+    for (let i = 0; i < rolloverCount; i++) {
+      const nextName = getNextSessionName(currentName);
+      if (!nextName) break;
+      currentName = nextName;
+
+      const shifts = i + 1;
+      const shiftedTerms = lastTerms.map(t => ({
+        name: t.name,
+        start: shiftDateByOneAcademicYear(t.start_date, shifts),
+        end: shiftDateByOneAcademicYear(t.end_date, shifts),
+      }));
+
+      preview.push({
+        sessionName: nextName,
+        exists: existingNames.has(nextName),
+        terms: shiftedTerms,
+      });
+    }
+
+    setRolloverPreview(preview);
+    setIsRolloverConfirmOpen(true);
+  }
+
+  // ─── 52-Week Rollover ────────────────────────────────────────────
+  async function handleRolloverSession() {
+    setError(null);
+    try {
+      setIsLoading(true);
+
+      // Find the most recent session (by name)
+      const sorted = [...sessions].sort((a, b) => b.name.localeCompare(a.name));
+      const lastSession = sorted[0];
+      if (!lastSession) {
+        setError('No previous session found. Use "New Session" to create the first one.');
+        return;
+      }
+
+      // Find terms of the last session as the base template
+      const lastTerms = terms
+        .filter(t => t.session_id === lastSession.id)
+        .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
+
+      if (lastTerms.length === 0) {
+        setError('The previous session has no terms to copy from.');
+        return;
+      }
+
+      const created: string[] = [];
+      let currentName: string = lastSession.name;
+
+      for (let i = 0; i < rolloverCount; i++) {
+        const nextName = getNextSessionName(currentName);
+        if (!nextName) {
+          setError('Cannot determine the next session name from "' + currentName + '". Stopped after ' + created.length + ' created.');
+          return;
+        }
+        currentName = nextName;
+
+        // Check if it already exists
+        const { data: existing } = await supabase
+          .from('sessions').select('id').eq('school_id', schoolId).eq('name', nextName).limit(1);
+        if (existing && existing.length > 0) {
+          created.push(nextName + ' (skipped — exists)');
+          continue;
+        }
+
+        // Shift by (i + 1) academic years from the original base
+        const shifts = i + 1;
+        const shiftedTerms = lastTerms.map(t => ({
+          name: t.name,
+          start: shiftDateByOneAcademicYear(t.start_date, shifts),
+          end: shiftDateByOneAcademicYear(t.end_date, shifts),
+        }));
+
+        const t1Start = shiftedTerms[0].start;
+        const t3End = shiftedTerms[shiftedTerms.length - 1].end;
+
+        const { error: rpcError } = await supabase.rpc('create_session_with_terms', {
+          p_school: schoolId,
+          p_name: nextName,
+          p_start: t1Start,
+          p_end: t3End,
+          p_terms: shiftedTerms,
+        });
+
+        if (rpcError) {
+          const msg = rpcError.message || '';
+          if (msg.includes('session_overlap')) setError(`Session ${nextName} overlaps with an existing session.`);
+          else if (msg.includes('term_overlap')) setError(`Session ${nextName}: one or more terms overlap.`);
+          else setError(`Failed to create session ${nextName}: ` + rpcError.message);
+          return;
+        }
+
+        created.push(nextName);
+      }
+
+      setViewingSessionId('');
+      await fetchSessions();
+      await fetchTerms();
+
+      // Auto-select the farthest-out created session
+      const newestName = created.filter(n => !n.includes('skipped')).pop();
+      if (newestName) {
+        const { data: newSession } = await supabase
+          .from('sessions').select('id').eq('school_id', schoolId).eq('name', newestName).single();
+        if (newSession) setViewingSessionId(newSession.id);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   function isDateInTerm(term: Term) {
     const today = getCurrentDateStringWAT();
     return today >= term.start_date && today <= term.end_date;
@@ -801,10 +1046,33 @@ export default function SessionsPage() {
             onDismissError={() => setError(null)}
           />
           {/* Trigger button sits outside the Dialog component so header button remains simple */}
-          <Button onClick={() => setIsSessionDialogOpen(true)} disabled={isLoading}>
-            <Plus className="mr-2 h-4 w-4" />
-            New Session
-          </Button>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center">
+              <Button
+                onClick={handleOpenRolloverConfirm}
+                disabled={isLoading || sessions.length === 0}
+                variant="outline"
+                className="border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800 rounded-r-none border-r-0"
+              >
+                <Sparkles className="mr-2 h-4 w-4" />
+                Generate
+              </Button>
+              <select
+                value={rolloverCount}
+                onChange={e => setRolloverCount(Number(e.target.value))}
+                disabled={isLoading || sessions.length === 0}
+                className="h-10 px-2 border border-blue-200 bg-white text-sm text-blue-700 rounded-r-md outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 cursor-pointer"
+              >
+                <option value={1}>1 yr</option>
+                <option value={3}>3 yr</option>
+                <option value={5}>5 yr</option>
+              </select>
+            </div>
+            <Button onClick={() => setIsSessionDialogOpen(true)} disabled={isLoading}>
+              <Plus className="mr-2 h-4 w-4" />
+              New Session
+            </Button>
+          </div>
         </div>
 
         {/* ── Active term status strip ── */}
@@ -1080,6 +1348,18 @@ export default function SessionsPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <RolloverConfirmDialog
+        open={isRolloverConfirmOpen}
+        onOpenChange={v => { setIsRolloverConfirmOpen(v); if (!v) setRolloverPreview(null); }}
+        preview={rolloverPreview}
+        onConfirm={async () => {
+          setIsRolloverConfirmOpen(false);
+          setRolloverPreview(null);
+          await handleRolloverSession();
+        }}
+        isLoading={isLoading}
+      />
     </DashboardLayout>
   );
 }

@@ -8,7 +8,7 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-async function checkIsSuperAdmin(): Promise<{ ok: true; user: { id: string } } | { ok: false; status: number; error: string; user?: undefined }> {
+async function checkIsSuperAdmin() {
   const supabase = createRouteHandlerClient({ cookies });
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, status: 401, error: "Unauthorized" };
@@ -167,7 +167,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         p_notes: body.notes?.trim() ?? "",
         p_term_id: body.term_id ?? null,
         p_session_id: body.session_id ?? null,
-        p_granted_by: guard.user.id,
+        p_granted_by: guard.user?.id,
         p_granted_by_name: grantorName,
       }
     );

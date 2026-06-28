@@ -200,6 +200,78 @@ export async function GET(_req: NextRequest) {
       }
     }
 
+    // ── Fetch all terms grouped by session (for overview) ──
+    type TermWithStatus = ReturnType<typeof formatTerm> & {
+      is_current: boolean;
+      status: "paid" | "past" | "unpaid";
+    };
+
+    let termsBySession: { session_name: string; terms: TermWithStatus[] }[] = [];
+
+    const { data: allTerms } = await supabaseAdmin
+      .from("terms")
+      .select(`
+        id,
+        name,
+        start_date,
+        end_date,
+        is_current,
+        session_id,
+        sessions!inner(name)
+      `)
+      .eq("school_id", schoolId)
+      .order("start_date", { ascending: true });
+
+    // Build a set of covered term IDs for quick lookup
+    const coveredTermIds = new Set<string>();
+    if (currentTerm) coveredTermIds.add(currentTerm.id);
+    if (yearlyCoveredTerms) yearlyCoveredTerms.forEach((t) => coveredTermIds.add(t.id));
+
+    // Also build a set of upcoming term IDs
+    const upcomingTermIds = new Set<string>();
+    if (upcomingTerms) upcomingTerms.forEach((t) => upcomingTermIds.add(t.id));
+
+    const now = new Date();
+
+    if (allTerms) {
+      const grouped = new Map<string, TermWithStatus[]>();
+
+      for (const t of allTerms) {
+        const termEnd = new Date(t.end_date);
+        let status: "paid" | "past" | "unpaid";
+
+        if (coveredTermIds.has(t.id)) {
+          status = "paid";
+        } else if (upcomingTermIds.has(t.id)) {
+          status = "unpaid";
+        } else if (termEnd < now) {
+          // Past term — not in current coverage.
+          // Subscription must have been active sometime for us to assume it was paid.
+          // If there's a subscription record, assume it was covered.
+          status = normalizedSub ? "past" : "unpaid";
+        } else {
+          status = "unpaid";
+        }
+
+        const formatted = formatTerm(t);
+        const sessionName = (t as any).sessions?.name || "Unknown Session";
+
+        if (!grouped.has(sessionName)) {
+          grouped.set(sessionName, []);
+        }
+        grouped.get(sessionName)!.push({ ...formatted, is_current: t.is_current, status });
+      }
+
+      // Sort sessions by the first term's start_date descending (most recent first)
+      termsBySession = Array.from(grouped.entries())
+        .map(([sessionName, terms]) => ({ session_name: sessionName, terms }))
+        .sort((a, b) => {
+          const aStart = new Date(a.terms[0].start_date).getTime();
+          const bStart = new Date(b.terms[0].start_date).getTime();
+          return bStart - aStart;
+        });
+    }
+
     return NextResponse.json({
       subscription: normalizedSub ?? null,
       school: school ?? null,
@@ -209,6 +281,7 @@ export async function GET(_req: NextRequest) {
       current_term: currentTerm,
       yearly_covered_terms: yearlyCoveredTerms,
       upcoming_terms: upcomingTerms,
+      terms_by_session: termsBySession,
     });
   } catch (err: any) {
     console.error("Admin subscription API error:", err);

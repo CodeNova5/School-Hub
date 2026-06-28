@@ -204,9 +204,9 @@ function CreateSessionDialog({
 
   // Generate next academic year option not yet in use
   const currentYear = new Date().getFullYear();
-  const yearOptions = Array.from({ length: 2050 - currentYear + 1 }, (_, i) => {
-    const y1 = currentYear + i;
-    return `${y1}/${y1 + 1}`;
+  const yearOptions = Array.from({ length: 6 }, (_, i) => {
+    const startYear = currentYear + i;
+    return `${startYear}/${startYear + 1}`;
   }).filter(y => !existingNames.has(y));
 
   function handleSessionChange(name: string) {

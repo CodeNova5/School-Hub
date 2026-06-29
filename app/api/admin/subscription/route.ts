@@ -171,6 +171,21 @@ export async function GET(_req: NextRequest) {
       }
     }
 
+    // ── Fetch active grants (for grant-based subscriptions) ──
+    let activeGrants: any[] | null = null;
+
+    const { data: grantsData } = await supabaseAdmin
+      .rpc("get_school_plan_grants", {
+        p_school_id: schoolId,
+        p_active_only: true,
+      });
+
+    if (grantsData && grantsData.length > 0) {
+      activeGrants = grantsData.filter(
+        (g: any) => g.is_active && new Date(g.expires_at) > new Date()
+      );
+    }
+
     // ── Fetch upcoming terms (for pay-in-advance) ──
     // Terms that start after the current covered period
     let upcomingTerms: ReturnType<typeof formatTerm>[] | null = null;
@@ -282,6 +297,7 @@ export async function GET(_req: NextRequest) {
       yearly_covered_terms: yearlyCoveredTerms,
       upcoming_terms: upcomingTerms,
       terms_by_session: termsBySession,
+      active_grants: activeGrants,
     });
   } catch (err: any) {
     console.error("Admin subscription API error:", err);

@@ -17,8 +17,6 @@ import {
 } from "@/components/ui/table";
 import {
   Shield,
-  ShieldCheck,
-  ShieldAlert,
   AlertTriangle,
   AlertCircle,
   Zap,
@@ -32,7 +30,6 @@ import {
   X,
   CheckCircle2,
   XCircle,
-  HelpCircle,
   ExternalLink,
   Receipt,
   GraduationCap,
@@ -145,7 +142,7 @@ interface TermWithStatus extends UpcomingTerm {
 }
 
 interface TermsBySessionGroup {
-  session_name: string;
+  session_name: string; 
   terms: TermWithStatus[];
 }
 
@@ -427,7 +424,7 @@ export default function AdminSubscriptionPage() {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Subscription</h1>
             <p className="text-gray-600 mt-1">
-              Manage your plan, view billing history, and update payment methods
+              Manage your plan and view billing history
             </p>
           </div>
           <div className="flex gap-3">
@@ -726,29 +723,6 @@ export default function AdminSubscriptionPage() {
                   </div>
                 </div>
 
-                {/* Stored Payment Method */}
-                <div className="border-t pt-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">Payment Method</p>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {subscription?.auth_code
-                          ? `Stored card on file (${subscription.customer_email || "email on file"})`
-                          : "No saved payment method"}
-                      </p>
-                    </div>
-                    {!subscription?.auth_code && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => router.push("/subscription")}
-                      >
-                        <CreditCard className="h-4 w-4 mr-1.5" />
-                        Add Payment Method
-                      </Button>
-                    )}
-                  </div>
-                </div>
               </CardContent>
             </Card>
 
@@ -1152,15 +1126,6 @@ export default function AdminSubscriptionPage() {
                 <Button
                   variant="outline"
                   className="w-full justify-start"
-                  onClick={() => router.push("/checkout")}
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Update Payment Method
-                  <ArrowRight className="h-4 w-4 ml-auto" />
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
                   onClick={() => window.print()}
                 >
                   <Download className="h-4 w-4 mr-2" />
@@ -1181,15 +1146,6 @@ export default function AdminSubscriptionPage() {
                   {getStatusBadge(effectiveStatus)}
                 </div>
 
-                {subscription?.auth_code && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Auto-Renew</span>
-                    <Badge variant="success" className="gap-1">
-                      <CheckCircle2 className="h-3 w-3" />
-                      Enabled
-                    </Badge>
-                  </div>
-                )}
 
                 {subscription?.next_billing_date && (
                   <div className="flex items-center justify-between">

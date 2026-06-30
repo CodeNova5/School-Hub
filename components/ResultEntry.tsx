@@ -1065,7 +1065,24 @@ export default function ResultEntry({
                 <p className="text-sm text-gray-600">{school?.phone ? `Tel: ${school.phone}` : ""}</p>
                 <p className="text-lg font-semibold mt-2 text-blue-600">STUDENT REPORT CARD</p>
               </div>
-              <div className="w-20 h-20 bg-gray-100 rounded flex items-center justify-center overflow-hidden">
+              <div className="w-20 h-20" />
+            </div>
+            <div className="flex gap-6 mt-4">
+              <div className="flex-1 grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p><strong>Name:</strong> {student.first_name} {student.last_name}</p>
+                  <p><strong>Class:</strong> {studentClass?.name}</p>
+                  <p><strong>Session:</strong> {session?.name}</p>
+                  <p><strong>Term:</strong> {term?.name}</p>
+                </div>
+                <div>
+                  <p><strong>No. of Attendance:</strong> {attendance}</p>
+                  <p>
+                    <strong>Next Term Begins:</strong> {nextTermDate && !isNaN(new Date(nextTermDate).getTime()) ? new Date(nextTermDate).toLocaleDateString('en-GB') : 'N/A'}
+                  </p>
+                </div>
+              </div>
+              <div className="w-24 h-28 flex-shrink-0 bg-gray-100 rounded-md flex items-center justify-center overflow-hidden">
                 {student?.photo_url || student?.image_url ? (
                   <img
                     src={student.photo_url || student.image_url}
@@ -1075,19 +1092,6 @@ export default function ResultEntry({
                 ) : (
                   <span className="text-xs text-gray-400">PHOTO</span>
                 )}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-6 text-sm">
-              <div>
-                <p><strong>Name:</strong> {student.first_name} {student.last_name}</p>
-                <p><strong>Class:</strong> {studentClass?.name}</p>
-                <p><strong>Session:</strong> {session?.name}</p>
-              </div>
-              <div>
-                <p><strong>Term:</strong> {term?.name}</p>
-                <p><strong>No. of Attendance:</strong> {attendance}</p>
-                <p>
-                  <strong>Next Term Begins:</strong> {nextTermDate && !isNaN(new Date(nextTermDate).getTime()) ? new Date(nextTermDate).toLocaleDateString('en-GB') : 'N/A'}                </p>
               </div>
             </div>
             {classPosition && (

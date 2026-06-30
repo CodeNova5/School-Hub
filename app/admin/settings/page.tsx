@@ -122,7 +122,7 @@ export default function AdminSettingsPage() {
 
   async function handleSignatureUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file || !adminFormData) return;
+    if (!file || !adminFormData || !admin) return;
 
     setUploadingSignature(true);
     try {
@@ -134,9 +134,23 @@ export default function AdminSettingsPage() {
       reader.readAsDataURL(file);
 
       // Upload
-      const signatureUrl = await uploadFileToGitHub(file, 'signature', admin?.id || 'admin');
+      const signatureUrl = await uploadFileToGitHub(file, 'signature', admin.id);
       if (signatureUrl) {
+        // Save to database immediately (like the teacher flow)
+        const { error: updateError } = await supabase
+          .from('admins')
+          .update({ signature_url: signatureUrl, updated_at: new Date().toISOString() })
+          .eq('id', admin.id);
+
+        if (updateError) {
+          toast.error('Failed to save signature URL');
+          return;
+        }
+
+        // Update both read and form state
+        setAdmin(prev => prev ? { ...prev, signature_url: signatureUrl } : null);
         setAdminFormData(prev => prev ? { ...prev, signature_url: signatureUrl } : null);
+        toast.success('Signature uploaded successfully!');
       }
     } finally {
       setUploadingSignature(false);

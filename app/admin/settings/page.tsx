@@ -404,9 +404,17 @@ export default function AdminSettingsPage() {
 
                   {adminFormData?.signature_url && !signaturePreview && (
                     <div className="mb-3 p-3 bg-gray-50 rounded-md border border-gray-200">
-                      <p className="text-xs text-gray-600 truncate">
-                        Current: <a href={adminFormData.signature_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">View</a>
-                      </p>
+                      <p className="text-xs text-gray-500 mb-2">Current signature:</p>
+                      <div className="flex flex-col gap-2">
+                        <img
+                          src={adminFormData.signature_url}
+                          alt="Current Signature"
+                          className="h-14 object-contain"
+                        />
+                        <a href={adminFormData.signature_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs">
+                          Open in new tab
+                        </a>
+                      </div>
                     </div>
                   )}
 

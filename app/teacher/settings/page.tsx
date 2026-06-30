@@ -268,6 +268,27 @@ export default function TeacherSettingsPage() {
                 <p className="text-gray-900 font-medium">{teacher?.phone || '-'}</p>
               </div>
             </div>
+
+            {/* Signature Preview */}
+            <div className="border-t pt-4">
+              <Label className="text-gray-700 text-sm font-semibold">Signature</Label>
+              <div className="mt-2 p-3 bg-gray-50 rounded-md border border-gray-200">
+                {teacher?.signature_url ? (
+                  <div className="flex flex-col gap-2">
+                    <img
+                      src={teacher.signature_url}
+                      alt="Teacher Signature"
+                      className="h-14 object-contain"
+                    />
+                    <a href={teacher.signature_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs">
+                      Open in new tab
+                    </a>
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-sm">No signature uploaded</p>
+                )}
+              </div>
+            </div>
           </CardContent>
         </Card>
 

@@ -253,11 +253,12 @@ export default function ResultEntry({
       }
 
       // 1.7 Fetch principal/admin signature
-      if (schoolId) {
+      // RLS on admins restricts to user_id = auth.uid(), so we query by the current user
+      if (user) {
         const { data: adminData } = await supabase
           .from("admins")
           .select("signature_url")
-          .eq("school_id", schoolId)
+          .eq("user_id", user.id)
           .not("signature_url", "is", null)
           .maybeSingle();
 

@@ -22,6 +22,7 @@ import {
   ArrowRight,
   X,
   RefreshCw,
+  CreditCard as CreditCardIcon,
 } from "lucide-react";
 import { usePlanDisplayInfo } from "@/hooks/use-plan-display-info";
 import {
@@ -32,7 +33,7 @@ import {
   SubscriptionPageSkeleton,
 } from "@/components/subscription-utils";
 import { SubscriptionOverviewTab } from "@/components/subscription-overview-tab";
-import { SubscriptionTermsTab } from "@/components/subscription-terms-tab";
+import { SubscriptionPlansTab } from "@/components/subscription-plans-tab";
 import { SubscriptionBillingTab } from "@/components/subscription-billing-tab";
 import type { ApiResponse, ActiveGrant } from "@/components/subscription-types";
 
@@ -129,7 +130,7 @@ export default function AdminSubscriptionPage() {
   // ── Tab configurations ──
   const tabs = [
     { id: "overview", label: "Overview", icon: Info },
-    { id: "terms", label: "Terms", icon: BookOpen },
+    { id: "plans", label: "Plans & Payments", icon: CreditCardIcon },
     { id: "billing", label: "Billing", icon: Receipt },
   ];
 
@@ -324,14 +325,16 @@ export default function AdminSubscriptionPage() {
             />
           </TabsContent>
 
-          {/* Tab 2: Terms */}
-          <TabsContent value="terms">
-            <SubscriptionTermsTab
+          {/* Tab 2: Plans & Payments */}
+          <TabsContent value="plans">
+            <SubscriptionPlansTab
               subscription={subscription}
-              termsBySession={terms_by_session}
+              plans={plans}
               currentPlanKey={currentPlanKey}
               isGrantBased={isGrantBased}
               activeGrants={active_grants}
+              currentTerm={current_term}
+              termsBySession={terms_by_session}
             />
           </TabsContent>
 

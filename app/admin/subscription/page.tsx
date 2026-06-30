@@ -10,6 +10,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Table,
   TableBody,
   TableCell,
@@ -45,6 +58,8 @@ import {
   ChevronRight,
   Building2,
   Timer,
+  User,
+  ChevronDown,
 } from "lucide-react";
 import { usePlanDisplayInfo } from "@/hooks/use-plan-display-info";
 
@@ -340,6 +355,332 @@ function getIntervalIcon(billingInterval: string | undefined, activeGrants?: Act
     default:
       return Clock;
   }
+}
+
+// ── Grant Coverage Helpers ───────────────────────────────────────────────
+
+function getTermGrantCoverage(term: TermWithStatus, activeGrants: ActiveGrant[]): ActiveGrant | undefined {
+  const termStart = new Date(term.start_date).getTime();
+  const termEnd = new Date(term.end_date).getTime();
+
+  return activeGrants.find((grant) => {
+    const grantStart = new Date(grant.start_date).getTime();
+    const grantEnd = new Date(grant.end_date).getTime();
+
+    switch (grant.grant_type) {
+      case "term":
+        // Match by term name exactly
+        return (
+          grant.term_name === term.name &&
+          termStart >= grantStart &&
+          termEnd <= grantEnd
+        );
+      case "session":
+        // Match by session name + date range
+        return (
+          grant.session_name === term.session_name &&
+          termStart >= grantStart &&
+          termEnd <= grantEnd
+        );
+      case "custom":
+        // Any term whose dates fall within the custom date range
+        return termStart >= grantStart && termEnd <= grantEnd;
+      default:
+        return false;
+    }
+  });
+}
+
+function getCoveredTermCount(grant: ActiveGrant, terms: TermsBySessionGroup[]): number {
+  let count = 0;
+  for (const group of terms) {
+    for (const term of group.terms) {
+      if (getTermGrantCoverage(term, [grant])) {
+        count++;
+      }
+    }
+  }
+  return count;
+}
+
+// ── Grant Coverage Section ────────────────────────────────────────────────
+
+function GrantCoverageSection({ grants, termsBySession }: { grants: ActiveGrant[]; termsBySession: TermsBySessionGroup[] }) {
+  const { getPlanInfo } = usePlanDisplayInfo();
+  const [open, setOpen] = useState(false);
+  const totalCoveredTerms = grants.reduce((sum, g) => sum + getCoveredTermCount(g, termsBySession), 0);
+
+  if (totalCoveredTerms === 0) return null;
+
+  return (
+    <Card className="shadow-sm border-amber-200 overflow-hidden">
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <CollapsibleTrigger className="w-full">
+          <CardHeader className="border-b border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50/50 py-4 cursor-pointer hover:from-amber-100/50 hover:to-orange-100/30 transition-all duration-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-amber-100">
+                  <Gift className="h-5 w-5 text-amber-600" />
+                </div>
+                <div className="text-left">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    Grant Coverage
+                    <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-200 text-[10px] font-semibold">
+                      {grants.length} grant{grants.length > 1 ? "s" : ""}
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription className="text-xs mt-0.5">
+                    Covers {totalCoveredTerms} term{totalCoveredTerms > 1 ? "s" : ""} across{" "}
+                    {new Set(termsBySession.filter(g => g.terms.some(t => getTermGrantCoverage(t, grants))).map(g => g.session_name)).size} session{(new Set(termsBySession.filter(g => g.terms.some(t => getTermGrantCoverage(t, grants))).map(g => g.session_name))).size > 1 ? "s" : ""}
+                  </CardDescription>
+                </div>
+              </div>
+              <ChevronDown
+                className={`h-5 w-5 text-amber-500 transition-transform duration-200 ${
+                  open ? "rotate-180" : ""
+                }`}
+              />
+            </div>
+          </CardHeader>
+        </CollapsibleTrigger>
+
+        <CollapsibleContent>
+          <CardContent className="p-4 space-y-4">
+            {grants.map((grant) => {
+              const planInfo = getPlanInfo(grant.plan_key);
+              const coveredTerms: { group: TermsBySessionGroup; term: TermWithStatus }[] = [];
+              for (const group of termsBySession) {
+                for (const term of group.terms) {
+                  if (getTermGrantCoverage(term, [grant])) {
+                    coveredTerms.push({ group, term });
+                  }
+                }
+              }
+
+              if (coveredTerms.length === 0) return null;
+
+              return (
+                <div key={grant.id} className="p-3 rounded-lg bg-amber-50/50 border border-amber-200">
+                  {/* Grant header */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Badge className={planInfo.badge_color}>
+                        <Shield className="h-3 w-3 mr-1" />
+                        {planInfo.label_short}
+                      </Badge>
+                      <span className="text-xs text-gray-600 capitalize">
+                        {grant.grant_type === "term"
+                          ? grant.term_name || "Term"
+                          : grant.grant_type === "session"
+                            ? grant.session_name || "Session"
+                            : "Custom"} grant
+                      </span>
+                    </div>
+                    <GrantDetailsModal grant={grant} />
+                  </div>
+
+                  {/* Covered terms list */}
+                  <div className="space-y-1.5">
+                    {coveredTerms.map(({ group, term }) => (
+                      <div
+                        key={term.id}
+                        className="flex items-center gap-2.5 px-2.5 py-2 rounded-md bg-white border border-amber-100"
+                      >
+                        <Gift className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                        <div className="flex-1 min-w-0 flex items-center gap-2">
+                          <span className="text-sm font-medium text-gray-800">{term.name}</span>
+                          <span className="text-[10px] text-gray-400">·</span>
+                          <span className="text-[10px] text-gray-500">{group.session_name}</span>
+                        </div>
+                        <span className="text-[10px] text-gray-400 shrink-0">
+                          {formatShortDate(term.start_date)} – {formatShortDate(term.end_date)}
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200 shrink-0">
+                          <CheckCircle2 className="h-2.5 w-2.5" />
+                          Covered
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Grant period summary */}
+                  <p className="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    Grant period: {formatShortDate(grant.start_date)} — {formatShortDate(grant.end_date)}
+                    {grant.granted_by_name && (
+                      <>
+                        <span className="text-gray-300 mx-1">·</span>
+                        <User className="h-3 w-3" />
+                        {grant.granted_by_name}
+                      </>
+                    )}
+                  </p>
+                </div>
+              );
+            })}
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
+    </Card>
+  );
+}
+
+// ── Grant Details Modal ────────────────────────────────────────────────────
+
+function GrantDetailsModal({ grant }: { grant: ActiveGrant }) {
+  const { getPlanInfo } = usePlanDisplayInfo();
+  const [open, setOpen] = useState(false);
+
+  const planInfo = getPlanInfo(grant.plan_key);
+  const PlanIcon = getPlanIcon(grant.plan_key);
+  const daysLeft = grant.is_active
+    ? Math.max(0, Math.ceil((new Date(grant.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    : 0;
+  const isExpired = !grant.is_active || daysLeft === 0;
+  const isExpiringSoon = grant.is_active && daysLeft > 0 && daysLeft <= 30;
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="w-full justify-start">
+          <Info className="h-4 w-4 mr-2" />
+          View Grant Details
+          <ChevronRight className="h-4 w-4 ml-auto" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-lg">
+            <Gift className="h-5 w-5 text-amber-500" />
+            Grant Details
+          </DialogTitle>
+          <DialogDescription>
+            Full details of the active plan grant for this school
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-5">
+          {/* Plan & Status Header */}
+          <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200">
+            <div className="flex items-center gap-3">
+              <div className={`p-2.5 rounded-lg ${getPlanIconBg(grant.plan_key)}`}>
+                <PlanIcon className={`h-5 w-5 ${getPlanColor(grant.plan_key)}`} />
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900">{planInfo?.label_short || grant.plan_key}</p>
+                <p className="text-xs text-gray-500 capitalize flex items-center gap-1">
+                  <Layers className="h-3 w-3" />
+                  {grant.grant_type} grant
+                  {grant.term_name && <span className="text-gray-400">· {grant.term_name}</span>}
+                  {grant.session_name && <span className="text-gray-400">· {grant.session_name}</span>}
+                </p>
+              </div>
+            </div>
+            <div>
+              {isExpired ? (
+                <Badge variant="secondary" className="bg-gray-100 text-gray-600 border-gray-200 gap-1">
+                  <XCircle className="h-3 w-3" />
+                  Expired
+                </Badge>
+              ) : isExpiringSoon ? (
+                <Badge variant="outline" className="border-amber-200 text-amber-700 bg-amber-100 gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  Expiring Soon
+                </Badge>
+              ) : (
+                <Badge variant="default" className="bg-emerald-500 gap-1">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Active
+                </Badge>
+              )}
+            </div>
+          </div>
+
+          {/* Info Grid */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-3 rounded-lg bg-gray-50 border border-gray-200 space-y-1">
+              <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">Grant Type</p>
+              <p className="text-sm font-semibold text-gray-900 capitalize flex items-center gap-1.5">
+                {grant.grant_type === "term" ? (
+                  <><GraduationCap className="h-4 w-4 text-blue-500" /> {grant.term_name || "Term"}</>
+                ) : grant.grant_type === "session" ? (
+                  <><Layers className="h-4 w-4 text-purple-500" /> {grant.session_name || "Session"}</>
+                ) : (
+                  <><Timer className="h-4 w-4 text-amber-500" /> Custom</>
+                )}
+              </p>
+            </div>
+            <div className="p-3 rounded-lg bg-gray-50 border border-gray-200 space-y-1">
+              <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">Status</p>
+              <p className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                {isExpired ? (
+                  <><XCircle className="h-4 w-4 text-gray-400" /> Expired</>
+                ) : (
+                  <><CheckCircle2 className="h-4 w-4 text-emerald-500" /> Active{daysLeft > 0 ? ` · ${daysLeft}d remaining` : ""}</>
+                )}
+              </p>
+            </div>
+            <div className="p-3 rounded-lg bg-gray-50 border border-gray-200 space-y-1">
+              <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">Start Date</p>
+              <p className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                <Calendar className="h-4 w-4 text-gray-400" />
+                {formatDate(grant.start_date)}
+              </p>
+            </div>
+            <div className="p-3 rounded-lg bg-gray-50 border border-gray-200 space-y-1">
+              <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">End Date</p>
+              <p className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                <Calendar className="h-4 w-4 text-gray-400" />
+                {formatDate(grant.end_date)}
+              </p>
+            </div>
+            <div className="p-3 rounded-lg bg-gray-50 border border-gray-200 space-y-1">
+              <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">Expires At</p>
+              <p className="text-sm font-semibold text-gray-900">
+                {formatDateTime(grant.expires_at)}
+              </p>
+            </div>
+            <div className="p-3 rounded-lg bg-gray-50 border border-gray-200 space-y-1">
+              <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">Granted By</p>
+              <p className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                <User className="h-4 w-4 text-gray-400" />
+                {grant.granted_by_name}
+              </p>
+            </div>
+          </div>
+
+          {/* Include Holidays */}
+          <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-200">
+            <div className="flex items-center gap-2">
+              <Umbrella className="h-4 w-4 text-gray-400" />
+              <span className="text-sm text-gray-700">Include Holidays</span>
+            </div>
+            <span className={`text-sm font-semibold ${grant.include_holidays ? "text-emerald-600" : "text-gray-500"}`}>
+              {grant.include_holidays ? "Yes" : "No"}
+            </span>
+          </div>
+
+          {/* Notes */}
+          {grant.notes && (
+            <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
+              <div className="flex items-start gap-2">
+                <FileText className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider mb-1">Notes</p>
+                  <p className="text-sm text-blue-800">{grant.notes}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Created timestamp */}
+          <p className="text-[10px] text-gray-400 text-center">
+            Created {formatDateTime(grant.created_at)}
+          </p>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 // ── Term Progress Bar ─────────────────────────────────────────────────────
@@ -874,18 +1215,21 @@ export default function AdminSubscriptionPage() {
                     Download Invoice
                     <ChevronRight className="h-4 w-4 ml-auto" />
                   </Button>
-                  {isGrantBased && (
-                    <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 mt-2">
-                      <div className="flex items-start gap-2">
-                        <Gift className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-                        <div>
-                          <p className="text-xs font-semibold text-amber-800">Grant Active</p>
-                          <p className="text-[10px] text-amber-600 mt-0.5">
-                            Access granted by {currentGrant?.granted_by_name || "Super Admin"}
-                          </p>
+                  {isGrantBased && currentGrant && (
+                    <>
+                      <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 mt-2">
+                        <div className="flex items-start gap-2">
+                          <Gift className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                          <div>
+                            <p className="text-xs font-semibold text-amber-800">Grant Active</p>
+                            <p className="text-[10px] text-amber-600 mt-0.5">
+                              Access granted by {currentGrant.granted_by_name || "Super Admin"}
+                            </p>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                      <GrantDetailsModal grant={currentGrant} />
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -969,29 +1313,44 @@ export default function AdminSubscriptionPage() {
           {/* TAB 2: TERMS */}
           {/* ════════════════════════════════════════════════════════════════ */}
           <TabsContent value="terms" className="space-y-6 mt-0">
+            {/* Grant Coverage Section (collapsible) */}
+            {isGrantBased && active_grants && terms_by_session && terms_by_session.length > 0 && (
+              <GrantCoverageSection grants={active_grants} termsBySession={terms_by_session} />
+            )}
+
             {/* Terms Overview */}
             {terms_by_session && terms_by_session.length > 0 ? (
               <div className="space-y-6">
                 {terms_by_session.map((group) => {
+                  const activeGrantsList = active_grants || [];
+                  const grantCoveredCount = group.terms.filter((t) => getTermGrantCoverage(t, activeGrantsList)).length;
                   const paidCount = group.terms.filter((t) => t.status === "paid").length;
                   const totalCount = group.terms.length;
-                  const allPaid = paidCount === totalCount;
-                  const nonePaid = paidCount === 0;
+                  const allCovered = grantCoveredCount + paidCount === totalCount;
+                  const someCovered = grantCoveredCount > 0 || paidCount > 0;
 
                   return (
                     <Card key={group.session_name} className="shadow-sm border-gray-200">
                       <CardHeader className="border-b pb-4">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <GraduationCap className={`h-5 w-5 ${allPaid ? "text-emerald-600" : nonePaid ? "text-slate-400" : "text-amber-500"}`} />
+                            <GraduationCap className={`h-5 w-5 ${
+                              allCovered ? "text-emerald-600" :
+                              someCovered ? "text-amber-500" :
+                              "text-slate-400"
+                            }`} />
                             <CardTitle className="text-base">{group.session_name} Session</CardTitle>
                           </div>
                           <Badge variant="outline" className={`${
-                            allPaid ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                            nonePaid ? "bg-slate-50 text-slate-500 border-slate-200" :
-                            "bg-amber-50 text-amber-700 border-amber-200"
+                            allCovered ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                            someCovered ? "bg-amber-50 text-amber-700 border-amber-200" :
+                            "bg-slate-50 text-slate-500 border-slate-200"
                           }`}>
-                            {allPaid ? "All Paid" : nonePaid ? "Not Paid" : `${paidCount}/${totalCount} Paid`}
+                            {allCovered
+                              ? "All Covered"
+                              : someCovered
+                                ? `${paidCount + grantCoveredCount}/${totalCount} Covered`
+                                : "Not Covered"}
                           </Badge>
                         </div>
                         <CardDescription className="text-xs">
@@ -999,90 +1358,112 @@ export default function AdminSubscriptionPage() {
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="p-4 space-y-2">
-                        {group.terms.map((term) => (
-                          <div
-                            key={term.id}
-                            className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
-                              term.status === "paid"
-                                ? "bg-emerald-50 border-emerald-200 hover:bg-emerald-100/50"
-                                : term.status === "past"
-                                  ? "bg-slate-50 border-slate-200 hover:bg-slate-100/50"
-                                  : "bg-white border-slate-200 hover:bg-slate-50"
-                            }`}
-                          >
-                            {/* Status dot */}
-                            <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                              term.status === "paid" ? "bg-emerald-500" :
-                              term.status === "past" ? "bg-slate-400" :
-                              "bg-amber-400"
-                            }`} />
+                        {group.terms.map((term) => {
+                          const grantCover = getTermGrantCoverage(term, activeGrantsList);
+                          const isGrantCovered = !!grantCover;
+                          // Determine the effective status for display
+                          const displayStatus = term.status === "paid"
+                            ? "paid"
+                            : isGrantCovered
+                              ? "grant_covered"
+                              : term.status;
 
-                            {/* Term info */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className={`text-sm font-medium ${
-                                  term.status === "paid" ? "text-emerald-900" :
-                                  term.status === "past" ? "text-slate-500" :
-                                  "text-slate-800"
-                                }`}>
-                                  {term.name}
-                                </span>
-                                <span className="text-[10px] text-slate-400">·</span>
-                                <span className="text-xs text-slate-500">
-                                  {formatShortDate(term.start_date)} — {formatShortDate(term.end_date)}
-                                </span>
+                          return (
+                            <div
+                              key={term.id}
+                              className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
+                                displayStatus === "paid"
+                                  ? "bg-emerald-50 border-emerald-200 hover:bg-emerald-100/50"
+                                  : displayStatus === "grant_covered"
+                                    ? "bg-amber-50/70 border-amber-200 hover:bg-amber-100/50"
+                                    : displayStatus === "past"
+                                      ? "bg-slate-50 border-slate-200 hover:bg-slate-100/50"
+                                      : "bg-white border-slate-200 hover:bg-slate-50"
+                              }`}
+                            >
+                              {/* Status dot */}
+                              <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                                displayStatus === "paid" ? "bg-emerald-500" :
+                                displayStatus === "grant_covered" ? "bg-amber-500" :
+                                displayStatus === "past" ? "bg-slate-400" :
+                                "bg-amber-400"
+                              }`} />
+
+                              {/* Term info */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-sm font-medium ${
+                                    displayStatus === "paid" ? "text-emerald-900" :
+                                    displayStatus === "grant_covered" ? "text-amber-900" :
+                                    displayStatus === "past" ? "text-slate-500" :
+                                    "text-slate-800"
+                                  }`}>
+                                    {term.name}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400">·</span>
+                                  <span className="text-xs text-slate-500">
+                                    {formatShortDate(term.start_date)} — {formatShortDate(term.end_date)}
+                                  </span>
+                                </div>
+                                {term.is_current && (
+                                  <TermProgressBar startDate={term.start_date} endDate={term.end_date} />
+                                )}
                               </div>
-                              {term.is_current && (
-                                <TermProgressBar startDate={term.start_date} endDate={term.end_date} />
-                              )}
+
+                              {/* Meta + Actions */}
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className="flex items-center gap-1 text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">
+                                  <Clock className="h-2.5 w-2.5" />
+                                  {term.weeks}wk
+                                </span>
+
+                                {/* Status badge */}
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                                  displayStatus === "paid"
+                                    ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                                    : displayStatus === "grant_covered"
+                                      ? "bg-amber-100 text-amber-700 border-amber-200"
+                                      : displayStatus === "past"
+                                        ? "bg-slate-100 text-slate-500 border-slate-200"
+                                        : "bg-amber-100 text-amber-700 border-amber-200"
+                                }`}>
+                                  {displayStatus === "paid" ? <><CheckCircle2 className="h-2.5 w-2.5" /> Paid</>
+                                    : displayStatus === "grant_covered" ? <><Gift className="h-2.5 w-2.5" /> Granted</>
+                                    : displayStatus === "past" ? "Past"
+                                    : "Unpaid"}
+                                </span>
+
+                                {/* Pay button for unpaid (non-grant) terms */}
+                                {displayStatus === "unpaid" && subscription?.termly_price && subscription.termly_price > 0 && !isGrantBased && (
+                                  <Button
+                                    size="sm"
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white h-7 px-2.5 text-[11px]"
+                                    onClick={() =>
+                                      router.push(
+                                        `/checkout?plan=${currentPlanKey}&interval=termly&termId=${term.id}`
+                                      )
+                                    }
+                                  >
+                                    <CreditCard className="h-3 w-3 mr-1" />
+                                    Pay {formatPrice(subscription.termly_price)}
+                                  </Button>
+                                )}
+
+                                {/* Grant source label for grant-covered terms */}
+                                {displayStatus === "grant_covered" && grantCover && (
+                                  <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-200 bg-amber-50 gap-1">
+                                    <Gift className="h-2.5 w-2.5" />
+                                    {grantCover.grant_type === "term"
+                                      ? grantCover.term_name || "Term grant"
+                                      : grantCover.grant_type === "session"
+                                        ? `${grantCover.session_name || "Session"} grant`
+                                        : "Custom grant"}
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
-
-                            {/* Meta + Actions */}
-                            <div className="flex items-center gap-2 shrink-0">
-                              <span className="flex items-center gap-1 text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">
-                                <Clock className="h-2.5 w-2.5" />
-                                {term.weeks}wk
-                              </span>
-
-                              {/* Status badge */}
-                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                                term.status === "paid"
-                                  ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-                                  : term.status === "past"
-                                    ? "bg-slate-100 text-slate-500 border-slate-200"
-                                    : "bg-amber-100 text-amber-700 border-amber-200"
-                              }`}>
-                                {term.status === "paid" ? <><CheckCircle2 className="h-2.5 w-2.5" /> Paid</>
-                                  : term.status === "past" ? "Past"
-                                  : "Unpaid"}
-                              </span>
-
-                              {/* Pay button */}
-                              {term.status === "unpaid" && subscription?.termly_price && subscription.termly_price > 0 && !isGrantBased && (
-                                <Button
-                                  size="sm"
-                                  className="bg-emerald-600 hover:bg-emerald-700 text-white h-7 px-2.5 text-[11px]"
-                                  onClick={() =>
-                                    router.push(
-                                      `/checkout?plan=${currentPlanKey}&interval=termly&termId=${term.id}`
-                                    )
-                                  }
-                                >
-                                  <CreditCard className="h-3 w-3 mr-1" />
-                                  Pay {formatPrice(subscription.termly_price)}
-                                </Button>
-                              )}
-
-                              {/* Pay button for grant-based (show but disabled with info) */}
-                              {term.status === "unpaid" && isGrantBased && (
-                                <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-200 bg-amber-50">
-                                  <Gift className="h-2.5 w-2.5 mr-1" />
-                                  Covered by Grant
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </CardContent>
                     </Card>
                   );

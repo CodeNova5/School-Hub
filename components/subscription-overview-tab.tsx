@@ -59,6 +59,7 @@ interface OverviewTabProps {
   yearlyCoveredTerms: YearlyCoveredTerm[] | null | undefined;
   activeGrants: ActiveGrant[] | null | undefined;
   schoolName: string;
+  onNavigateToPlans?: () => void;
 }
 
 export function SubscriptionOverviewTab({
@@ -81,6 +82,7 @@ export function SubscriptionOverviewTab({
   yearlyCoveredTerms,
   activeGrants,
   schoolName,
+  onNavigateToPlans,
 }: OverviewTabProps) {
   const router = useRouter();
   const { getPlanInfo } = usePlanDisplayInfo();
@@ -257,10 +259,10 @@ export function SubscriptionOverviewTab({
             <Button
               variant="outline"
               className="w-full justify-start"
-              onClick={() => router.push("/subscription")}
+              onClick={() => onNavigateToPlans?.()}
             >
               <TrendingUp className="h-4 w-4 mr-2" />
-              Upgrade Plan
+              Plans & Payments
               <ChevronRight className="h-4 w-4 ml-auto" />
             </Button>
             <Button
@@ -346,7 +348,7 @@ export function SubscriptionOverviewTab({
                   <div
                     key={plan.id}
                     className="p-3 rounded-lg border hover:bg-gray-50 hover:border-gray-300 transition-all cursor-pointer"
-                    onClick={() => router.push(`/subscription?plan=${plan.plan_key}`)}
+                    onClick={() => onNavigateToPlans?.()}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className={`font-semibold text-sm ${getPlanColor(plan.plan_key)}`}>

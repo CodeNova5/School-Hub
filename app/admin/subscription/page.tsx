@@ -152,10 +152,10 @@ export default function AdminSubscriptionPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => router.push("/subscription")}
+              onClick={() => setActiveTab("plans")}
             >
               <CreditCard className="h-4 w-4 mr-1.5" />
-              Upgrade Plan
+              Plans & Payments
             </Button>
             <Button
               size="sm"
@@ -183,7 +183,7 @@ export default function AdminSubscriptionPage() {
                 <Button
                   size="sm"
                   className="mt-3 bg-amber-600 hover:bg-amber-700"
-                  onClick={() => router.push("/subscription")}
+                  onClick={() => setActiveTab("plans")}
                 >
                   <CreditCard className="h-4 w-4 mr-1.5" />
                   Pay Now
@@ -205,7 +205,7 @@ export default function AdminSubscriptionPage() {
                 <Button
                   size="sm"
                   className="mt-3 bg-red-600 hover:bg-red-700"
-                  onClick={() => router.push("/subscription")}
+                  onClick={() => setActiveTab("plans")}
                 >
                   <RefreshCw className="h-4 w-4 mr-1.5" />
                   Renew Now
@@ -322,6 +322,7 @@ export default function AdminSubscriptionPage() {
               yearlyCoveredTerms={yearly_covered_terms}
               activeGrants={active_grants}
               schoolName={school?.name || ""}
+              onNavigateToPlans={() => setActiveTab("plans")}
             />
           </TabsContent>
 

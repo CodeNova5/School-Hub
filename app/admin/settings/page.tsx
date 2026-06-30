@@ -478,9 +478,16 @@ export default function AdminSettingsPage() {
                   <Label className="text-gray-700 text-sm font-semibold">Admin Signature</Label>
                   <div className="mt-2 p-3 bg-gray-50 rounded-md border border-gray-200">
                     {admin?.signature_url ? (
-                      <a href={admin.signature_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">
-                        View Signature
-                      </a>
+                      <div className="flex flex-col gap-2">
+                        <img
+                          src={admin.signature_url}
+                          alt="Admin Signature"
+                          className="h-14 object-contain"
+                        />
+                        <a href={admin.signature_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs">
+                          Open in new tab
+                        </a>
+                      </div>
                     ) : (
                       <p className="text-gray-500 text-sm">No signature uploaded</p>
                     )}

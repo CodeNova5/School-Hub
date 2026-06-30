@@ -234,7 +234,7 @@ export function SubscriptionGraceBanner({
               <Button
                 size="sm"
                 className="bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
-                onClick={() => router.push("/subscription")}
+                onClick={() => router.push("/admin/subscription")}
               >
                 <CreditCard className="h-4 w-4 mr-1.5" />
                 Pay Now
@@ -303,7 +303,7 @@ export function SubscriptionGraceBanner({
               <Button
                 size="sm"
                 className="bg-red-600 hover:bg-red-700 text-white shadow-sm"
-                onClick={() => router.push("/subscription")}
+                onClick={() => router.push("/admin/subscription")}
               >
                 <RefreshCw className="h-4 w-4 mr-1.5" />
                 {status.status === "expired" ? "Reactivate Subscription" : "Renew Now"}

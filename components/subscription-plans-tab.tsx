@@ -479,12 +479,12 @@ export function SubscriptionPlansTab({
         </CardContent>
       </Card>
 
-      {/* ── Current Terms Overview (compact) ── */}
+      {/* ── Terms by Session ── */}
       {termsBySession && termsBySession.length > 0 && (
         <div>
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-2 mb-4">
             <BookOpen className="h-4 w-4 text-slate-400" />
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Your Terms Overview</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Terms by Session</p>
           </div>
 
           {/* Grant Coverage */}
@@ -492,29 +492,82 @@ export function SubscriptionPlansTab({
             <GrantCoverageSection grants={activeGrants} termsBySession={termsBySession} />
           )}
 
-          <div className="space-y-2">
-            {termsBySession.map((group) => (
-              <div key={group.session_name} className="flex flex-wrap gap-1.5">
-                {group.terms.map((term) => {
-                  const isUnpaid = term.status === "unpaid";
-                  return (
-                    <span
-                      key={term.id}
-                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium border ${
-                        term.status === "paid"
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                          : term.status === "past"
-                            ? "bg-gray-50 text-gray-400 border-gray-200"
-                            : "bg-amber-50 text-amber-700 border-amber-200"
-                      }`}
-                    >
-                      {term.name}
-                      {isUnpaid && <AlertCircle className="h-2.5 w-2.5" />}
+          <div className="space-y-3">
+            {termsBySession.map((group) => {
+              const paidCount = group.terms.filter((t) => t.status === "paid").length;
+              const totalCount = group.terms.length;
+
+              return (
+                <div
+                  key={group.session_name}
+                  className="rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm"
+                >
+                  {/* Session Header */}
+                  <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-gray-50 to-white border-b border-gray-100">
+                    <div className="flex items-center gap-2">
+                      <GraduationCap className="h-4 w-4 text-indigo-500" />
+                      <div>
+                        <span className="text-sm font-semibold text-gray-900">{group.session_name}</span>
+                        <span className="text-xs text-gray-400 ml-2">Session</span>
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-gray-500">
+                      {paidCount}/{totalCount} paid
                     </span>
-                  );
-                })}
-              </div>
-            ))}
+                  </div>
+
+                  {/* Terms List */}
+                  <div className="divide-y divide-gray-50">
+                    {group.terms.map((term) => {
+                      const isPaid = term.status === "paid";
+                      const isPast = term.status === "past";
+                      const isUnpaid = term.status === "unpaid";
+
+                      const statusColor = isPaid
+                        ? "text-emerald-600 bg-emerald-50 border-emerald-200"
+                        : isPast
+                          ? "text-gray-400 bg-gray-50 border-gray-200"
+                          : "text-amber-600 bg-amber-50 border-amber-200";
+
+                      const statusLabel = isPaid ? "Paid" : isPast ? "Past" : "Unpaid";
+
+                      return (
+                        <div
+                          key={term.id}
+                          className="flex items-center justify-between px-4 py-3 hover:bg-gray-50/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            {/* Status dot */}
+                            <div className={`w-2 h-2 rounded-full shrink-0 ${
+                              isPaid ? "bg-emerald-500" : isPast ? "bg-gray-300" : "bg-amber-500"
+                            }`} />
+                            <div className="min-w-0">
+                              <span className="text-sm font-medium text-gray-900">{term.name}</span>
+                              <span className="text-xs text-gray-400 ml-2">
+                                {term.weeks}wk
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 shrink-0">
+                            {/* Date range */}
+                            <span className="text-[11px] text-gray-400 hidden sm:inline">
+                              {new Date(term.start_date).toLocaleDateString("en-NG", { day: "numeric", month: "short" })} – {new Date(term.end_date).toLocaleDateString("en-NG", { day: "numeric", month: "short" })}
+                            </span>
+                            {/* Status badge */}
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${statusColor}`}>
+                              {isPaid && <CheckCircle2 className="h-2.5 w-2.5" />}
+                              {isUnpaid && <AlertCircle className="h-2.5 w-2.5" />}
+                              {statusLabel}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

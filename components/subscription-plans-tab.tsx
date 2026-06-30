@@ -511,7 +511,7 @@ export function SubscriptionPlansTab({
                               </span>
                               <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                                 <Check className="h-2.5 w-2.5" />
-                                Covered
+                                Included
                               </span>
                             </div>
                           </div>

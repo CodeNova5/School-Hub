@@ -2,7 +2,8 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle, ChevronRight, Sparkles, GraduationCap, Calendar } from "lucide-react";
+import { CheckCircle, ChevronRight, Sparkles, GraduationCap, Calendar, Clock, Check, Zap } from "lucide-react";
+import { formatShortDate } from "@/components/subscription-utils";
 
 function SuccessSkeleton() {
   return (
@@ -26,6 +27,29 @@ function SuccessContent() {
   const interval = searchParams.get("interval") || "termly";
   const termName = searchParams.get("termName");
   const termNames = searchParams.get("termNames") || "";
+  const termIds = searchParams.get("termIds") || "";
+
+  // ── Fetch yearly term details for rich display ──
+  const [yearlyTerms, setYearlyTerms] = useState<{ name: string; session_name: string; start_date: string; end_date: string; weeks: number; is_current?: boolean }[]>([]);
+  const [termsLoading, setTermsLoading] = useState(false);
+
+  useEffect(() => {
+    if (interval !== "yearly" || !termIds) return;
+    setTermsLoading(true);
+    const ids = termIds.split(",");
+    fetch("/api/school/subscription/available-terms")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.terms) {
+          const terms = ids
+            .map((id) => data.terms.find((t: any) => t.id === id))
+            .filter(Boolean);
+          if (terms.length > 0) setYearlyTerms(terms);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setTermsLoading(false));
+  }, [interval, termIds]);
 
   useEffect(() => {
     const timer = setTimeout(() => setMounted(true), 80);
@@ -75,7 +99,89 @@ function SuccessContent() {
             </div>
           )}
 
-          {interval === "yearly" && termNames && (
+          {interval === "yearly" && termIds && (
+            <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-left space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/50 shrink-0">
+                  <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-blue-500 dark:text-blue-400 uppercase tracking-wider">
+                    Covered Terms (3 terms ahead)
+                  </p>
+                  <p className="text-[10px] text-blue-400 dark:text-blue-500 mt-0.5">
+                    Full academic year — no charges during breaks
+                  </p>
+                </div>
+              </div>
+
+              {/* Rich term cards */}
+              {termsLoading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-24 rounded-lg bg-blue-100/50 dark:bg-blue-900/20 animate-pulse" />
+                  ))}
+                </div>
+              ) : yearlyTerms.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {yearlyTerms.map((t, i) => (
+                    <div
+                      key={i}
+                      className="relative bg-white dark:bg-slate-800 rounded-lg border border-blue-200 dark:border-blue-700 p-3 shadow-sm"
+                    >
+                      {/* Step number */}
+                      <div className="absolute -top-2 -left-2 w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-[9px] font-bold text-white shadow-sm z-10">
+                        {i + 1}
+                      </div>
+
+                      <div className="pt-0.5">
+                        <div className="flex items-center justify-between gap-1 mb-1.5">
+                          <p className="text-xs font-semibold text-blue-900 dark:text-blue-100 truncate">{t.name}</p>
+                          {t.is_current && (
+                            <span className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[8px] font-semibold bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700">
+                              <Zap className="h-2 w-2" />
+                              Now
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-blue-400 dark:text-blue-400 mb-1">{t.session_name}</p>
+                        <div className="flex items-center gap-1 text-[9px] text-blue-400 dark:text-blue-400 mb-1.5">
+                          <Calendar className="h-2.5 w-2.5" />
+                          <span>{formatShortDate(t.start_date)} – {formatShortDate(t.end_date)}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="inline-flex items-center gap-0.5 text-[9px] font-medium text-blue-500 bg-blue-100 dark:bg-blue-900/40 px-1.5 py-0.5 rounded-full">
+                            <Clock className="h-2 w-2" />
+                            {t.weeks}wk
+                          </span>
+                          <span className="inline-flex items-center gap-0.5 text-[9px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                            <Check className="h-2 w-2" />
+                            Included
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                /* Fallback: simple list when fetch fails */
+                termNames && (
+                  <div className="space-y-1.5">
+                    {termNames.split(", ").map((name, i) => (
+                      <div key={i} className="flex items-center gap-2 text-sm">
+                        <span className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-800 flex items-center justify-center text-[10px] font-bold text-blue-700 dark:text-blue-300 shrink-0">
+                          {i + 1}
+                        </span>
+                        <span className="font-medium text-blue-800 dark:text-blue-200">{name}</span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
+            </div>
+          )}
+
+          {interval === "yearly" && !termIds && termNames && (
             <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-left space-y-3">
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/50 shrink-0">
@@ -103,7 +209,7 @@ function SuccessContent() {
             </div>
           )}
 
-          {interval === "yearly" && !termNames && (
+          {interval === "yearly" && !termIds && !termNames && (
             <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 flex items-center gap-3 text-left">
               <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/50 shrink-0">
                 <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />

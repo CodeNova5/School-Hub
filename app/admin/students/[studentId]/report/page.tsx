@@ -80,11 +80,21 @@ export default function StudentReportPage() {
       setSessions(sessionsData || []);
       setTerms(termsData || []);
 
-      // If no session/term provided, fetch current ones
-      if (!sessionId || !termId) {
+      // Determine session/term selection
+      if (termId && termsData) {
+        // Term explicitly provided in URL — derive session from it
+        const termFromUrl = termsData.find((t: Term) => t.id === termId);
+        if (termFromUrl) {
+          setSelectedSessionId(termFromUrl.session_id);
+          // selectedTermId is already initialized from the URL via useState
+        }
+      } else if (sessionId) {
+        // Only session explicitly provided
+        setSelectedSessionId(sessionId);
+      } else {
+        // Neither provided — auto-select current session and term
         const currentSession = sessionsData?.find((s: any) => s.is_current);
         const currentTerm = termsData?.find((t: any) => t.is_current);
-
         if (currentSession) setSelectedSessionId(currentSession.id);
         if (currentTerm) setSelectedTermId(currentTerm.id);
       }
@@ -96,19 +106,21 @@ export default function StudentReportPage() {
     }
   }
 
-  // When session changes, reset term selection or auto-select first term of new session
+  // When session changes, auto-select a valid term if the current one doesn't belong to this session
   useEffect(() => {
     if (selectedSessionId) {
       const sessionTerms = terms.filter(t => t.session_id === selectedSessionId);
       if (sessionTerms.length > 0) {
-        // Auto-select first term or current term of the selected session
-        const currentTerm = sessionTerms.find(t => t.is_current);
-        setSelectedTermId(currentTerm?.id || sessionTerms[0].id);
+        const isValid = selectedTermId && sessionTerms.some(t => t.id === selectedTermId);
+        if (!isValid) {
+          const currentTerm = sessionTerms.find(t => t.is_current);
+          setSelectedTermId(currentTerm?.id || sessionTerms[0].id);
+        }
       } else {
         setSelectedTermId("");
       }
     }
-  }, [selectedSessionId, terms]);
+  }, [selectedSessionId, terms, selectedTermId]);
 
   if (schoolLoading || loading) {
     return (

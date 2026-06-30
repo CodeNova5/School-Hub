@@ -275,6 +275,7 @@ export interface Teacher {
   date_of_birth?: string;
   hire_date: string;
   photo_url: string;
+  signature_url?: string;
   bio: string;
   status: 'active' | 'on_leave' | 'inactive';
   created_at: string;

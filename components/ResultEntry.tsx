@@ -75,6 +75,15 @@ export default function ResultEntry({
   const [gradeScale, setGradeScale] = useState<ResultGradeScale[]>([]);
   const [configuredPassPercentage, setConfiguredPassPercentage] = useState<number>(40);
 
+  // School details (fetched from database)
+  const [school, setSchool] = useState<{ name: string; address: string; phone: string; logo_url: string } | null>(null);
+
+  // Principal/Admin signature URL
+  const [principalSignature, setPrincipalSignature] = useState<string | null>(null);
+
+  // Class Teacher signature URL
+  const [teacherSignature, setTeacherSignature] = useState<string | null>(null);
+
   // Publication settings
   const [publicationSettings, setPublicationSettings] = useState<any>(null);
   const [isPublished, setIsPublished] = useState(false);
@@ -230,6 +239,33 @@ export default function ResultEntry({
         setGradeScale([]);
       }
 
+      // 1.6 Fetch school details (name, address, phone, logo_url)
+      if (schoolId) {
+        const { data: schoolData } = await supabase
+          .from("schools")
+          .select("name, address, phone, logo_url")
+          .eq("id", schoolId)
+          .single();
+
+        if (schoolData) {
+          setSchool(schoolData);
+        }
+      }
+
+      // 1.7 Fetch principal/admin signature
+      if (schoolId) {
+        const { data: adminData } = await supabase
+          .from("admins")
+          .select("signature_url")
+          .eq("school_id", schoolId)
+          .not("signature_url", "is", null)
+          .maybeSingle();
+
+        if (adminData?.signature_url) {
+          setPrincipalSignature(adminData.signature_url);
+        }
+      }
+
       // 2. Class
       let classQuery = supabase
         .from("classes")
@@ -258,7 +294,25 @@ export default function ResultEntry({
         termQuery.single(),
       ]);
 
-      if (classData) setStudentClass(classData);
+      if (classData) {
+        setStudentClass(classData);
+
+        // Fetch class teacher name and signature if we have a class_teacher_id
+        if (classData.class_teacher_id) {
+          const { data: teacherData } = await supabase
+            .from("teachers")
+            .select("first_name, last_name, signature_url")
+            .eq("id", classData.class_teacher_id)
+            .maybeSingle();
+
+          if (teacherData) {
+            setTeacherName(`${teacherData.first_name} ${teacherData.last_name}`);
+            if (teacherData.signature_url) {
+              setTeacherSignature(teacherData.signature_url);
+            }
+          }
+        }
+      }
 
       if (!sessionData || !termData) {
         toast.error("No active session or term");
@@ -993,17 +1047,33 @@ export default function ResultEntry({
         <CardContent id="printable-content" ref={printRef} className="p-8">
           <div className="space-y-6">
             <div className="flex items-start justify-between border-b pb-6">
-              <div className="w-20 h-20 bg-gray-100 rounded flex items-center justify-center">
-                <span className="text-xs text-gray-400">LOGO</span>
+              <div className="w-20 h-20 bg-gray-100 rounded flex items-center justify-center overflow-hidden">
+                {school?.logo_url ? (
+                  <img
+                    src={school.logo_url}
+                    alt="School Logo"
+                    className="h-full w-full object-contain p-1"
+                  />
+                ) : (
+                  <span className="text-xs text-gray-400">LOGO</span>
+                )}
               </div>
               <div className="text-center flex-1 mx-4">
-                <h1 className="text-2xl font-bold">SCHOOL NAME</h1>
-                <p className="text-sm text-gray-600 mt-1">School Address, City, State</p>
-                <p className="text-sm text-gray-600">Tel: +234 XXX XXX XXXX</p>
+                <h1 className="text-2xl font-bold">{school?.name || "SCHOOL NAME"}</h1>
+                <p className="text-sm text-gray-600 mt-1">{school?.address || "School Address, City, State"}</p>
+                <p className="text-sm text-gray-600">{school?.phone ? `Tel: ${school.phone}` : ""}</p>
                 <p className="text-lg font-semibold mt-2 text-blue-600">STUDENT REPORT CARD</p>
               </div>
-              <div className="w-20 h-20 bg-gray-100 rounded flex items-center justify-center">
-                <span className="text-xs text-gray-400">PHOTO</span>
+              <div className="w-20 h-20 bg-gray-100 rounded flex items-center justify-center overflow-hidden">
+                {student?.photo_url || student?.image_url ? (
+                  <img
+                    src={student.photo_url || student.image_url}
+                    alt="Student Photo"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="text-xs text-gray-400">PHOTO</span>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-6 text-sm">
@@ -1136,7 +1206,20 @@ export default function ResultEntry({
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm font-medium">Signature: _________________________</p>
+                    <p className="text-sm font-medium">
+                      {teacherSignature ? (
+                        <span className="inline-flex items-center gap-2">
+                          Signature:
+                          <img
+                            src={teacherSignature}
+                            alt="Class Teacher's Signature"
+                            className="h-8 object-contain inline-block"
+                          />
+                        </span>
+                      ) : (
+                        "Signature: _________________________"
+                      )}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -1154,7 +1237,20 @@ export default function ResultEntry({
                 />
                 <div className="mt-4 flex justify-between items-center">
                   <div>
-                    <p className="text-sm font-medium">Signature: _________________________</p>
+                    <p className="text-sm font-medium">
+                      {principalSignature ? (
+                        <span className="inline-flex items-center gap-2">
+                          Signature:
+                          <img
+                            src={principalSignature}
+                            alt="Principal's Signature"
+                            className="h-8 object-contain inline-block"
+                          />
+                        </span>
+                      ) : (
+                        "Signature: _________________________"
+                      )}
+                    </p>
                   </div>
                   <div>
                     <p className="text-sm font-medium">

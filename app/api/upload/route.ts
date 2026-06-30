@@ -12,6 +12,7 @@ type UploadType =
   | "teacher_assignment_file"
   | "school_logo"
   | "admin_signature"
+  | "teacher_signature"
   | "website_media";
 
 export async function POST(req: Request) {
@@ -121,6 +122,15 @@ export async function POST(req: Request) {
 
         path = `signatures/${adminId}.${fileExtension}`;
         commitMessage = `Upload admin signature for ${adminId}`;
+        break;
+      }
+
+      case "teacher_signature": {
+        const teacherId = form.get("teacher_id") as string;
+        if (!teacherId) throw new Error("teacher_id is required");
+
+        path = `teacher-signatures/${teacherId}.${fileExtension}`;
+        commitMessage = `Upload teacher signature for ${teacherId}`;
         break;
       }
 

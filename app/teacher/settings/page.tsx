@@ -6,12 +6,13 @@ import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useSchoolContext } from '@/hooks/use-school-context';
-import { Loader2, Lock, Mail, Landmark, CheckCircle2, XCircle, DollarSign, ExternalLink } from 'lucide-react';
+import { Loader2, Lock, Mail, Landmark, CheckCircle2, XCircle, DollarSign, ExternalLink, Pen } from 'lucide-react';
 
 interface TeacherProfile {
   id: string;
@@ -20,6 +21,7 @@ interface TeacherProfile {
   email: string;
   phone: string;
   paystack_subaccount_code?: string;
+  signature_url?: string;
 }
 
 interface PayrollSettings {
@@ -33,7 +35,71 @@ export default function TeacherSettingsPage() {
   const [payroll, setPayroll] = useState<PayrollSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [resettingPassword, setResettingPassword] = useState(false);
+  const [uploadingSignature, setUploadingSignature] = useState(false);
+  const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
+
+  // Helper function to upload file to GitHub
+  async function uploadFileToGitHub(file: File): Promise<string | null> {
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", "teacher_signature");
+      formData.append("teacher_id", teacher?.id || "");
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Unknown error');
+      }
+
+      return result.fileUrl;
+    } catch (error) {
+      console.error('Failed to upload signature:', error);
+      toast.error('Failed to upload signature');
+      return null;
+    }
+  }
+
+  async function handleSignatureUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !teacher) return;
+
+    setUploadingSignature(true);
+    try {
+      // Preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSignaturePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+
+      // Upload
+      const signatureUrl = await uploadFileToGitHub(file);
+      if (signatureUrl) {
+        // Save to database
+        const { error: updateError } = await supabase
+          .from('teachers')
+          .update({ signature_url: signatureUrl, updated_at: new Date().toISOString() })
+          .eq('id', teacher.id);
+
+        if (updateError) {
+          toast.error('Failed to save signature URL');
+          return;
+        }
+
+        setTeacher(prev => prev ? { ...prev, signature_url: signatureUrl } : null);
+        toast.success('Signature uploaded successfully!');
+      }
+    } finally {
+      setUploadingSignature(false);
+    }
+  }
 
   // Subaccount creation is handled on the dedicated /teacher/payroll/subaccount page
 
@@ -54,10 +120,10 @@ export default function TeacherSettingsPage() {
 
       const user = session.user;
 
-      // Fetch teacher profile with subaccount code
+      // Fetch teacher profile with subaccount code and signature
       const { data: teacherData, error } = await supabase
         .from('teachers')
-        .select('id, first_name, last_name, email, phone, paystack_subaccount_code')
+        .select('id, first_name, last_name, email, phone, paystack_subaccount_code, signature_url')
         .eq('user_id', user.id)
         .eq('school_id', schoolId)
         .single();
@@ -201,6 +267,59 @@ export default function TeacherSettingsPage() {
               <div className="mt-1 p-3 bg-gray-50 rounded-md border border-gray-200">
                 <p className="text-gray-900 font-medium">{teacher?.phone || '-'}</p>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Signature Upload */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Pen className="w-5 h-5" />
+              Signature
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-gray-600">
+Upload your signature as an image (PNG, JPG) or vector SVG file. SVG files stay perfectly sharp on printed report cards. Use a free tool like Vectorizer.ai to convert a paper signature to SVG.
+            </p>
+
+            {/* Preview current signature */}
+            {signaturePreview && (
+              <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <p className="text-xs text-gray-500 mb-2">New signature preview:</p>
+                <img
+                  src={signaturePreview}
+                  alt="Signature Preview"
+                  className="h-12 object-contain"
+                />
+                <p className="text-xs text-green-600 mt-2">✓ Ready to upload</p>
+              </div>
+            )}
+
+            {teacher?.signature_url && !signaturePreview && (
+              <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <p className="text-xs text-gray-500 mb-2">Current signature:</p>
+                <img
+                  src={teacher.signature_url}
+                  alt="Current Signature"
+                  className="h-12 object-contain"
+                />
+              </div>
+            )}
+
+            <div className="flex items-center gap-3">
+              <Input
+                id="teacher_signature"
+                type="file"
+                accept="image/png,image/jpeg,image/svg+xml"
+                onChange={handleSignatureUpload}
+                disabled={uploadingSignature}
+                className="text-sm"
+              />
+              {uploadingSignature && (
+                <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+              )}
             </div>
           </CardContent>
         </Card>

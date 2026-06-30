@@ -389,7 +389,7 @@ export default function AdminSettingsPage() {
                 {/* Signature Upload */}
                 <div className="border-t pt-4">
                   <Label className="text-gray-700 text-sm font-semibold">Admin Signature</Label>
-                  <p className="text-xs text-gray-500 mt-1 mb-3">Upload a signature file (PNG, JPG, or PDF)</p>
+                  <p className="text-xs text-gray-500 mt-1 mb-3">Upload a signature file (PNG, JPG, or SVG)</p>
                   
                   {signaturePreview && (
                     <div className="mb-3 p-3 bg-gray-50 rounded-md border border-gray-200">
@@ -413,7 +413,7 @@ export default function AdminSettingsPage() {
                   <Input
                     id="admin_signature"
                     type="file"
-                    accept="image/png,image/jpeg,application/pdf"
+                    accept="image/png,image/jpeg,image/svg+xml"
                     onChange={handleSignatureUpload}
                     disabled={uploadingSignature}
                     className="text-sm"

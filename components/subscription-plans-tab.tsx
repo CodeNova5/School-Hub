@@ -20,6 +20,7 @@ import {
   CheckCircle2,
   Sparkles,
   Zap,
+  Layers,
 } from "lucide-react";
 import {
   formatPrice,
@@ -373,64 +374,91 @@ export function SubscriptionPlansTab({
                 <p className="text-[10px] text-amber-600 mt-0.5">Set up your academic calendar first.</p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {availableTerms.map((term) => {
-                  const isSelected = selectedTermId === term.id;
-                  const isCurrent = term.is_current;
-                  const daysUntilStart = Math.ceil(
-                    (new Date(term.start_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-                  );
+              <div className="space-y-5">
+                {(() => {
+                  // Group terms by session
+                  const bySession: Record<string, typeof availableTerms> = {};
+                  for (const t of availableTerms) {
+                    const key = t.session_name || "Other";
+                    if (!bySession[key]) bySession[key] = [];
+                    bySession[key].push(t);
+                  }
+                  const sessionKeys = Object.keys(bySession);
 
-                  return (
-                    <button
-                      key={term.id}
-                      type="button"
-                      onClick={() => setSelectedTermId(term.id)}
-                      className={`
-                        w-full text-left rounded-lg border-2 p-3.5 transition-all duration-200
-                        ${isSelected
-                          ? "border-blue-500 bg-blue-50 shadow-sm ring-1 ring-blue-500/20"
-                          : "border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/30"
-                        }
-                      `}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-semibold text-gray-900">{term.name}</span>
-                            <span className="text-xs text-gray-400">·</span>
-                            <span className="text-xs text-gray-500">{term.session_name} Session</span>
-                            {isCurrent && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
-                                <CheckCircle2 className="h-2.5 w-2.5" />
-                                Current
-                              </span>
-                            )}
-                            {daysUntilStart > 0 && !isCurrent && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">
-                                Starts in {daysUntilStart}d
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            {formatDateRange(term.start_date, term.end_date)}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
-                            <Clock className="h-2.5 w-2.5" />
-                            {term.weeks}wk
-                          </span>
-                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
-                            isSelected ? "border-blue-500 bg-blue-500" : "border-gray-300"
-                          }`}>
-                            {isSelected && <Check className="h-2.5 w-2.5 text-white" />}
-                          </div>
-                        </div>
+                  return sessionKeys.map((sessionName) => (
+                    <div key={sessionName}>
+                      {/* Session header */}
+                      <div className="flex items-center gap-1.5 mb-2 px-0.5">
+                        <Layers className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          {sessionName} Session
+                        </p>
+                        <span className="text-[10px] font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">
+                          {bySession[sessionName].length} term{bySession[sessionName].length > 1 ? "s" : ""}
+                        </span>
                       </div>
-                    </button>
-                  );
-                })}
+
+                      {/* Terms in this session */}
+                      <div className="space-y-2">
+                        {bySession[sessionName].map((term) => {
+                          const isSelected = selectedTermId === term.id;
+                          const isCurrent = term.is_current;
+                          const daysUntilStart = Math.ceil(
+                            (new Date(term.start_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+                          );
+
+                          return (
+                            <button
+                              key={term.id}
+                              type="button"
+                              onClick={() => setSelectedTermId(term.id)}
+                              className={`
+                                w-full text-left rounded-lg border-2 p-3.5 transition-all duration-200
+                                ${isSelected
+                                  ? "border-blue-500 bg-blue-50 shadow-sm ring-1 ring-blue-500/20"
+                                  : "border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/30"
+                                }
+                              `}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-sm font-semibold text-gray-900">{term.name}</span>
+                                    {isCurrent && (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                        <CheckCircle2 className="h-2.5 w-2.5" />
+                                        Current
+                                      </span>
+                                    )}
+                                    {daysUntilStart > 0 && !isCurrent && (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">
+                                        Starts in {daysUntilStart}d
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-gray-500 mt-0.5">
+                                    {formatDateRange(term.start_date, term.end_date)}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
+                                    <Clock className="h-2.5 w-2.5" />
+                                    {term.weeks}wk
+                                  </span>
+                                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
+                                    isSelected ? "border-blue-500 bg-blue-500" : "border-gray-300"
+                                  }`}>
+                                    {isSelected && <Check className="h-2.5 w-2.5 text-white" />}
+                                  </div>
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ));
+                })()}
               </div>
             )}
           </CardContent>

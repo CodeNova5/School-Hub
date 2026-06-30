@@ -12,6 +12,7 @@ interface InitializePayload {
   planId: string;
   billingInterval: "termly" | "yearly";
   termId?: string | null;
+  termIds?: string | null;
   callbackUrl?: string;
 }
 
@@ -95,6 +96,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Parse termIds for yearly billing
+  const selectedTermIds: string[] | null =
+    body.billingInterval === "yearly" && body.termIds
+      ? body.termIds.split(",").filter(Boolean)
+      : null;
+
+  if (body.billingInterval === "yearly" && selectedTermIds && selectedTermIds.length === 0) {
+    return NextResponse.json(
+      { error: "termIds are required for yearly billing" },
+      { status: 400 }
+    );
+  }
+
   // Accept plan_key (e.g., "pro") instead of UUID for convenience
   // plan_key is UNIQUE so this is safe
   const { data: plan, error: planError } = await supabaseAdmin
@@ -124,7 +138,7 @@ export async function POST(req: NextRequest) {
   // The checkout page will then navigate to /checkout/success on success.
   const callbackUrl =
     body.callbackUrl ||
-    `${req.nextUrl.origin}/checkout?reference=${reference}&plan=${body.planId}&interval=${body.billingInterval}${body.termId ? `&termId=${body.termId}` : ""}`;
+    `${req.nextUrl.origin}/checkout?reference=${reference}&plan=${body.planId}&interval=${body.billingInterval}${body.termId ? `&termId=${body.termId}` : ""}${body.termIds ? `&termIds=${body.termIds}` : ""}`;
 
   // Create or retrieve Paystack customer
   // First, try to find existing customer by email
@@ -176,6 +190,7 @@ export async function POST(req: NextRequest) {
       billing_interval: body.billingInterval,
       type: "subscription",
       ...(body.termId ? { selected_term_id: body.termId } : {}),
+      ...(selectedTermIds ? { selected_term_ids: selectedTermIds } : {}),
     },
   };
 
@@ -218,6 +233,7 @@ export async function POST(req: NextRequest) {
         authorization_url: paystackData.data.authorization_url,
         access_code: paystackData.data.access_code,
         ...(body.termId ? { selected_term_id: body.termId } : {}),
+        ...(selectedTermIds ? { selected_term_ids: selectedTermIds } : {}),
       },
       created_by: user.id,
     });

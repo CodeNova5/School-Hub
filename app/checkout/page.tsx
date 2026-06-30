@@ -65,6 +65,7 @@ function CheckoutContent() {
   const planKey = searchParams.get("plan") || "";
   const billingInterval = (searchParams.get("interval") || "termly") as "termly" | "yearly";
   const termId = searchParams.get("termId") || "";
+  const termIds = searchParams.get("termIds") || "";
   const returnPath = searchParams.get("from") || "";
 
   // ── State ──
@@ -72,6 +73,7 @@ function CheckoutContent() {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [termInfo, setTermInfo] = useState<{ name: string; session_name: string; start_date: string; end_date: string; weeks: number } | null>(null);
+  const [yearlyTermsInfo, setYearlyTermsInfo] = useState<{ id: string; name: string; session_name: string; start_date: string; end_date: string; weeks: number }[]>([]);
 
   const planInfo = getPlanInfo(planKey);
   const price = billingInterval === "termly"
@@ -87,17 +89,25 @@ function CheckoutContent() {
 
   // ── Fetch term details ──
   useEffect(() => {
-    if (!termId || billingInterval !== "termly") return;
+    if (!termId && !termIds) return;
     fetch("/api/school/subscription/available-terms")
       .then((res) => res.json())
       .then((data) => {
         if (data.terms) {
-          const term = data.terms.find((t: any) => t.id === termId);
-          if (term) setTermInfo(term);
+          if (billingInterval === "termly" && termId) {
+            const term = data.terms.find((t: any) => t.id === termId);
+            if (term) setTermInfo(term);
+          } else if (billingInterval === "yearly" && termIds) {
+            const ids = termIds.split(",");
+            const terms = ids
+              .map((id: string) => data.terms.find((t: any) => t.id === id))
+              .filter(Boolean);
+            if (terms.length > 0) setYearlyTermsInfo(terms);
+          }
         }
       })
       .catch(() => {});
-  }, [termId, billingInterval]);
+  }, [termId, termIds, billingInterval]);
 
   // ── Handle payment ──
   const handleProceedToPayment = useCallback(async () => {
@@ -113,6 +123,7 @@ function CheckoutContent() {
           planId: planKey,
           billingInterval,
           termId: termId || undefined,
+          termIds: termIds || undefined,
         }),
       });
 
@@ -128,13 +139,14 @@ function CheckoutContent() {
       setError(err.message || "An unexpected error occurred");
       setProcessing(false);
     }
-  }, [planKey, billingInterval, termId, processing]);
+  }, [planKey, billingInterval, termId, termIds, processing]);
 
   // ── Handle success from Paystack redirect ──
   useEffect(() => {
     const reference = searchParams.get("reference");
     const txRef = searchParams.get("trxref");
     const termFromRedirect = searchParams.get("termId") || searchParams.get("term");
+    const termIdsFromRedirect = searchParams.get("termIds");
 
     if (reference || txRef) {
       const ref = reference || txRef!;
@@ -146,10 +158,16 @@ function CheckoutContent() {
           setProcessing(false);
           if (data.status === "success") {
             const successParams = new URLSearchParams({ plan: planKey, interval: billingInterval });
-            if (termFromRedirect) {
+            if (termFromRedirect && billingInterval === "termly") {
               successParams.set("term", termFromRedirect);
               if (termInfo) {
                 successParams.set("termName", `${termInfo.name} · ${termInfo.session_name}`);
+              }
+            }
+            if (termIdsFromRedirect && billingInterval === "yearly") {
+              successParams.set("termIds", termIdsFromRedirect);
+              if (yearlyTermsInfo.length > 0) {
+                successParams.set("termNames", yearlyTermsInfo.map((t) => t.name).join(", "));
               }
             }
             router.push(`/checkout/success?${successParams.toString()}`);
@@ -289,6 +307,27 @@ function CheckoutContent() {
                         {formatShortDate(termInfo.start_date)} — {formatShortDate(termInfo.end_date)}
                         <span className="ml-1">({termInfo.weeks}wk)</span>
                       </p>
+                    </div>
+                  </div>
+                )}
+
+                {billingInterval === "yearly" && yearlyTermsInfo.length > 0 && (
+                  <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                    <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5" />
+                      Covered Terms (3 terms ahead)
+                    </p>
+                    <div className="space-y-1.5">
+                      {yearlyTermsInfo.map((t, i) => (
+                        <div key={t.id} className="flex items-center gap-2 text-xs">
+                          <span className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-800 flex items-center justify-center text-[10px] font-bold text-blue-700 dark:text-blue-300 shrink-0">
+                            {i + 1}
+                          </span>
+                          <span className="font-medium text-blue-700 dark:text-blue-300">{t.name}</span>
+                          <span className="text-blue-400 dark:text-blue-500">·</span>
+                          <span className="text-blue-500 dark:text-blue-400">{t.session_name}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}

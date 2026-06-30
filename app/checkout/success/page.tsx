@@ -25,6 +25,7 @@ function SuccessContent() {
   const planKey = searchParams.get("plan") || "basic";
   const interval = searchParams.get("interval") || "termly";
   const termName = searchParams.get("termName");
+  const termNames = searchParams.get("termNames") || "";
 
   useEffect(() => {
     const timer = setTimeout(() => setMounted(true), 80);
@@ -74,7 +75,35 @@ function SuccessContent() {
             </div>
           )}
 
-          {interval === "yearly" && (
+          {interval === "yearly" && termNames && (
+            <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-left space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/50 shrink-0">
+                  <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-blue-500 dark:text-blue-400 uppercase tracking-wider">
+                    Covered Terms (3 terms ahead)
+                  </p>
+                  <p className="text-[10px] text-blue-400 dark:text-blue-500 mt-0.5">
+                    Full academic year — no charges during breaks
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                {termNames.split(", ").map((name, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm">
+                    <span className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-800 flex items-center justify-center text-[10px] font-bold text-blue-700 dark:text-blue-300 shrink-0">
+                      {i + 1}
+                    </span>
+                    <span className="font-medium text-blue-800 dark:text-blue-200">{name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {interval === "yearly" && !termNames && (
             <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 flex items-center gap-3 text-left">
               <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/50 shrink-0">
                 <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />

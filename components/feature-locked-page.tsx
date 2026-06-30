@@ -11,7 +11,7 @@ import {
   Sparkles,
   Check,
   Star,
-  Zap,
+  Building2,
 } from "lucide-react";
 import { getUpgradePlan } from "@/lib/plan-features";
 import { usePlanFeatures } from "@/hooks/use-plan-features";
@@ -435,39 +435,25 @@ export function FeatureLockedPage({
             </div>
           )}
 
-          {/* ── Upgrade CTA ── */}
-          {upgradeInfo && (
-            <div
-              className={`transition-all duration-500 delay-700 ease-out ${mounted ? "opacity-100" : "opacity-0"}`}
-            >
-              <button
-                onClick={() =>
-                  router.push(
-                    `/subscription?feature=${featureKeyStr}&plan=${upgradePlan}&from=${encodeURIComponent(window.location.pathname)}`
-                  )
-                }
-                className={`
-                  w-full inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-xl text-sm font-semibold
-                  text-white ${v.buttonBg} ${v.buttonShadow} shadow-lg
-                  transition-all duration-200
-                  ${v.buttonShadowHover} hover:shadow-xl
-                  hover:scale-[1.02]
-                  active:scale-[0.98]
-                  ${v.buttonFocus} focus:outline-none focus:ring-2 focus:ring-offset-2
-                `}
-              >
-                <Zap className="h-5 w-5" />
-                Upgrade to {upgradeInfo.label_short}
-                <ArrowUp className="h-4 w-4" />
-              </button>
-
-              {upgradePlan === "premium" && (
-                <p className="mt-3 text-center text-xs text-slate-400 dark:text-slate-500">
-                  Includes all Pro features plus Premium additions
+          {/* ── Contact Admin Notice ── */}
+          <div
+            className={`transition-all duration-500 delay-700 ease-out ${mounted ? "opacity-100" : "opacity-0"}`}
+          >
+            <div className="p-5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-center space-y-3">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-slate-200 dark:bg-slate-700">
+                <Building2 className="h-6 w-6 text-slate-500 dark:text-slate-400" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                  Contact your school administrator
                 </p>
-              )}
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                  Plan changes and upgrades are managed by your school administration.
+                  Please reach out to your admin to request access to this feature.
+                </p>
+              </div>
             </div>
-          )}
+          </div>
 
           {/* ── Back to Dashboard ── */}
           <div

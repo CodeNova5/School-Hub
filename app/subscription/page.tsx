@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { usePlanDisplayInfo, PLAN_KEYS_IN_ORDER } from "@/hooks/use-plan-display-info";
 import { usePlanFeatures } from "@/hooks/use-plan-features";
 import {
@@ -11,11 +10,10 @@ import {
   Shield,
   Star,
   Sparkles,
-  ArrowLeft,
-  Clock,
   Calendar,
-  ChevronRight,
   GraduationCap,
+  Building2,
+  Info,
 } from "lucide-react";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -24,8 +22,6 @@ function formatPrice(cents: number): string {
   if (cents === 0) return "Free";
   return `₦${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
-
-
 
 // ── Loading Skeleton ──────────────────────────────────────────────────────
 
@@ -60,50 +56,25 @@ function SubscriptionSkeleton() {
 // ── Main Page ─────────────────────────────────────────────────────────────
 
 function SubscriptionPageContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const { getPlanInfo, isLoading: plansLoading } = usePlanDisplayInfo();
-  const { planFeatures, featureMetadata, isLoading: featuresLoading, error: featuresError, isFeatureEnabled } = usePlanFeatures();
+  const { featureMetadata, isLoading: featuresLoading, error: featuresError, isFeatureEnabled } = usePlanFeatures();
 
   // ── State ──
   const [billingInterval, setBillingInterval] = useState<"termly" | "yearly">("termly");
   const [mounted, setMounted] = useState(false);
 
-  // ── School's actual current plan from DB ──
-  const [actualPlan, setActualPlan] = useState<string | null>(null);
-  const [actualPlanLoading, setActualPlanLoading] = useState(true);
+  // ── Fetch school's current plan (for display only) ──
+  const [currentPlanLabel, setCurrentPlanLabel] = useState<string | null>(null);
 
-  // ── Query params from upgrade flow ──
-  const featureKey = searchParams.get("feature");
-  const currentPlanParam = searchParams.get("plan");
-  const returnPath = searchParams.get("from");
-
-  // ── Fetch school's actual current plan ──
   useEffect(() => {
-    let cancelled = false;
-    setActualPlanLoading(true);
     fetch("/api/admin/subscription")
-      .then((res) => {
-        if (!res.ok) throw new Error("Not available");
-        return res.json();
-      })
+      .then((res) => { if (!res.ok) throw new Error(); return res.json(); })
       .then((data) => {
-        if (!cancelled) {
-          setActualPlan(data.school?.plan || data.subscription?.plan_key || null);
-        }
+        const plan = data.school?.plan || data.subscription?.plan_key || null;
+        if (plan) setCurrentPlanLabel(getPlanInfo(plan).label_short);
       })
-      .catch(() => {
-        // Non-admin users can't access this endpoint — silently fall back to URL param
-      })
-      .finally(() => {
-        if (!cancelled) setActualPlanLoading(false);
-      });
-    return () => { cancelled = true; };
+      .catch(() => {});
   }, []);
-
-  // ── Resolve the effective current plan ──
-  // URL param takes priority (for upgrade flow), then DB data
-  const effectivePlan = currentPlanParam || actualPlan;
 
   // ── Animate in ──
   useEffect(() => {
@@ -112,9 +83,7 @@ function SubscriptionPageContent() {
   }, []);
 
   // ── Loading ──
-  if (plansLoading || featuresLoading) {
-    return <SubscriptionSkeleton />;
-  }
+  if (plansLoading || featuresLoading) return <SubscriptionSkeleton />;
 
   // ── Error ──
   if (featuresError) {
@@ -137,13 +106,10 @@ function SubscriptionPageContent() {
     );
   }
 
-  // ── Gather all features for comparison table ──
+  // ── Gather all features for comparison ──
   const allFeatureKeys = featureMetadata ? Object.keys(featureMetadata) : [];
-  // Categorize features by their DB category
   const proFeatures = allFeatureKeys.filter((k) => featureMetadata?.[k]?.category === "engagement");
   const premiumFeatures = allFeatureKeys.filter((k) => featureMetadata?.[k]?.category === "premium");
-
-
 
   const animClass = mounted
     ? "opacity-100 translate-y-0"
@@ -160,34 +126,23 @@ function SubscriptionPageContent() {
       <div className="relative max-w-6xl mx-auto px-4 py-12 sm:py-16 sm:px-6 lg:px-8">
         {/* ── Header ── */}
         <div className={`text-center mb-10 sm:mb-14 transition-all duration-500 ease-out ${animClass}`}>
-          {returnPath && (
-            <button
-              onClick={() => router.push(returnPath)}
-              className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors mb-6"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Back to dashboard
-            </button>
-          )}
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100 dark:bg-slate-800 text-xs text-slate-500 dark:text-slate-400 mb-6">
+            <Building2 className="h-3.5 w-3.5" />
+            School Hub
+          </div>
 
           <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
-            Choose Your Plan
+            Simple, transparent pricing
           </h1>
           <p className="mt-3 text-sm sm:text-base text-slate-500 dark:text-slate-400 max-w-xl mx-auto leading-relaxed">
-            {featureKey && currentPlanParam
-              ? `Upgrade your plan to unlock ${featureMetadata?.[featureKey]?.label ?? "this feature"}. Pick the tier that fits your school.`
-              : "Pick the plan that fits your school. Upgrade or downgrade anytime."}
+            Plans designed for schools of every size. All plans include core school management features.
           </p>
 
-          {/* Current Plan indicator — either from URL param (upgrade flow) or from DB */}
-          {effectivePlan && !actualPlanLoading && (
+          {/* Current Plan indicator */}
+          {currentPlanLabel && (
             <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100 dark:bg-slate-800 text-sm text-slate-600 dark:text-slate-300">
               <Shield className="h-4 w-4" />
-              {currentPlanParam ? (
-                <>Current plan: <span className="font-semibold">{getPlanInfo(effectivePlan).label_short}</span></>
-              ) : (
-                <>You're on the <span className="font-semibold">{getPlanInfo(effectivePlan).label_short}</span> plan</>
-              )}
+              Your school is on the <span className="font-semibold ml-1">{currentPlanLabel}</span> plan
             </div>
           )}
 
@@ -228,7 +183,7 @@ function SubscriptionPageContent() {
         <div className={`grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8 transition-all duration-500 delay-100 ease-out ${animClass}`}>
           {PLAN_KEYS_IN_ORDER.map((key, index) => {
             const info = getPlanInfo(key);
-            const isCurrentPlan = (currentPlanParam || effectivePlan) === key;
+            const isCurrentPlan = currentPlanLabel === info.label_short;
             const price = billingInterval === "termly" ? (info.termly_price || info.monthly_price * 3) : info.yearly_price;
 
             return (
@@ -238,7 +193,7 @@ function SubscriptionPageContent() {
                   relative flex flex-col rounded-2xl border-2 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl
                   transition-all duration-300 hover:shadow-xl
                   ${info.border_color}
-                  ${isCurrentPlan ? "ring-2 ring-offset-2 ring-offset-transparent opacity-90" : ""}
+                  ${isCurrentPlan ? "ring-2 ring-blue-500 ring-offset-2" : ""}
                   ${key === "premium" ? "scale-[1.02] lg:scale-105 shadow-xl" : "shadow-sm hover:scale-[1.01]"}
                   ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}
                 `}
@@ -257,15 +212,16 @@ function SubscriptionPageContent() {
                 {/* Current Plan Badge */}
                 {isCurrentPlan && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
-                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 shadow-lg">
+                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-blue-600 text-white shadow-lg">
                       <Shield className="h-3 w-3" />
                       Current Plan
                     </span>
                   </div>
                 )}
 
-                {/* Card Header */}
-                <div className="p-6 sm:p-8">
+                {/* Card Content */}
+                <div className="p-6 sm:p-8 flex flex-col flex-1">
+                  {/* Header */}
                   <div className="flex items-center gap-3 mb-4">
                     <div className={`p-2.5 rounded-xl ${info.icon_bg}`}>
                       {key === "basic" ? (
@@ -319,50 +275,21 @@ function SubscriptionPageContent() {
                     <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{info.price_hint}</p>
                   </div>
 
-                  {/* CTA Button */}
-                  <button
-                    onClick={() => {
-                      if (isCurrentPlan) return;
-                      const params = new URLSearchParams();
-                      if (featureKey) params.set("feature", featureKey);
-                      params.set("plan", key);
-                      params.set("interval", billingInterval);
-                      if (returnPath) params.set("from", returnPath);
-                      router.push(`/checkout?${params.toString()}`);
-                    }}
-                    disabled={isCurrentPlan}
-                    className={`
-                      w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold
-                      transition-all duration-200
-                      ${isCurrentPlan
-                        ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-default"
-                        : key === "basic"
-                          ? "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-200 shadow-md hover:shadow-lg"
-                          : key === "pro"
-                            ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30"
-                            : "bg-gradient-to-r from-purple-600 to-violet-600 text-white hover:from-purple-700 hover:to-violet-700 shadow-lg shadow-purple-500/20 hover:shadow-purple-500/30"
-                      }
-                      hover:scale-[1.02] active:scale-[0.98]
-                      focus:outline-none focus:ring-2 focus:ring-offset-2
-                    `}
-                  >
-                    {isCurrentPlan ? (
-                      <>
-                        <Check className="h-4 w-4" />
-                        Current Plan
-                      </>
-                    ) : (
-                      <>
-                        {key === "basic" ? "Get Started" : "Upgrade"}
-                        <ChevronRight className="h-4 w-4" />
-                      </>
-                    )}
-                  </button>
-                </div>
+                  {/* Info Notice — replaces CTA button */}
+                  <div className="mb-6 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                    <div className="flex items-start gap-2 text-xs text-slate-500 dark:text-slate-400">
+                      <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-slate-400" />
+                      <span>
+                        Plans are managed by your school administration.{currentPlanLabel
+                          ? ` Your school is currently on the ${currentPlanLabel} plan.`
+                          : ""}
+                        {" "}Contact your school admin to upgrade.
+                      </span>
+                    </div>
+                  </div>
 
-                {/* Feature List */}
-                <div className="px-6 sm:px-8 pb-6 sm:pb-8 flex-1">
-                  <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
+                  {/* Feature List */}
+                  <div className="border-t border-slate-200 dark:border-slate-700 pt-6 flex-1">
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-4">
                       {key === "basic"
                         ? "Core Features"
@@ -371,9 +298,7 @@ function SubscriptionPageContent() {
                           : "Everything in Pro, plus:"}
                     </p>
 
-                    {/* Show all features for this plan */}
                     <ul className="space-y-3">
-                      {/* Pro features section */}
                       {proFeatures.map((featKey) => {
                         const meta = featureMetadata?.[featKey];
                         const enabled = isFeatureEnabled(key, featKey);
@@ -396,16 +321,12 @@ function SubscriptionPageContent() {
                         );
                       })}
 
-                      {/* Separator for premium features */}
                       {key !== "basic" && premiumFeatures.length > 0 && (
                         <li className="pt-2">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                            Premium
-                          </p>
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Premium</p>
                         </li>
                       )}
 
-                      {/* Premium features section */}
                       {premiumFeatures.map((featKey) => {
                         const meta = featureMetadata?.[featKey];
                         const enabled = isFeatureEnabled(key, featKey);
@@ -441,6 +362,7 @@ function SubscriptionPageContent() {
             {billingInterval === "termly"
               ? "Termly billing aligns with your school calendar. Pay once per term — no charges during holidays."
               : "All plans include core school management features."}
+            <br />
             Prices are in Nigerian Naira (₦).
             <br />
             Need help choosing?{" "}
@@ -454,12 +376,6 @@ function SubscriptionPageContent() {
   );
 }
 
-// ── Wrap in Suspense for useSearchParams ─────────────────────────────────
-
 export default function SubscriptionPage() {
-  return (
-    <Suspense fallback={<SubscriptionSkeleton />}>
-      <SubscriptionPageContent />
-    </Suspense>
-  );
+  return <SubscriptionPageContent />;
 }

@@ -148,24 +148,14 @@ export default function AdminSubscriptionPage() {
               Manage your school plan, view terms, and billing history
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setActiveTab("plans")}
-            >
-              <CreditCard className="h-4 w-4 mr-1.5" />
-              Plans & Payments
-            </Button>
-            <Button
-              size="sm"
-              className="bg-blue-600 hover:bg-blue-700"
-              onClick={() => router.push("/admin")}
-            >
-              <ExternalLink className="h-4 w-4 mr-1.5" />
-              Dashboard
-            </Button>
-          </div>
+          <Button
+            size="sm"
+            className="bg-blue-600 hover:bg-blue-700"
+            onClick={() => router.push("/admin")}
+          >
+            <ExternalLink className="h-4 w-4 mr-1.5" />
+            Dashboard
+          </Button>
         </div>
 
         {/* ── Grace Period Alerts ── */}

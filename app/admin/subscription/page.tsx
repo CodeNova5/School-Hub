@@ -340,6 +340,7 @@ export default function AdminSubscriptionPage() {
               yearlyCoveredTerms={yearly_covered_terms}
               isGrantBased={isGrantBased}
               currentPlanKey={currentPlanKey}
+              activeGrants={active_grants}
             />
           </TabsContent>
         </Tabs>

@@ -38,6 +38,7 @@ import type {
   CurrentTermInfo,
   UpcomingTerm,
   YearlyCoveredTerm,
+  ActiveGrant,
 } from "./subscription-types";
 
 interface BillingTabProps {
@@ -49,6 +50,7 @@ interface BillingTabProps {
   yearlyCoveredTerms: YearlyCoveredTerm[] | null | undefined;
   isGrantBased: boolean;
   currentPlanKey: string;
+  activeGrants: ActiveGrant[] | null | undefined;
 }
 
 export function SubscriptionBillingTab({
@@ -60,8 +62,32 @@ export function SubscriptionBillingTab({
   yearlyCoveredTerms,
   isGrantBased,
   currentPlanKey,
+  activeGrants,
 }: BillingTabProps) {
   const router = useRouter();
+
+  // ── Per-term grant coverage check ──
+  const getCoveringGrant = (term: { name: string; session_name: string; start_date: string; end_date: string }): ActiveGrant | null => {
+    if (!activeGrants || activeGrants.length === 0) return null;
+    const termStart = new Date(term.start_date).getTime();
+    const termEnd = new Date(term.end_date).getTime();
+    for (const grant of activeGrants) {
+      const grantStart = new Date(grant.start_date).getTime();
+      const grantEnd = new Date(grant.end_date).getTime();
+      switch (grant.grant_type) {
+        case "term":
+          if (grant.term_name === term.name && termStart >= grantStart && termEnd <= grantEnd) return grant;
+          break;
+        case "session":
+          if (grant.session_name === term.session_name && termStart >= grantStart && termEnd <= grantEnd) return grant;
+          break;
+        case "custom":
+          if (termStart >= grantStart && termEnd <= grantEnd) return grant;
+          break;
+      }
+    }
+    return null;
+  };
 
   return (
     <div className="space-y-6 mt-0">
@@ -197,8 +223,15 @@ export function SubscriptionBillingTab({
                         {term.weeks}wk
                       </span>
                     </div>
-                    {/* Show a pay button for the first term in each batch */}
-                    {isFirstInBatch && isYearly && !isGrantBased ? (
+                    {/* Check grant coverage first */}
+                    {getCoveringGrant(term) ? (
+                      <div className="mt-2">
+                        <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                          <Gift className="h-3 w-3 mr-1" />
+                          Covered by active grant
+                        </Badge>
+                      </div>
+                    ) : isFirstInBatch && isYearly ? (
                       <div className="mt-3 p-3 rounded-lg border border-dashed border-purple-200 bg-purple-50">
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0">
@@ -224,7 +257,7 @@ export function SubscriptionBillingTab({
                           </Button>
                         </div>
                       </div>
-                    ) : !isYearly && !isGrantBased ? (
+                    ) : !isYearly ? (
                       <div className="mt-2">
                         <Button
                           size="sm"
@@ -239,13 +272,6 @@ export function SubscriptionBillingTab({
                           Pay in Advance — {formatPrice(subscription?.termly_price || 0)}
                           <ArrowRight className="h-3 w-3 ml-1" />
                         </Button>
-                      </div>
-                    ) : isGrantBased ? (
-                      <div className="mt-2">
-                        <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-                          <Gift className="h-3 w-3 mr-1" />
-                          Covered by active grant
-                        </Badge>
                       </div>
                     ) : null}
                   </div>

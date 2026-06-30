@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { usePlanDisplayInfo, PLAN_KEYS_IN_ORDER } from "@/hooks/use-plan-display-info";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ import {
   getPlanIcon,
   getPlanIconBg,
   getPlanColor,
+  getTermGrantCoverage,
   GrantCoverageSection,
 } from "./subscription-utils";
 import type {
@@ -225,6 +226,32 @@ export function SubscriptionPlansTab({
     ? Math.round((yearlySavings / (termlyPrice * 3)) * 100)
     : 0;
 
+  // ── Filter out already-paid and grant-covered terms from the term selector ──
+  const excludedTermIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (!termsBySession) return ids;
+    for (const group of termsBySession) {
+      for (const term of group.terms) {
+        // Already paid or past
+        if (term.status === "paid" || term.status === "past") {
+          ids.add(term.id);
+        }
+        // Covered by grants
+        if (activeGrants && activeGrants.length > 0) {
+          if (getTermGrantCoverage(term, activeGrants)) {
+            ids.add(term.id);
+          }
+        }
+      }
+    }
+    return ids;
+  }, [termsBySession, activeGrants]);
+
+  const payableTerms = useMemo(
+    () => availableTerms.filter((t) => !excludedTermIds.has(t.id)),
+    [availableTerms, excludedTermIds]
+  );
+
   const planColors = {
     iconBg: selectedPlanKey === "basic" ? "bg-slate-100 text-slate-600"
       : selectedPlanKey === "pro" ? "bg-blue-100 text-blue-600"
@@ -367,18 +394,17 @@ export function SubscriptionPlansTab({
                   <div key={i} className="h-16 rounded-lg bg-gray-100 animate-pulse" />
                 ))}
               </div>
-            ) : availableTerms.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-amber-200 bg-amber-50 p-4 text-center">
-                <BookOpen className="h-5 w-5 text-amber-400 mx-auto mb-1" />
-                <p className="text-xs font-medium text-amber-800">No upcoming terms available</p>
-                <p className="text-[10px] text-amber-600 mt-0.5">Set up your academic calendar first.</p>
+            ) : payableTerms.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-emerald-200 bg-emerald-50 p-4 text-center">
+                <CheckCircle2 className="h-5 w-5 text-emerald-400 mx-auto mb-1" />
+                <p className="text-xs font-medium text-emerald-800">All terms are covered</p>
+                <p className="text-[10px] text-emerald-600 mt-0.5">All upcoming terms have been paid for or are covered by grants.</p>
               </div>
             ) : (
               <div className="space-y-5">
                 {(() => {
                   // Group terms by session
-                  const bySession: Record<string, typeof availableTerms> = {};
-                  for (const t of availableTerms) {
+                  const bySession: Record<string, typeof availableTerms> = {};                    for (const t of payableTerms) {
                     const key = t.session_name || "Other";
                     if (!bySession[key]) bySession[key] = [];
                     bySession[key].push(t);

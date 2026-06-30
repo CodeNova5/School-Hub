@@ -1082,7 +1082,7 @@ export default function ResultEntry({
                   </p>
                 </div>
               </div>
-              <div className="w-24 h-28 flex-shrink-0 bg-gray-100 rounded-md flex items-center justify-center overflow-hidden">
+              <div className="w-28 h-32 flex-shrink-0 bg-gray-100 rounded-md flex items-center justify-center overflow-hidden">
                 {student?.photo_url || student?.image_url ? (
                   <img
                     src={student.photo_url || student.image_url}

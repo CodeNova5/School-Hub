@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,8 @@ import {
   Receipt,
   Banknote,
   CreditCard,
+  SlidersHorizontal,
+  RotateCcw,
 } from "lucide-react";
 import type { FinanceBill, FinanceTransactionRow } from "./finance-types";
 
@@ -72,6 +74,25 @@ export function FinanceTransactionsTab({
     paymentMethod: "manual",
   });
   const [saving, setSaving] = useState(false);
+
+  // ── Filter state ──
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter((tx) => {
+      if (statusFilter !== "all" && tx.status !== statusFilter) return false;
+      if (dateFrom && new Date(tx.created_at) < new Date(dateFrom)) return false;
+      if (dateTo) {
+        const end = new Date(dateTo);
+        end.setHours(23, 59, 59, 999);
+        if (new Date(tx.created_at) > end) return false;
+      }
+      return true;
+    });
+  }, [transactions, statusFilter, dateFrom, dateTo]);
 
   const submitTransaction = async () => {
     if (!form.billId || !form.studentId || !form.amount) {
@@ -232,23 +253,112 @@ export function FinanceTransactionsTab({
 
       {/* Transactions List */}
       <Card className="overflow-hidden transition-all duration-200 hover:shadow-md">
-        <CardHeader className="border-b border-gray-100 pb-4">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-gray-100">
-              <Banknote className="h-4 w-4 text-gray-600" />
+        <CardHeader className="border-b border-gray-100 pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-gray-100">
+                <Banknote className="h-4 w-4 text-gray-600" />
+              </div>
+              Transactions
+              {transactions.length > 0 && (
+                <span className="text-[10px] font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full ml-1">
+                  {transactions.length}
+                </span>
+              )}
+            </CardTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-xs text-gray-500 hover:text-gray-700"
+              onClick={() => setShowFilters((v) => !v)}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Filters
+              {(statusFilter !== "all" || dateFrom || dateTo) && (
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+              )}
+            </Button>
+          </div>
+
+          {/* Filter controls */}
+          {showFilters && (
+            <div className="pt-3 space-y-3">
+              {/* Status chips */}
+              <div className="flex flex-wrap gap-1.5">
+                {["all", "success", "failed", "pending", "abandoned"].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setStatusFilter(s)}
+                    className={`px-2.5 py-1 text-[11px] font-medium rounded-full border transition-all duration-150 ${
+                      statusFilter === s
+                        ? s === "all"
+                          ? "bg-gray-900 text-white border-gray-900"
+                          : s === "success"
+                          ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                          : s === "failed"
+                          ? "bg-red-100 text-red-800 border-red-300"
+                          : s === "pending"
+                          ? "bg-amber-100 text-amber-800 border-amber-300"
+                          : "bg-gray-100 text-gray-700 border-gray-300"
+                        : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700"
+                    }`}
+                  >
+                    {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
+                  </button>
+                ))}
+              </div>
+
+              {/* Date range */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-gray-400">From</span>
+                  <Input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="h-8 w-[150px] text-xs"
+                  />
+                </div>
+                <span className="text-[11px] text-gray-300">—</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-gray-400">To</span>
+                  <Input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="h-8 w-[150px] text-xs"
+                  />
+                </div>
+                {(statusFilter !== "all" || dateFrom || dateTo) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 gap-1 text-xs text-gray-400 hover:text-gray-600"
+                    onClick={() => {
+                      setStatusFilter("all");
+                      setDateFrom("");
+                      setDateTo("");
+                    }}
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    Reset
+                  </Button>
+                )}
+              </div>
+
+              {/* Results summary */}
+              {transactions.length > 0 && (
+                <p className="text-[10px] text-gray-400">
+                  Showing {filteredTransactions.length} of {transactions.length} transaction{transactions.length !== 1 ? "s" : ""}
+                </p>
+              )}
             </div>
-            Transactions
-            {transactions.length > 0 && (
-              <span className="text-[10px] font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full ml-1">
-                {transactions.length}
-              </span>
-            )}
-          </CardTitle>
+          )}
         </CardHeader>
         <CardContent className="p-0">
-          {transactions.length > 0 ? (
+          {filteredTransactions.length > 0 ? (
             <div className="divide-y divide-gray-50">
-              {transactions.map((tx, idx) => (
+              {filteredTransactions.map((tx, idx) => (
                 <div
                   key={tx.id}
                   className="grid grid-cols-1 md:grid-cols-5 gap-3 px-5 py-3.5 items-center transition-all duration-150 hover:bg-gray-50 hover:pl-6"
@@ -287,8 +397,14 @@ export function FinanceTransactionsTab({
           ) : (
             <div className="py-12 text-center">
               <Receipt className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-              <p className="text-sm font-medium text-gray-500">No transactions recorded</p>
-              <p className="text-xs text-gray-400 mt-1">Record a payment above to see it here</p>
+              <p className="text-sm font-medium text-gray-500">
+                {transactions.length === 0 ? "No transactions recorded" : "No transactions match filters"}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                {transactions.length === 0
+                  ? "Record a payment above to see it here"
+                  : "Try adjusting your filter criteria"}
+              </p>
             </div>
           )}
         </CardContent>

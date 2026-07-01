@@ -24,7 +24,8 @@ import {
   Loader2,
   Banknote,
   ArrowRight,
-  Search,
+  SlidersHorizontal,
+  RotateCcw,
 } from "lucide-react";
 import type { FinanceBill, FeeTemplate, StudentOption } from "./finance-types";
 
@@ -78,6 +79,23 @@ export function FinanceBillingTab({
     fees.forEach((fee) => lookup.set(fee.id, fee));
     return lookup;
   }, [fees]);
+
+  // ── Filter state ──
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [showFilters, setShowFilters] = useState(false);
+
+  const filteredBills = useMemo(() => {
+    if (statusFilter === "all") return bills;
+    return bills.filter((b) => b.status === statusFilter);
+  }, [bills, statusFilter]);
+
+  // ── Pagination state ──
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  const totalPages = Math.max(1, Math.ceil(filteredBills.length / pageSize));
+  const safePage = page > totalPages ? 1 : page;
+  const paginatedBills = filteredBills.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   const selectedStudent = students.find((s) => s.id === form.studentId);
 
@@ -263,23 +281,93 @@ export function FinanceBillingTab({
 
       {/* Bills List */}
       <Card className="overflow-hidden transition-all duration-200 hover:shadow-md">
-        <CardHeader className="border-b border-gray-100 pb-4">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-gray-100">
-              <Banknote className="h-4 w-4 text-gray-600" />
+        <CardHeader className="border-b border-gray-100 pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-gray-100">
+                <Banknote className="h-4 w-4 text-gray-600" />
+              </div>
+              Student Bills
+              {bills.length > 0 && (
+                <span className="text-[10px] font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full ml-1">
+                  {bills.length}
+                </span>
+              )}
+            </CardTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-xs text-gray-500 hover:text-gray-700"
+              onClick={() => setShowFilters((v) => !v)}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Filters
+              {statusFilter !== "all" && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              )}
+            </Button>
+          </div>
+
+          {/* Filter controls */}
+          {showFilters && (
+            <div className="pt-3 space-y-3">
+              <div className="flex flex-wrap gap-1.5">
+                {["all", "paid", "partial", "pending", "overdue", "waived", "cancelled"].map(
+                  (s) => (
+                    <button
+                      key={s}
+                      onClick={() => {
+                        setStatusFilter(s);
+                        setPage(1);
+                      }}
+                      className={`px-2.5 py-1 text-[11px] font-medium rounded-full border transition-all duration-150 ${
+                        statusFilter === s
+                          ? s === "all"
+                            ? "bg-gray-900 text-white border-gray-900"
+                            : s === "paid"
+                            ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                            : s === "overdue"
+                            ? "bg-red-100 text-red-800 border-red-300"
+                            : s === "partial"
+                            ? "bg-amber-100 text-amber-800 border-amber-300"
+                            : s === "pending"
+                            ? "bg-blue-100 text-blue-800 border-blue-300"
+                            : "bg-gray-100 text-gray-700 border-gray-300"
+                          : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700"
+                      }`}
+                    >
+                      {s.charAt(0).toUpperCase() + s.slice(1)}
+                    </button>
+                  )
+                )}
+              </div>
+
+              {statusFilter !== "all" && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 gap-1 text-xs text-gray-400 hover:text-gray-600"
+                    onClick={() => {
+                      setStatusFilter("all");
+                      setPage(1);
+                    }}
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    Reset
+                  </Button>
+                  <span className="text-[10px] text-gray-400">
+                    Showing {filteredBills.length} of {bills.length} bill{bills.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+              )}
             </div>
-            Student Bills
-            {bills.length > 0 && (
-              <span className="text-[10px] font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full ml-1">
-                {bills.length}
-              </span>
-            )}
-          </CardTitle>
+          )}
         </CardHeader>
         <CardContent className="p-0">
-          {bills.length > 0 ? (
+          {filteredBills.length > 0 ? (
             <div className="divide-y divide-gray-50">
-              {bills.map((bill) => {
+              {paginatedBills.map((bill) => {
                 const paidPercent = bill.total_amount > 0
                   ? Math.round((bill.amount_paid / bill.total_amount) * 100)
                   : 0;
@@ -355,8 +443,76 @@ export function FinanceBillingTab({
           ) : (
             <div className="py-12 text-center">
               <Banknote className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-              <p className="text-sm font-medium text-gray-500">No bills created</p>
-              <p className="text-xs text-gray-400 mt-1">Create a student bill above to get started</p>
+              <p className="text-sm font-medium text-gray-500">
+                {bills.length === 0 ? "No bills created" : "No bills match filter"}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                {bills.length === 0
+                  ? "Create a student bill above to get started"
+                  : "Try selecting a different status"}
+              </p>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {filteredBills.length > pageSize && (
+            <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-gray-400">Show</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  className="h-7 text-xs rounded-md border border-gray-200 bg-white px-2 text-gray-600 focus:outline-none focus:ring-1 focus:ring-gray-300"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                </select>
+                <span className="text-[11px] text-gray-400">
+                  of {bills.length}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  className="h-7 px-2 text-xs rounded-md border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Prev
+                </button>
+
+                {/* Page numbers */}
+                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                  const start = Math.max(1, Math.min(page - 2, totalPages - 4));
+                  const p = start + i;
+                  if (p > totalPages) return null;
+                  return (
+                    <button
+                      key={p}
+                      onClick={() => setPage(p)}
+                      className={`h-7 min-w-[28px] px-1.5 text-xs rounded-md border transition-colors ${
+                        p === page
+                          ? "bg-gray-900 text-white border-gray-900"
+                          : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  );
+                })}
+
+                <button
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  className="h-7 px-2 text-xs rounded-md border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           )}
         </CardContent>

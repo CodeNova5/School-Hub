@@ -26,13 +26,15 @@ import {
   ArrowRight,
   SlidersHorizontal,
   RotateCcw,
+  Search,
 } from "lucide-react";
-import type { FinanceBill, FeeTemplate, StudentOption } from "./finance-types";
+import type { FinanceBill, FeeTemplate, StudentOption, ClassOption } from "./finance-types";
 
 interface BillingTabProps {
   bills: FinanceBill[];
   students: StudentOption[];
   fees: FeeTemplate[];
+  classes: ClassOption[];
   formatMoney: (value: number) => string;
   onRefresh: () => Promise<void>;
   onError: (message: string) => void;
@@ -61,6 +63,7 @@ export function FinanceBillingTab({
   bills,
   students,
   fees,
+  classes,
   formatMoney,
   onRefresh,
   onError,
@@ -81,13 +84,50 @@ export function FinanceBillingTab({
   }, [fees]);
 
   // ── Filter state ──
+  // ── Class lookup for filtering ──
+  const studentClassLookup = useMemo(() => {
+    const map = new Map<string, string>();
+    students.forEach((s) => {
+      if (s.class_id) map.set(s.id, s.class_id);
+    });
+    return map;
+  }, [students]);
+
   const [statusFilter, setStatusFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [classFilter, setClassFilter] = useState("all");
+  const [dueDateFrom, setDueDateFrom] = useState("");
+  const [dueDateTo, setDueDateTo] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
   const filteredBills = useMemo(() => {
-    if (statusFilter === "all") return bills;
-    return bills.filter((b) => b.status === statusFilter);
-  }, [bills, statusFilter]);
+    return bills.filter((b) => {
+      // Status filter
+      if (statusFilter !== "all" && b.status !== statusFilter) return false;
+      // Student name search
+      if (searchQuery.trim()) {
+        const name = `${b.students?.first_name || ""} ${b.students?.last_name || ""}`.toLowerCase();
+        if (!name.includes(searchQuery.trim().toLowerCase())) return false;
+      }
+      // Class filter
+      if (classFilter !== "all") {
+        const billStudentClassId = studentClassLookup.get(b.student_id);
+        if (billStudentClassId !== classFilter) return false;
+      }
+      // Due date range
+      if (dueDateFrom && b.due_date) {
+        if (new Date(b.due_date) < new Date(dueDateFrom)) return false;
+      }
+      if (dueDateTo && b.due_date) {
+        const end = new Date(dueDateTo);
+        end.setHours(23, 59, 59, 999);
+        if (new Date(b.due_date) > end) return false;
+      }
+      return true;
+    });
+  }, [bills, statusFilter, searchQuery, classFilter, studentClassLookup, dueDateFrom, dueDateTo]);
+
+  const hasActiveFilter = statusFilter !== "all" || searchQuery.trim() || classFilter !== "all" || !!dueDateFrom || !!dueDateTo;
 
   // ── Pagination state ──
   const [page, setPage] = useState(1);
@@ -302,7 +342,7 @@ export function FinanceBillingTab({
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
               Filters
-              {statusFilter !== "all" && (
+              {hasActiveFilter && (
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
               )}
             </Button>
@@ -311,6 +351,40 @@ export function FinanceBillingTab({
           {/* Filter controls */}
           {showFilters && (
             <div className="pt-3 space-y-3">
+              {/* Student name search */}
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                <Input
+                  placeholder="Search by student name..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setPage(1);
+                  }}
+                  className="pl-8 h-8 text-xs"
+                />
+              </div>
+
+              {/* Class filter */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] text-gray-400">Class</span>
+                <select
+                  value={classFilter}
+                  onChange={(e) => {
+                    setClassFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  className="h-8 text-xs rounded-md border border-gray-200 bg-white px-2 text-gray-600 focus:outline-none focus:ring-1 focus:ring-gray-300 min-w-[140px]"
+                >
+                  <option value="all">All classes</option>
+                  {classes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="flex flex-wrap gap-1.5">
                 {["all", "paid", "partial", "pending", "overdue", "waived", "cancelled"].map(
                   (s) => (
@@ -342,7 +416,36 @@ export function FinanceBillingTab({
                 )}
               </div>
 
-              {statusFilter !== "all" && (
+              {/* Due date range */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-gray-400">Due from</span>
+                  <Input
+                    type="date"
+                    value={dueDateFrom}
+                    onChange={(e) => {
+                      setDueDateFrom(e.target.value);
+                      setPage(1);
+                    }}
+                    className="h-8 w-[150px] text-xs"
+                  />
+                </div>
+                <span className="text-[11px] text-gray-300">—</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-gray-400">to</span>
+                  <Input
+                    type="date"
+                    value={dueDateTo}
+                    onChange={(e) => {
+                      setDueDateTo(e.target.value);
+                      setPage(1);
+                    }}
+                    className="h-8 w-[150px] text-xs"
+                  />
+                </div>
+              </div>
+
+              {hasActiveFilter && (
                 <div className="flex items-center gap-2">
                   <Button
                     variant="ghost"
@@ -350,6 +453,10 @@ export function FinanceBillingTab({
                     className="h-7 gap-1 text-xs text-gray-400 hover:text-gray-600"
                     onClick={() => {
                       setStatusFilter("all");
+                      setSearchQuery("");
+                      setClassFilter("all");
+                      setDueDateFrom("");
+                      setDueDateTo("");
                       setPage(1);
                     }}
                   >

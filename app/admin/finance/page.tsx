@@ -184,6 +184,7 @@ export default function AdminFinancePage() {
                 bills={bills}
                 students={students}
                 fees={fees}
+                classes={classes}
                 formatMoney={formatMoney}
                 onRefresh={loadFinanceData}
                 onError={setError}

@@ -9,13 +9,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Users, BookOpen, GraduationCap, Calendar, Clock, UserPlus } from "lucide-react";
+import { Users, BookOpen, GraduationCap, Calendar, Clock, UserPlus, LayoutDashboard, BarChart3 } from "lucide-react";
 import { Student as StudentType, Session, Term } from "@/lib/types";
 import { SubjectsTab } from "./components/SubjectsTab";
 import { StudentsTab } from "./components/StudentsTab";
 import { AttendanceTab } from "./components/AttendanceTab";
 import { TimetableTab } from "./components/TimetableTab";
 import { ResultsTab } from "./components/ResultsTab";
+import { OverviewTab } from "./components/OverviewTab";
 import { generateUniqueSubjectCode } from "@/lib/subject-code-generator";
 
 
@@ -79,7 +80,7 @@ export default function ClassPage() {
   const router = useRouter();
   const classId = params.classId as string;
   
-  const activeTab = searchParams.get("tab") || "subjects";
+  const activeTab = searchParams.get("tab") || "overview";
 
   const [subjects, setSubjects] = useState<SubjectClass[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -609,7 +610,14 @@ export default function ClassPage() {
         <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
           <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
             <div className="bg-gradient-to-r from-slate-50 to-white border-b border-slate-200">
-              <TabsList className="grid w-full grid-cols-3 lg:grid-cols-5 gap-0 bg-transparent p-0 h-auto rounded-none">
+              <TabsList className="grid w-full grid-cols-4 lg:grid-cols-6 gap-0 bg-transparent p-0 h-auto rounded-none">
+                <TabsTrigger 
+                  value="overview" 
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-blue-50 py-3 text-sm font-medium transition-colors hover:bg-slate-100 flex items-center justify-center gap-2"
+                >
+                  <LayoutDashboard className="h-4 w-4" />
+                  <span className="hidden sm:inline">Overview</span>
+                </TabsTrigger>
                 <TabsTrigger 
                   value="subjects" 
                   className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-blue-50 py-3 text-sm font-medium transition-colors hover:bg-slate-100 flex items-center justify-center gap-2"
@@ -637,18 +645,30 @@ export default function ClassPage() {
                 >
                   <Calendar className="h-4 w-4" />
                   <span className="hidden sm:inline">Attendance</span>
-                </TabsTrigger>
-                <TabsTrigger 
+                </TabsTrigger>                  <TabsTrigger 
                   value="results" 
                   className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-blue-50 py-3 text-sm font-medium transition-colors hover:bg-slate-100 flex items-center justify-center gap-2"
                 >
-                  <BookOpen className="h-4 w-4" />
+                  <BarChart3 className="h-4 w-4" />
                   <span className="hidden sm:inline">Results</span>
                 </TabsTrigger>
               </TabsList>
             </div>
 
             <div className="p-6">
+
+          {/* ================= OVERVIEW TAB ================= */}
+          <TabsContent value="overview" className="space-y-6 focus-visible:outline-none">
+            <OverviewTab
+              classData={classData}
+              students={students}
+              subjects={subjects}
+              teachers={teachers}
+              schoolId={schoolId}
+              classId={classId}
+              className={classData?.name}
+            />
+          </TabsContent>
 
           {/* ================= SUBJECTS TAB ================= */}
           <TabsContent value="subjects">

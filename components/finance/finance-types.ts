@@ -43,12 +43,13 @@ export interface FinanceBill {
   id: string;
   student_id: string;
   status: string;
+  billing_cycle: string;
   total_amount: number;
   amount_paid: number;
   balance_amount: number;
   due_date?: string;
   students?: { first_name?: string; last_name?: string; student_id?: string };
-  finance_bill_items?: Array<{ title: string; amount: number; frequency: string }>;
+  finance_bill_items?: Array<{ title: string; amount: number; frequency: string; fee_template_id?: string }>;
 }
 
 export interface FinanceTransactionRow {

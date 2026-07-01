@@ -216,8 +216,8 @@ export function SubscriptionPlansTab({
   const isDifferentPlan = selectedPlanKey !== currentPlanKey;
   const hasUpgradedPlan = PLAN_KEYS_IN_ORDER.indexOf(selectedPlanKey as typeof PLAN_KEYS_IN_ORDER[number]) > PLAN_KEYS_IN_ORDER.indexOf(currentPlanKey as typeof PLAN_KEYS_IN_ORDER[number]);
 
-  // Yearly coverage: show 3 terms (current + next 2 upcoming)
-  const yearlyTerms = availableTerms.slice(0, 3);
+  // Yearly coverage: show 3 upcoming unpaid terms (skip grant-covered / already-paid)
+  const yearlyTerms = availableTerms.filter((t) => !excludedTermIds.has(t.id)).slice(0, 3);
 
   // Savings calculation
   const termlyPrice = selectedPlanInfo.termly_price || selectedPlanInfo.monthly_price * 3;
@@ -279,8 +279,8 @@ export function SubscriptionPlansTab({
     if (billingInterval === "termly" && selectedTermId) {
       params.set("termId", selectedTermId);
     } else if (billingInterval === "yearly") {
-      // Pass all 3 terms for yearly coverage
-      const yearlyTermIds = availableTerms.slice(0, 3).map((t) => t.id).join(",");
+      // Pass all 3 terms for yearly coverage (skip covered ones)
+      const yearlyTermIds = yearlyTerms.map((t) => t.id).join(",");
       if (yearlyTermIds) params.set("termIds", yearlyTermIds);
     }
     params.set("from", "/admin/subscription");

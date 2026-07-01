@@ -1,15 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useSchoolContext } from "@/hooks/use-school-context";
 import { DashboardLayout } from "@/components/dashboard-layout";
-import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Users, BookOpen, GraduationCap, Calendar, Clock, UserPlus, LayoutDashboard, BarChart3 } from "lucide-react";
+import { Users, BookOpen, GraduationCap, Calendar, Clock, LayoutDashboard, BarChart3 } from "lucide-react";
 import { Student as StudentType, Session, Term } from "@/lib/types";
 import { SubjectsTab } from "./components/SubjectsTab";
 import { StudentsTab } from "./components/StudentsTab";
@@ -77,10 +76,9 @@ export default function ClassPage() {
   const { schoolId } = useSchoolContext();
   const params = useParams();
   const searchParams = useSearchParams();
-  const router = useRouter();
   const classId = params.classId as string;
   
-  const activeTab = searchParams.get("tab") || "overview";
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "overview");
 
   const [subjects, setSubjects] = useState<SubjectClass[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -96,9 +94,11 @@ export default function ClassPage() {
   const [studentsLoading, setStudentsLoading] = useState(false);
 
   const handleTabChange = (newTab: string) => {
+    setActiveTab(newTab);
+    // Silently update the URL so bookmarking works, without triggering a navigation
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", newTab);
-    router.push(`?${params.toString()}`);
+    window.history.replaceState(null, "", `?${params.toString()}`);
   };
   useEffect(() => {
     if (schoolId) {
@@ -527,11 +527,12 @@ export default function ClassPage() {
     return (
       <DashboardLayout role="admin">
         <div className="space-y-6 p-6">
-          <div className="h-12 bg-gradient-to-r from-slate-200 to-slate-100 rounded-lg animate-pulse" />
-          <div className="grid gap-4 md:grid-cols-3">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="h-32 bg-gradient-to-r from-slate-100 to-slate-50 rounded-lg animate-pulse" />
-            ))}
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-lg bg-slate-200 animate-pulse" />
+            <div className="space-y-2">
+              <div className="h-7 w-48 bg-slate-200 rounded animate-pulse" />
+              <div className="h-4 w-32 bg-slate-100 rounded animate-pulse" />
+            </div>
           </div>
         </div>
       </DashboardLayout>
@@ -540,70 +541,30 @@ export default function ClassPage() {
 
   return (
     <DashboardLayout role="admin">
-      <div className="space-y-8">
+      <div className="space-y-6">
 
-        {/* ================= HEADER ================= */}
-        <div className="relative">
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg blur opacity-20" />
-          <div className="relative bg-white rounded-lg border border-slate-200 p-6 md:p-8 shadow-sm">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <GraduationCap className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <h1 className="text-3xl md:text-4xl font-bold text-slate-900">
-                    {classData.name}
-                  </h1>
-                </div>
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {classData.school_class_levels?.school_education_levels && (
-                    <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-200">
-                      {classData.school_class_levels.school_education_levels.name}
-                    </Badge>
-                  )}
-                  {classData.school_class_levels && (
-                    <Badge variant="outline" className="border-slate-300">
-                      {classData.school_class_levels.name}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-3 md:justify-end">
-                <div className="px-4 py-2 bg-slate-50 rounded-lg border border-slate-200">
-                  <p className="text-sm text-slate-600 font-medium">Total Students</p>
-                  <p className="text-2xl font-bold text-slate-900">{students.length}</p>
-                </div>
-                <div className="px-4 py-2 bg-slate-50 rounded-lg border border-slate-200">
-                  <p className="text-sm text-slate-600 font-medium">Subjects</p>
-                  <p className="text-2xl font-bold text-slate-900">{subjects.length}</p>
-                </div>
-              </div>
+        {/* ================= SIMPLE HEADER ================= */}
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg shadow-sm">
+            <GraduationCap className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
+              {classData.name}
+            </h1>
+            <div className="flex flex-wrap gap-1.5 mt-1">
+              {classData.school_class_levels?.school_education_levels && (
+                <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-200 border-0 text-xs">
+                  {classData.school_class_levels.school_education_levels.name}
+                </Badge>
+              )}
+              {classData.school_class_levels && (
+                <Badge variant="outline" className="border-slate-300 text-xs">
+                  {classData.school_class_levels.name}
+                </Badge>
+              )}
             </div>
           </div>
-        </div>
-
-        {/* ================= STATS CARDS ================= */}
-        <div className="grid gap-4 md:grid-cols-3">
-          <StatCard 
-            title="Total Students" 
-            value={students.length} 
-            icon={Users}
-            color="blue"
-          />
-          <StatCard 
-            title="Subjects" 
-            value={subjects.length} 
-            icon={BookOpen}
-            color="purple"
-          />
-          <StatCard 
-            title="Teachers Available" 
-            value={teachers.length} 
-            icon={UserPlus}
-            color="emerald"
-          />
         </div>
 
         {/* ================= TABS ================= */}
@@ -723,50 +684,5 @@ export default function ClassPage() {
         </div>
       </div>
     </DashboardLayout>
-  );
-}
-
-/* ================= STAT CARD ================= */
-function StatCard({ 
-  title, 
-  value, 
-  icon: Icon,
-  color = "blue"
-}: {
-  title: string;
-  value: number;
-  icon: any;
-  color?: "blue" | "purple" | "emerald" | "orange" | "rose";
-}) {
-  const colorStyles = {
-    blue: "bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100",
-    purple: "bg-purple-50 text-purple-600 border-purple-200 hover:bg-purple-100",
-    emerald: "bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100",
-    orange: "bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100",
-    rose: "bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100",
-  };
-
-  const iconBgStyles = {
-    blue: "bg-blue-100",
-    purple: "bg-purple-100",
-    emerald: "bg-emerald-100",
-    orange: "bg-orange-100",
-    rose: "bg-rose-100",
-  };
-
-  return (
-    <Card className={`border-2 transition-all duration-200 hover:shadow-md cursor-default ${colorStyles[color]}`}>
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <p className="text-sm font-medium text-slate-600 mb-2">{title}</p>
-            <p className="text-3xl font-bold text-slate-900">{value}</p>
-          </div>
-          <div className={`p-3 rounded-lg ${iconBgStyles[color]}`}>
-            <Icon className="h-6 w-6" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
   );
 }

@@ -7,6 +7,7 @@ import {
   Wallet,
   Landmark,
   TrendingUp,
+  TrendingDown,
   Users,
   Banknote,
   ArrowUpRight,

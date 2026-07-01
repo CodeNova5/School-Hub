@@ -34,6 +34,7 @@ export interface FeeTemplate {
   category: string;
   frequency: string;
   amount: number;
+  description?: string;
   is_active: boolean;
   finance_fee_template_classes?: ClassAmount[];
 }

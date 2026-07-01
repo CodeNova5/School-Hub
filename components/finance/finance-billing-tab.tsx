@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   Plus,
   Users,
@@ -23,6 +24,7 @@ import {
   Loader2,
   Banknote,
   ArrowRight,
+  Search,
 } from "lucide-react";
 import type { FinanceBill, FeeTemplate, StudentOption } from "./finance-types";
 
@@ -147,26 +149,23 @@ export function FinanceBillingTab({
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-gray-600">Student</Label>
-              <Select
+              <SearchableSelect
                 value={form.studentId}
                 onValueChange={(value) => setForm((prev) => ({ ...prev, studentId: value }))}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select student" />
-                </SelectTrigger>
-                <SelectContent>
-                  {students.map((student) => (
-                    <SelectItem key={student.id} value={student.id}>
-                      {student.first_name} {student.last_name} ({student.student_id})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="Search for a student..."
+                searchPlaceholder="Search by name or ID..."
+                emptyMessage="No student found"
+                options={students.map((s) => ({
+                  value: s.id,
+                  label: `${s.first_name} ${s.last_name} (${s.student_id})`,
+                  searchTerms: `${s.first_name} ${s.last_name} ${s.student_id} ${s.last_name} ${s.first_name}`,
+                }))}
+              />
             </div>
 
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-gray-600">Fee Template</Label>
-              <Select
+              <SearchableSelect
                 value={form.feeTemplateId}
                 onValueChange={(value) => {
                   const fee = feeTemplateLookup.get(value);
@@ -177,18 +176,15 @@ export function FinanceBillingTab({
                     amount: fee ? String(fee.amount) : prev.amount,
                   }));
                 }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Custom amount" />
-                </SelectTrigger>
-                <SelectContent>
-                  {fees.map((fee) => (
-                    <SelectItem key={fee.id} value={fee.id}>
-                      {fee.name} — {formatMoney(fee.amount)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="Search fee templates..."
+                searchPlaceholder="Search by name..."
+                emptyMessage="No fee template found"
+                options={fees.map((fee) => ({
+                  value: fee.id,
+                  label: `${fee.name} — ${formatMoney(fee.amount)}`,
+                  searchTerms: `${fee.name} ${fee.category} ${fee.frequency}`,
+                }))}
+              />
             </div>
 
             <div className="space-y-1.5">

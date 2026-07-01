@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   ArrowRight,
   CheckCircle2,
@@ -130,7 +131,7 @@ export function FinanceTransactionsTab({
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-gray-600">Bill</Label>
-              <Select
+              <SearchableSelect
                 value={form.billId}
                 onValueChange={(value) => {
                   const bill = bills.find((b) => b.id === value);
@@ -141,19 +142,15 @@ export function FinanceTransactionsTab({
                     amount: bill ? String(bill.balance_amount) : prev.amount,
                   }));
                 }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select bill" />
-                </SelectTrigger>
-                <SelectContent>
-                  {bills.map((bill) => (
-                    <SelectItem key={bill.id} value={bill.id}>
-                      {bill.students?.first_name} {bill.students?.last_name} —{" "}
-                      {formatMoney(bill.balance_amount)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="Search for a bill..."
+                searchPlaceholder="Search by student name..."
+                emptyMessage="No bill found"
+                options={bills.map((bill) => ({
+                  value: bill.id,
+                  label: `${bill.students?.first_name || ""} ${bill.students?.last_name || ""} — ${formatMoney(bill.balance_amount)}`,
+                  searchTerms: `${bill.students?.first_name || ""} ${bill.students?.last_name || ""} ${bill.students?.student_id || ""}`,
+                }))}
+              />
             </div>
 
             <div className="space-y-1.5">

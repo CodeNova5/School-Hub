@@ -216,16 +216,6 @@ export function SubscriptionPlansTab({
   const isDifferentPlan = selectedPlanKey !== currentPlanKey;
   const hasUpgradedPlan = PLAN_KEYS_IN_ORDER.indexOf(selectedPlanKey as typeof PLAN_KEYS_IN_ORDER[number]) > PLAN_KEYS_IN_ORDER.indexOf(currentPlanKey as typeof PLAN_KEYS_IN_ORDER[number]);
 
-  // Yearly coverage: show 3 upcoming unpaid terms (skip grant-covered / already-paid)
-  const yearlyTerms = availableTerms.filter((t) => !excludedTermIds.has(t.id)).slice(0, 3);
-
-  // Savings calculation
-  const termlyPrice = selectedPlanInfo.termly_price || selectedPlanInfo.monthly_price * 3;
-  const yearlySavings = termlyPrice * 3 - selectedPlanInfo.yearly_price;
-  const savingsPercent = yearlySavings > 0
-    ? Math.round((yearlySavings / (termlyPrice * 3)) * 100)
-    : 0;
-
   // ── Filter out already-paid and grant-covered terms from the term selector ──
   const excludedTermIds = useMemo(() => {
     const ids = new Set<string>();
@@ -246,6 +236,16 @@ export function SubscriptionPlansTab({
     }
     return ids;
   }, [termsBySession, activeGrants]);
+
+  // Yearly coverage: show 3 upcoming unpaid terms (skip grant-covered / already-paid)
+  const yearlyTerms = availableTerms.filter((t) => !excludedTermIds.has(t.id)).slice(0, 3);
+
+  // Savings calculation
+  const termlyPrice = selectedPlanInfo.termly_price || selectedPlanInfo.monthly_price * 3;
+  const yearlySavings = termlyPrice * 3 - selectedPlanInfo.yearly_price;
+  const savingsPercent = yearlySavings > 0
+    ? Math.round((yearlySavings / (termlyPrice * 3)) * 100)
+    : 0;
 
   const payableTerms = useMemo(
     () => availableTerms.filter((t) => !excludedTermIds.has(t.id)),
@@ -279,13 +279,17 @@ export function SubscriptionPlansTab({
     if (billingInterval === "termly" && selectedTermId) {
       params.set("termId", selectedTermId);
     } else if (billingInterval === "yearly") {
-      // Pass all 3 terms for yearly coverage (skip covered ones)
-      const yearlyTermIds = yearlyTerms.map((t) => t.id).join(",");
-      if (yearlyTermIds) params.set("termIds", yearlyTermIds);
+      // Compute termIds inline from available + excluded to avoid stale closure on yearlyTerms
+      const ids = availableTerms
+        .filter((t) => !excludedTermIds.has(t.id))
+        .slice(0, 3)
+        .map((t) => t.id)
+        .join(",");
+      if (ids) params.set("termIds", ids);
     }
     params.set("from", "/admin/subscription");
     router.push(`/checkout?${params.toString()}`);
-  }, [selectedPlanKey, billingInterval, selectedTermId, availableTerms, router]);
+  }, [selectedPlanKey, billingInterval, selectedTermId, availableTerms, excludedTermIds, router]);
 
   // ── Can proceed? ──
   const canProceed = selectedPlanKey && !(billingInterval === "termly" && !selectedTermId);

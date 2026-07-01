@@ -22,6 +22,16 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   BookOpen,
   Bus,
   GraduationCap,
@@ -34,6 +44,8 @@ import {
   Copy,
   X,
   GripVertical,
+  Trash2,
+  PencilLine,
 } from "lucide-react";
 import type { FeeTemplate, ClassOption } from "./finance-types";
 
@@ -67,21 +79,61 @@ const FREQUENCY_LABELS: Record<string, string> = {
   one_time: "One-time",
 };
 
+function buildInitialForm(fee?: FeeTemplate | null) {
+  if (!fee) {
+    return {
+      name: "",
+      category: "tuition",
+      frequency: "per_term",
+      amount: "",
+      description: "",
+    };
+  }
+  return {
+    name: fee.name,
+    category: fee.category,
+    frequency: fee.frequency,
+    amount: String(fee.amount),
+    description: fee.description || "",
+  };
+}
+
+function buildInitialClassAmounts(fee?: FeeTemplate | null) {
+  if (!fee?.finance_fee_template_classes) return {} as Record<string, string>;
+  const map: Record<string, string> = {};
+  fee.finance_fee_template_classes.forEach((entry) => {
+    map[entry.class_id] = String(entry.class_amount);
+  });
+  return map;
+}
+
 export function FinanceFeesTab({ fees, classes, formatMoney, onRefresh, onError }: FeesTabProps) {
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState({
-    name: "",
-    category: "tuition",
-    frequency: "per_term",
-    amount: "",
-    description: "",
-  });
+  const [editingFee, setEditingFee] = useState<FeeTemplate | null>(null);
+  const [form, setForm] = useState(buildInitialForm());
   const [classAmounts, setClassAmounts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<FeeTemplate | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const isEditing = !!editingFee;
 
   const resetForm = () => {
-    setForm({ name: "", category: "tuition", frequency: "per_term", amount: "", description: "" });
+    setForm(buildInitialForm());
     setClassAmounts({});
+    setEditingFee(null);
+  };
+
+  const openCreate = () => {
+    resetForm();
+    setModalOpen(true);
+  };
+
+  const openEdit = (fee: FeeTemplate) => {
+    setEditingFee(fee);
+    setForm(buildInitialForm(fee));
+    setClassAmounts(buildInitialClassAmounts(fee));
+    setModalOpen(true);
   };
 
   const submitFee = async () => {
@@ -96,22 +148,39 @@ export function FinanceFeesTab({ fees, classes, formatMoney, onRefresh, onError 
         .filter(([, amount]) => amount !== "" && !Number.isNaN(Number(amount)))
         .map(([classId, amount]) => ({ classId, amount: Number(amount) }));
 
-      const res = await fetch("/api/admin/finance/fees", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: form.name,
-          category: form.category,
-          frequency: form.frequency,
-          amount: parsedAmount,
-          description: form.description,
-          classAmounts: mappedClassAmounts,
-        }),
-      });
+      const payload = {
+        name: form.name,
+        category: form.category,
+        frequency: form.frequency,
+        amount: parsedAmount,
+        description: form.description,
+        classAmounts: mappedClassAmounts,
+      };
 
-      const payload = (await res.json()) as { success?: boolean; error?: string };
-      if (!res.ok || !payload.success) {
-        throw new Error(payload.error || "Failed to create fee");
+      if (isEditing && editingFee) {
+        // Update existing fee
+        const res = await fetch("/api/admin/finance/fees", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...payload, id: editingFee.id }),
+        });
+
+        const result = (await res.json()) as { success?: boolean; error?: string };
+        if (!res.ok || !result.success) {
+          throw new Error(result.error || "Failed to update fee");
+        }
+      } else {
+        // Create new fee
+        const res = await fetch("/api/admin/finance/fees", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const result = (await res.json()) as { success?: boolean; error?: string };
+        if (!res.ok || !result.success) {
+          throw new Error(result.error || "Failed to create fee");
+        }
       }
 
       resetForm();
@@ -127,6 +196,26 @@ export function FinanceFeesTab({ fees, classes, formatMoney, onRefresh, onError 
       await submitFee();
     } catch (err: unknown) {
       onError(err instanceof Error ? err.message : "Action failed");
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteConfirm) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/finance/fees?id=${deleteConfirm.id}`, {
+        method: "DELETE",
+      });
+      const result = (await res.json()) as { success?: boolean; error?: string };
+      if (!res.ok || !result.success) {
+        throw new Error(result.error || "Failed to delete fee");
+      }
+      setDeleteConfirm(null);
+      await onRefresh();
+    } catch (err: unknown) {
+      onError(err instanceof Error ? err.message : "Failed to delete fee");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -167,7 +256,7 @@ export function FinanceFeesTab({ fees, classes, formatMoney, onRefresh, onError 
             </CardTitle>
             <Dialog open={modalOpen} onOpenChange={(open) => { setModalOpen(open); if (!open) resetForm(); }}>
               <DialogTrigger asChild>
-                <Button size="sm" className="gap-1.5 text-xs bg-blue-600 hover:bg-blue-700">
+                <Button size="sm" className="gap-1.5 text-xs bg-blue-600 hover:bg-blue-700" onClick={openCreate}>
                   <Plus className="h-3.5 w-3.5" />
                   Add Fee
                 </Button>
@@ -175,13 +264,19 @@ export function FinanceFeesTab({ fees, classes, formatMoney, onRefresh, onError 
               <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2 text-base">
-                    <div className="p-1 rounded-lg bg-blue-100">
-                      <Plus className="h-4 w-4 text-blue-600" />
+                    <div className={`p-1 rounded-lg ${isEditing ? "bg-amber-100" : "bg-blue-100"}`}>
+                      {isEditing ? (
+                        <PencilLine className="h-4 w-4 text-amber-600" />
+                      ) : (
+                        <Plus className="h-4 w-4 text-blue-600" />
+                      )}
                     </div>
-                    Create Fee Template
+                    {isEditing ? "Edit Fee Template" : "Create Fee Template"}
                   </DialogTitle>
                   <DialogDescription>
-                    Configure the fee structure and set per-class pricing.
+                    {isEditing
+                      ? "Update the fee structure and per-class pricing."
+                      : "Configure the fee structure and set per-class pricing."}
                   </DialogDescription>
                 </DialogHeader>
 
@@ -396,19 +491,23 @@ export function FinanceFeesTab({ fees, classes, formatMoney, onRefresh, onError 
                     Cancel
                   </Button>
                   <Button
-                    className="gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+                    className={`gap-2 text-white ${
+                      isEditing
+                        ? "bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700"
+                        : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                    }`}
                     onClick={handleSubmit}
                     disabled={saving}
                   >
                     {saving ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Creating...
+                        {isEditing ? "Updating..." : "Creating..."}
                       </>
                     ) : (
                       <>
-                        <Plus className="h-4 w-4" />
-                        Create Fee
+                        {isEditing ? <PencilLine className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                        {isEditing ? "Update Fee" : "Create Fee"}
                       </>
                     )}
                   </Button>
@@ -426,10 +525,10 @@ export function FinanceFeesTab({ fees, classes, formatMoney, onRefresh, onError 
                 return (
                   <div
                     key={fee.id}
-                    className="px-5 py-4 transition-all duration-150 hover:bg-gray-50 hover:pl-6"
+                    className="px-5 py-4 transition-all duration-150 hover:bg-gray-50 group"
                   >
                     <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-start gap-3 min-w-0">
+                      <div className="flex items-start gap-3 min-w-0 flex-1">
                         <div className={`p-2 rounded-lg shrink-0 ${catColor}`}>
                           <CatIcon className="h-4 w-4" />
                         </div>
@@ -443,22 +542,40 @@ export function FinanceFeesTab({ fees, classes, formatMoney, onRefresh, onError 
                           )}
                         </div>
                       </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-base font-bold text-gray-900">{formatMoney(fee.amount)}</p>
-                        <div className="flex items-center gap-1.5 mt-1 justify-end">
-                          <span className="text-[10px] text-gray-400 capitalize bg-gray-100 px-1.5 py-0.5 rounded-full">
-                            {fee.category}
-                          </span>
-                          <Badge
-                            variant={fee.is_active ? "secondary" : "outline"}
-                            className={`text-[10px] ${
-                              fee.is_active
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                : "bg-gray-50 text-gray-500 border-gray-200"
-                            }`}
+                      <div className="text-right shrink-0 flex items-start gap-2">
+                        <div>
+                          <p className="text-base font-bold text-gray-900">{formatMoney(fee.amount)}</p>
+                          <div className="flex items-center gap-1.5 mt-1 justify-end">
+                            <span className="text-[10px] text-gray-400 capitalize bg-gray-100 px-1.5 py-0.5 rounded-full">
+                              {fee.category}
+                            </span>
+                            <Badge
+                              variant={fee.is_active ? "secondary" : "outline"}
+                              className={`text-[10px] ${
+                                fee.is_active
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  : "bg-gray-50 text-gray-500 border-gray-200"
+                              }`}
+                            >
+                              {fee.is_active ? "Active" : "Inactive"}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                          <button
+                            onClick={() => openEdit(fee)}
+                            className="p-1.5 rounded-md hover:bg-gray-200 text-gray-400 hover:text-amber-600 transition-colors"
+                            title="Edit fee"
                           >
-                            {fee.is_active ? "Active" : "Inactive"}
-                          </Badge>
+                            <PencilLine className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirm(fee)}
+                            className="p-1.5 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"
+                            title="Delete fee"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -489,6 +606,45 @@ export function FinanceFeesTab({ fees, classes, formatMoney, onRefresh, onError 
           )}
         </CardContent>
       </Card>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-4 w-4 text-red-500" />
+              Delete Fee Template
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{deleteConfirm?.name}</strong>?
+              This action cannot be undone. Any bills referencing this fee will no longer be linked to it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting}
+              className="bg-red-600 hover:bg-red-700 text-white gap-2"
+              onClick={(e) => {
+                e.preventDefault();
+                handleDelete();
+              }}
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

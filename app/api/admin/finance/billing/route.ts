@@ -134,3 +134,129 @@ export async function POST(req: NextRequest) {
 
   return successResponse(finalBill, 201);
 }
+
+export async function PATCH(req: NextRequest) {
+  const permission = await checkIsAdminWithSchool();
+  if (!permission.authorized || !permission.schoolId) {
+    return errorResponse(permission.error || "Unauthorized", permission.status || 401);
+  }
+
+  const body = (await req.json()) as Partial<CreateBillPayload> & { id?: string; items?: BillItemInput[] };
+  if (!body.id) {
+    return errorResponse("Bill id is required", 400);
+  }
+
+  const supabase = createRouteHandlerClient({ cookies });
+
+  // Build update payload with only provided fields
+  const updates: Record<string, unknown> = {};
+  if (body.studentId) updates.student_id = body.studentId;
+  if (body.classId !== undefined) updates.class_id = body.classId;
+  if (body.dueDate !== undefined) updates.due_date = body.dueDate;
+  if (body.billingCycle) updates.billing_cycle = body.billingCycle;
+  if (body.sessionId !== undefined) updates.session_id = body.sessionId;
+  if (body.termId !== undefined) updates.term_id = body.termId;
+
+  if (Object.keys(updates).length > 0) {
+    const { error: updateError } = await supabase
+      .from("finance_student_bills")
+      .update(updates)
+      .eq("id", body.id)
+      .eq("school_id", permission.schoolId);
+
+    if (updateError) {
+      return errorResponse(updateError.message, 500);
+    }
+  }
+
+  // If items are provided, replace them
+  if (body.items && Array.isArray(body.items)) {
+    const { error: deleteItemsError } = await supabase
+      .from("finance_bill_items")
+      .delete()
+      .eq("bill_id", body.id)
+      .eq("school_id", permission.schoolId);
+
+    if (deleteItemsError) {
+      return errorResponse(deleteItemsError.message, 500);
+    }
+
+    if (body.items.length > 0) {
+      const itemRows = body.items.map((item) => ({
+        school_id: permission.schoolId,
+        bill_id: body.id,
+        fee_template_id: item.feeTemplateId || null,
+        title: item.title,
+        frequency: item.frequency,
+        original_amount: item.originalAmount ?? item.amount,
+        amount: item.amount,
+        override_type: item.overrideType || "none",
+        notes: item.notes || "",
+      }));
+
+      const { error: insertItemsError } = await supabase
+        .from("finance_bill_items")
+        .insert(itemRows);
+
+      if (insertItemsError) {
+        return errorResponse(insertItemsError.message, 500);
+      }
+    }
+  }
+
+  // Return updated bill
+  const { data: updatedBill, error: fetchError } = await supabase
+    .from("finance_student_bills")
+    .select(`
+      *,
+      students(first_name, last_name, student_id),
+      finance_bill_items(*)
+    `)
+    .eq("id", body.id)
+    .single();
+
+  if (fetchError) {
+    return errorResponse(fetchError.message, 500);
+  }
+
+  return successResponse(updatedBill);
+}
+
+export async function DELETE(req: NextRequest) {
+  const permission = await checkIsAdminWithSchool();
+  if (!permission.authorized || !permission.schoolId) {
+    return errorResponse(permission.error || "Unauthorized", permission.status || 401);
+  }
+
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get("id");
+  if (!id) {
+    return errorResponse("Bill id is required", 400);
+  }
+
+  const supabase = createRouteHandlerClient({ cookies });
+
+  // Delete bill items first
+  const { error: deleteItemsError } = await supabase
+    .from("finance_bill_items")
+    .delete()
+    .eq("bill_id", id)
+    .eq("school_id", permission.schoolId);
+
+  if (deleteItemsError) {
+    return errorResponse(deleteItemsError.message, 500);
+  }
+
+  // Delete the bill
+  const { error: deleteBillError } = await supabase
+    .from("finance_student_bills")
+    .delete()
+    .eq("id", id)
+    .eq("school_id", permission.schoolId);
+
+  if (deleteBillError) {
+    return errorResponse(deleteBillError.message, 500);
+  }
+
+  return successResponse({ deleted: true });
+}

@@ -171,3 +171,42 @@ export async function PATCH(req: NextRequest) {
 
   return successResponse(data);
 }
+
+export async function DELETE(req: NextRequest) {
+  const permission = await checkIsAdminWithSchool();
+  if (!permission.authorized || !permission.schoolId) {
+    return errorResponse(permission.error || "Unauthorized", permission.status || 401);
+  }
+
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get("id");
+  if (!id) {
+    return errorResponse("Fee template id is required", 400);
+  }
+
+  const supabase = createRouteHandlerClient({ cookies });
+
+  // Delete class amounts first
+  const { error: classDeleteError } = await supabase
+    .from("finance_fee_template_classes")
+    .delete()
+    .eq("fee_template_id", id)
+    .eq("school_id", permission.schoolId);
+
+  if (classDeleteError) {
+    return errorResponse(classDeleteError.message, 500);
+  }
+
+  // Delete the fee template
+  const { error: feeDeleteError } = await supabase
+    .from("finance_fee_templates")
+    .delete()
+    .eq("id", id)
+    .eq("school_id", permission.schoolId);
+
+  if (feeDeleteError) {
+    return errorResponse(feeDeleteError.message, 500);
+  }
+
+  return successResponse({ deleted: true });
+}

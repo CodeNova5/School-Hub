@@ -29,6 +29,7 @@ export default function AdminFinancePage() {
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("overview");
 
   const [overview, setOverview] = useState<FinanceOverview | null>(null);
   const [settings, setSettings] = useState<FinanceSettings>({});
@@ -145,7 +146,7 @@ export default function AdminFinancePage() {
             </CardContent>
           </Card>
         ) : (
-          <Tabs defaultValue="overview" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="transactions">Payments</TabsTrigger>
@@ -166,6 +167,7 @@ export default function AdminFinancePage() {
                 formatMoney={formatMoney}
                 onRefresh={loadFinanceData}
                 onError={setError}
+                onTabChange={setActiveTab}
               />
             </TabsContent>
 
@@ -188,6 +190,7 @@ export default function AdminFinancePage() {
                 formatMoney={formatMoney}
                 onRefresh={loadFinanceData}
                 onError={setError}
+                onTabChange={setActiveTab}
               />
             </TabsContent>
 

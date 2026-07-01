@@ -610,44 +610,45 @@ export default function ClassPage() {
         <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
           <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
             <div className="bg-gradient-to-r from-slate-50 to-white border-b border-slate-200">
-              <TabsList className="grid w-full grid-cols-4 lg:grid-cols-6 gap-0 bg-transparent p-0 h-auto rounded-none">
+              <TabsList className="flex w-full lg:grid lg:grid-cols-6 gap-0 bg-transparent p-0 h-auto rounded-none overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <TabsTrigger 
                   value="overview" 
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-blue-50 py-3 text-sm font-medium transition-colors hover:bg-slate-100 flex items-center justify-center gap-2"
+                  className="flex-shrink-0 rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-blue-50 py-3 text-sm font-medium transition-colors hover:bg-slate-100 flex items-center justify-center gap-2 px-4"
                 >
                   <LayoutDashboard className="h-4 w-4" />
                   <span className="hidden sm:inline">Overview</span>
                 </TabsTrigger>
                 <TabsTrigger 
                   value="subjects" 
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-blue-50 py-3 text-sm font-medium transition-colors hover:bg-slate-100 flex items-center justify-center gap-2"
+                  className="flex-shrink-0 rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-blue-50 py-3 text-sm font-medium transition-colors hover:bg-slate-100 flex items-center justify-center gap-2 px-4"
                 >
                   <BookOpen className="h-4 w-4" />
                   <span className="hidden sm:inline">Subjects</span>
                 </TabsTrigger>
                 <TabsTrigger 
                   value="students" 
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-blue-50 py-3 text-sm font-medium transition-colors hover:bg-slate-100 flex items-center justify-center gap-2"
+                  className="flex-shrink-0 rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-blue-50 py-3 text-sm font-medium transition-colors hover:bg-slate-100 flex items-center justify-center gap-2 px-4"
                 >
                   <Users className="h-4 w-4" />
                   <span className="hidden sm:inline">Students</span>
                 </TabsTrigger>
                 <TabsTrigger 
                   value="timetable" 
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-blue-50 py-3 text-sm font-medium transition-colors hover:bg-slate-100 flex items-center justify-center gap-2"
+                  className="flex-shrink-0 rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-blue-50 py-3 text-sm font-medium transition-colors hover:bg-slate-100 flex items-center justify-center gap-2 px-4"
                 >
                   <Clock className="h-4 w-4" />
                   <span className="hidden sm:inline">Timetable</span>
                 </TabsTrigger>
                 <TabsTrigger 
                   value="attendance" 
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-blue-50 py-3 text-sm font-medium transition-colors hover:bg-slate-100 flex items-center justify-center gap-2"
+                  className="flex-shrink-0 rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-blue-50 py-3 text-sm font-medium transition-colors hover:bg-slate-100 flex items-center justify-center gap-2 px-4"
                 >
                   <Calendar className="h-4 w-4" />
                   <span className="hidden sm:inline">Attendance</span>
-                </TabsTrigger>                  <TabsTrigger 
+                </TabsTrigger>
+                <TabsTrigger 
                   value="results" 
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-blue-50 py-3 text-sm font-medium transition-colors hover:bg-slate-100 flex items-center justify-center gap-2"
+                  className="flex-shrink-0 rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-blue-50 py-3 text-sm font-medium transition-colors hover:bg-slate-100 flex items-center justify-center gap-2 px-4"
                 >
                   <BarChart3 className="h-4 w-4" />
                   <span className="hidden sm:inline">Results</span>

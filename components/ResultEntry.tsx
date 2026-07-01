@@ -826,8 +826,8 @@ export default function ResultEntry({
     return resolveGradeFromPercentage(averagePercentage, configuredPassPercentage).grade;
   })();
 
-  const getPositionDisplay = (position: number | null | undefined) => {
-    if (!position) return <span className="text-sm">--</span>;
+  const getPositionDisplay = (position: number | null | undefined): string => {
+    if (!position) return "--";
     if (position === 1) return "1st";
     if (position === 2) return "2nd";
     if (position === 3) return "3rd";

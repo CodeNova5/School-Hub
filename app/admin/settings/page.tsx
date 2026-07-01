@@ -30,6 +30,7 @@ interface SchoolDetails {
   phone: string;
   email: string;
   logo_url: string;
+  motto?: string;
 }
 
 export default function AdminSettingsPage() {
@@ -186,7 +187,7 @@ export default function AdminSettingsPage() {
       // Fetch school details
       const { data: schoolData, error: schoolError } = await supabase
         .from('schools')
-        .select('id, name, address, phone, email, logo_url')
+        .select('id, name, address, phone, email, logo_url, motto')
         .eq('id', schoolId)
         .single();
 
@@ -249,6 +250,7 @@ export default function AdminSettingsPage() {
           phone: schoolFormData.phone,
           email: schoolFormData.email,
           logo_url: schoolFormData.logo_url || '',
+          motto: schoolFormData.motto || '',
           updated_at: new Date().toISOString(),
         })
         .eq('id', school.id);
@@ -567,24 +569,35 @@ export default function AdminSettingsPage() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-gray-700 text-sm">Phone Number</Label>
-                    <Input
-                      type="tel"
-                      value={schoolFormData?.phone || ''}
-                      onChange={(e) => setSchoolFormData(prev => prev ? { ...prev, phone: e.target.value } : null)}
-                      className="mt-1 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-gray-700 text-sm">Email Address</Label>
-                    <Input
-                      type="email"
-                      value={schoolFormData?.email || ''}
-                      onChange={(e) => setSchoolFormData(prev => prev ? { ...prev, email: e.target.value } : null)}
-                      className="mt-1 text-sm"
-                    />
-                  </div>
+                <div>
+                  <Label className="text-gray-700 text-sm">Phone Number</Label>
+                  <Input
+                    type="tel"
+                    value={schoolFormData?.phone || ''}
+                    onChange={(e) => setSchoolFormData(prev => prev ? { ...prev, phone: e.target.value } : null)}
+                    className="mt-1 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-700 text-sm">Email Address</Label>
+                  <Input
+                    type="email"
+                    value={schoolFormData?.email || ''}
+                    onChange={(e) => setSchoolFormData(prev => prev ? { ...prev, email: e.target.value } : null)}
+                    className="mt-1 text-sm"
+                  />
+                </div>
+                </div>
+
+                <div>
+                  <Label className="text-gray-700 text-sm">School Motto</Label>
+                  <Input
+                    type="text"
+                    value={schoolFormData?.motto || ''}
+                    onChange={(e) => setSchoolFormData(prev => prev ? { ...prev, motto: e.target.value } : null)}
+                    placeholder="Enter school motto..."
+                    className="mt-1 text-sm"
+                  />
                 </div>
 
                 <div>
@@ -671,6 +684,13 @@ export default function AdminSettingsPage() {
                     <div className="mt-1 p-3 bg-gray-50 rounded-md border border-gray-200">
                       <p className="text-gray-900 font-medium break-words text-sm">{school?.email || '-'}</p>
                     </div>
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-gray-700 text-sm">School Motto</Label>
+                  <div className="mt-1 p-3 bg-gray-50 rounded-md border border-gray-200">
+                    <p className="text-gray-900 font-medium break-words text-sm italic">{school?.motto || '-'}</p>
                   </div>
                 </div>
 

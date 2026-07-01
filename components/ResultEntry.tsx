@@ -3,6 +3,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { Student, Class as ClassType, Session, Term } from "@/lib/types";
@@ -44,6 +45,37 @@ interface ResultEntryProps {
   termId?: string;
 }
 
+interface DomainRatings {
+  affective: Record<string, number>;
+  psychomotor: Record<string, number>;
+}
+
+const DEFAULT_AFFECTIVE_TRAITS = [
+  "Punctuality / Regularity",
+  "Neatness & Hygiene",
+  "Honesty & Trust",
+  "Relationship with Peers",
+  "Obedience & Compliance",
+  "Leadership Dynamics",
+];
+
+const DEFAULT_PSYCHOMOTOR_TRAITS = [
+  "Verbal Fluency",
+  "Sports & Athletics",
+  "Crafts & Manual Skills",
+  "Musical/Artistic Skills",
+  "Handling Lab Tools",
+  "Club & Societies",
+];
+
+function getDefaultDomainRatings(): DomainRatings {
+  const affective: Record<string, number> = {};
+  const psychomotor: Record<string, number> = {};
+  DEFAULT_AFFECTIVE_TRAITS.forEach((t) => (affective[t] = 5));
+  DEFAULT_PSYCHOMOTOR_TRAITS.forEach((t) => (psychomotor[t] = 5));
+  return { affective, psychomotor };
+}
+
 export default function ResultEntry({
   studentId,
   role,
@@ -75,8 +107,11 @@ export default function ResultEntry({
   const [gradeScale, setGradeScale] = useState<ResultGradeScale[]>([]);
   const [configuredPassPercentage, setConfiguredPassPercentage] = useState<number>(40);
 
+  // Domain ratings state
+  const [domainRatings, setDomainRatings] = useState<DomainRatings>(getDefaultDomainRatings());
+
   // School details (fetched from database)
-  const [school, setSchool] = useState<{ name: string; address: string; phone: string; logo_url: string } | null>(null);
+  const [school, setSchool] = useState<{ name: string; address: string; phone: string; logo_url: string; motto?: string } | null>(null);
 
   // Principal/Admin signature URL
   const [principalSignature, setPrincipalSignature] = useState<string | null>(null);
@@ -139,6 +174,15 @@ export default function ResultEntry({
     }
 
     return { grade: matched.grade_label, remark: matched.remark || "" };
+  }
+
+  function getGradeColor(grade: string): string {
+    if (grade.startsWith("A")) return "#1b7a1b";
+    if (grade.startsWith("B")) return "#2e86c1";
+    if (grade.startsWith("C")) return "#d4ac0d";
+    if (grade.startsWith("D") || grade.startsWith("E")) return "#e67e22";
+    if (grade.startsWith("F")) return "#c0392b";
+    return "#2c3e50";
   }
 
   async function loadData() {
@@ -239,11 +283,11 @@ export default function ResultEntry({
         setGradeScale([]);
       }
 
-      // 1.6 Fetch school details (name, address, phone, logo_url)
+      // 1.6 Fetch school details (name, address, phone, logo_url, motto)
       if (schoolId) {
         const { data: schoolData } = await supabase
           .from("schools")
-          .select("name, address, phone, logo_url")
+          .select("name, address, phone, logo_url, motto")
           .eq("id", schoolId)
           .single();
 
@@ -561,6 +605,21 @@ export default function ResultEntry({
         if (first.next_term_begins) {
           setNextTermDate(first.next_term_begins);
         }
+
+        // Load domain ratings from the first result's domain_ratings field
+        if (first.domain_ratings) {
+          try {
+            const parsed = typeof first.domain_ratings === 'string'
+              ? JSON.parse(first.domain_ratings)
+              : first.domain_ratings;
+            if (parsed && parsed.affective && parsed.psychomotor) {
+              setDomainRatings(parsed);
+            }
+          } catch (e) {
+            // ignore parse errors
+          }
+        }
+
         for (const res of existingResults) {
           const idx = initialScores.findIndex(
             (s) => s.subject_class_id === res.subject_class_id
@@ -726,6 +785,17 @@ export default function ResultEntry({
     setScores(newScores);
   }
 
+  function updateDomainRating(domain: 'affective' | 'psychomotor', trait: string, value: number) {
+    if (isReadOnly || !canEdit) return;
+    setDomainRatings((prev) => ({
+      ...prev,
+      [domain]: {
+        ...prev[domain],
+        [trait]: Math.max(1, Math.min(5, value)),
+      },
+    }));
+  }
+
   useEffect(() => {
     if (scores.length > 0) {
       const updatedScores = scores.map(score => {
@@ -738,7 +808,7 @@ export default function ResultEntry({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [publicationSettings, role, resultComponents, gradeScale, configuredPassPercentage]);
 
-  // Calculate visible columns count for table alignment (columns before Total column)
+  // Calculate visible columns count for table alignment (columns before Grade column)
   const visibleColumnsCount = (() => {
     let count = 1; // Subject name column
     for (const component of resultComponents) {
@@ -757,33 +827,18 @@ export default function ResultEntry({
   })();
 
   const getPositionDisplay = (position: number | null | undefined) => {
-    if (!position) return null;
-    if (position === 1) {
-      return (
-        <div className="flex items-center justify-center gap-2">
-          <span className="text-2xl">🥇</span>
-          <span className="font-bold text-yellow-600 text-xl">1st</span>
-        </div>
-      );
-    }
-    if (position === 2) {
-      return (
-        <div className="flex items-center justify-center gap-2">
-          <span className="text-2xl">🥈</span>
-          <span className="font-bold text-gray-600 text-xl">2nd</span>
-        </div>
-      );
-    }
-    if (position === 3) {
-      return (
-        <div className="flex items-center justify-center gap-2">
-          <span className="text-2xl">🥉</span>
-          <span className="font-bold text-amber-700 text-xl">3rd</span>
-        </div>
-      );
-    }
-    return <span className="font-semibold text-gray-700 text-xl">{position}th</span>;
+    if (!position) return <span className="text-sm">--</span>;
+    if (position === 1) return "1st";
+    if (position === 2) return "2nd";
+    if (position === 3) return "3rd";
+    return `${position}th`;
   };
+
+  function getPositionOrdinal(position: number | null | undefined, total: number | null | undefined): string {
+    if (!position) return "--";
+    const pos = getPositionDisplay(position);
+    return total ? `${pos} / ${total}` : pos;
+  }
 
   function handlePrint() {
     window.print();
@@ -912,6 +967,7 @@ export default function ResultEntry({
         total_students: totalStudents,
         class_average: classAverage,
         school_id: effectiveSchoolId,
+        domain_ratings: domainRatings,
       }));
 
       // Upsert all results at once
@@ -1015,8 +1071,8 @@ export default function ResultEntry({
 
   return (
     <div className="space-y-6 mb-12">
+      {/* Action Buttons */}
       <div className="flex items-center justify-between print:hidden">
-        {/* No back button here, parent page should handle navigation */}
         <div className="flex gap-2">
           <Button variant="outline" onClick={handlePrint}>
             <Printer className="h-4 w-4 mr-2" />
@@ -1044,232 +1100,1022 @@ export default function ResultEntry({
         </div>
       </div>
 
-      <Card className="print:shadow-none print:border-0">
-        <CardContent id="printable-content" ref={printRef} className="p-8">
-          <div className="space-y-6">
-            <div className="flex items-start justify-between border-b pb-6">
-              <div className="w-20 h-20 bg-gray-100 rounded flex items-center justify-center overflow-hidden">
-                {school?.logo_url ? (
-                  <img
-                    src={school.logo_url}
-                    alt="School Logo"
-                    className="h-full w-full object-contain p-1"
-                  />
-                ) : (
-                  <span className="text-xs text-gray-400">LOGO</span>
-                )}
-              </div>
-              <div className="text-center flex-1 mx-4">
-                <h1 className="text-2xl font-bold">{school?.name || "SCHOOL NAME"}</h1>
-                <p className="text-sm text-gray-600 mt-1">{school?.address || "School Address, City, State"}</p>
-                <p className="text-sm text-gray-600">{school?.phone ? `Tel: ${school.phone}` : ""}</p>
-                <p className="text-lg font-semibold mt-2 text-blue-600">STUDENT REPORT CARD</p>
-              </div>
-              <div className="w-20 h-20" />
-            </div>
-            <div className="flex gap-6 mt-4">
-              <div className="flex-1 grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p><strong>Name:</strong> {student.first_name} {student.last_name}</p>
-                  <p><strong>Class:</strong> {studentClass?.name}</p>
-                  <p><strong>Session:</strong> {session?.name}</p>
-                  <p><strong>Term:</strong> {term?.name}</p>
-                </div>
-                <div>
-                  <p><strong>No. of Attendance:</strong> {attendance}</p>
-                  <p>
-                    <strong>Next Term Begins:</strong> {nextTermDate && !isNaN(new Date(nextTermDate).getTime()) ? new Date(nextTermDate).toLocaleDateString('en-GB') : 'N/A'}
-                  </p>
-                </div>
-              </div>
-              <div className="w-28 h-32 flex-shrink-0 bg-gray-100 rounded-md flex items-center justify-center overflow-hidden">
-                {student?.photo_url || student?.image_url ? (
-                  <img
-                    src={student.photo_url || student.image_url}
-                    alt="Student Photo"
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <span className="text-xs text-gray-400">PHOTO</span>
-                )}
-              </div>
-            </div>
-            {classPosition && (
-              <div className="mt-4 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border-2 border-blue-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-blue-600">Class Position</p>
-                    <div className="mt-1">{getPositionDisplay(classPosition)}</div>
-                  </div>
-                  {totalStudents && (
-                    <div className="text-right">
-                      <p className="text-sm text-gray-600">Out of</p>
-                      <p className="text-2xl font-bold text-gray-800">{totalStudents}</p>
-                      <p className="text-xs text-gray-500">students</p>
-                    </div>
-                  )}
-                  {classAverage && (
-                    <div className="text-right">
-                      <p className="text-sm text-gray-600">Class Average</p>
-                      <p className="text-2xl font-bold text-gray-800">{classAverage.toFixed(1)}%</p>
-                    </div>
-                  )}
-                </div>
-              </div>
+      {/* Report Card */}
+      <div
+        ref={printRef}
+        id="printable-content"
+        style={{
+          maxWidth: "820px",
+          margin: "0 auto",
+          background: "#ffffff",
+          padding: "30px",
+          border: "2px solid #0b5345",
+          boxShadow: "0 4px 15px rgba(0,0,0,0.1)",
+          fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+          color: "#2c3e50",
+          fontSize: "13px",
+        }}
+      >
+        {/* ── HEADER ── */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            borderBottom: "4px double #0b5345",
+            paddingBottom: "10px",
+            marginBottom: "15px",
+          }}
+        >
+          {/* Logo */}
+          <div
+            style={{
+              width: "85px",
+              height: "85px",
+              flexShrink: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              overflow: "hidden",
+            }}
+          >
+            {school?.logo_url ? (
+              <img
+                src={school.logo_url}
+                alt="School Logo"
+                style={{ height: "100%", width: "100%", objectFit: "contain" }}
+              />
+            ) : (
+              <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style={{ width: "75px", height: "75px" }}>
+                <circle cx="50" cy="50" r="45" fill="#0b5345" />
+                <polygon points="50,18 78,40 68,75 32,75 22,40" fill="#d4ac0d" />
+                <path d="M35,45 Q50,35 65,45 L65,58 Q50,48 35,58 Z" fill="#ffffff" />
+                <rect x="47" y="42" width="6" height="25" fill="#0b5345" />
+                <circle cx="50" cy="33" r="4" fill="#ffffff" />
+              </svg>
             )}
-            <div className="mt-6">
-              <table className="w-full border-collapse border border-gray-300 text-sm">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="border border-gray-300 px-3 py-2 text-left">Subject</th>
-                    {getVisibleComponentTemplates().map((component) => (
-                      <th key={component.component_key} className="border border-gray-300 px-3 py-2 text-center w-24">
-                        {component.component_name} ({component.max_score})
-                      </th>
-                    ))}
-                    <th className="border border-gray-300 px-3 py-2 text-center w-20">
-                      Total
-                    </th>
-                    <th className="border border-gray-300 px-3 py-2 text-center w-16">Grade</th>
-                    <th className="border border-gray-300 px-3 py-2 text-center">Remark</th>
+          </div>
+
+          {/* School Details */}
+          <div style={{ textAlign: "center", flexGrow: 1, padding: "0 15px" }}>
+            <h1 style={{ color: "#0b5345", margin: "0 0 3px 0", fontSize: "22px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              {school?.name || "SCHOOL NAME"}
+            </h1>
+            <p style={{ margin: "2px 0", fontSize: "13px" }}>
+              {school?.address || "School Address, City, State"}
+            </p>
+            <p style={{ margin: "2px 0", fontSize: "13px" }}>
+              {school?.phone ? `Tel: ${school.phone}` : ""}
+            </p>
+            {school?.motto && (
+              <p style={{ fontWeight: "bold", marginTop: "5px", color: "#0b5345", fontSize: "12px" }}>
+                MOTTO: {school.motto}
+              </p>
+            )}
+          </div>
+
+          {/* Passport Photo */}
+          <div
+            style={{
+              width: "85px",
+              height: "85px",
+              border: "1px solid #a6acaf",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              overflow: "hidden",
+              flexShrink: 0,
+              background: "#f8f9fa",
+            }}
+          >
+            {student?.photo_url || student?.image_url ? (
+              <img
+                src={student.photo_url || student.image_url}
+                alt="Student Passport"
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+            ) : (
+              <span style={{ fontSize: "10px", color: "#7f8c8d" }}>Passport</span>
+            )}
+          </div>
+        </div>
+
+        {/* ── TITLE BAR ── */}
+        <div
+          style={{
+            textAlign: "center",
+            background: "#0b5345",
+            color: "white",
+            padding: "6px",
+            fontWeight: "bold",
+            fontSize: "14px",
+            letterSpacing: "1px",
+            marginBottom: "15px",
+            borderRadius: "4px",
+          }}
+        >
+          TERMINAL STUDENT PROGRESS REPORT
+        </div>
+
+        {/* ── PROFILE TABLE ── */}
+        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "15px" }}>
+          <tbody>
+            <tr>
+              <td style={{ padding: "4px 8px", fontSize: "13px", width: "50%" }}>
+                <span style={{ fontWeight: "bold", color: "#566573" }}>Student Name:</span>{" "}
+                <span style={{ borderBottom: "1px dashed #a6acaf", display: "inline-block", width: "70%", fontWeight: 600, paddingLeft: "5px" }}>
+                  {student.first_name} {student.last_name}
+                </span>
+              </td>
+              <td style={{ padding: "4px 8px", fontSize: "13px", width: "50%" }}>
+                <span style={{ fontWeight: "bold", color: "#566573" }}>Student ID:</span>{" "}
+                <span style={{ borderBottom: "1px dashed #a6acaf", display: "inline-block", width: "70%", fontWeight: 600, paddingLeft: "5px" }}>
+                  {student.student_id}
+                </span>
+              </td>
+            </tr>
+            <tr>
+              <td style={{ padding: "4px 8px", fontSize: "13px" }}>
+                <span style={{ fontWeight: "bold", color: "#566573" }}>Class:</span>{" "}
+                <span style={{ borderBottom: "1px dashed #a6acaf", display: "inline-block", width: "70%", fontWeight: 600, paddingLeft: "5px" }}>
+                  {studentClass?.name}
+                </span>
+              </td>
+              <td style={{ padding: "4px 8px", fontSize: "13px" }}>
+                <span style={{ fontWeight: "bold", color: "#566573" }}>Term / Year:</span>{" "}
+                <span style={{ borderBottom: "1px dashed #a6acaf", display: "inline-block", width: "70%", fontWeight: 600, paddingLeft: "5px" }}>
+                  {term?.name} / {session?.name}
+                </span>
+              </td>
+            </tr>
+            <tr>
+              <td style={{ padding: "4px 8px", fontSize: "13px" }}>
+                <span style={{ fontWeight: "bold", color: "#566573" }}>Gender:</span>{" "}
+                <span style={{ borderBottom: "1px dashed #a6acaf", display: "inline-block", width: "70%", fontWeight: 600, paddingLeft: "5px" }}>
+                  {student.gender ? student.gender.charAt(0).toUpperCase() + student.gender.slice(1) : "—"}
+                </span>
+              </td>
+              <td style={{ padding: "4px 8px", fontSize: "13px" }}>
+                <span style={{ fontWeight: "bold", color: "#566573" }}>No. in Class:</span>{" "}
+                <span style={{ borderBottom: "1px dashed #a6acaf", display: "inline-block", width: "70%", fontWeight: 600, paddingLeft: "5px" }}>
+                  {totalStudents || "—"}
+                </span>
+              </td>
+            </tr>
+            <tr>
+              <td style={{ padding: "4px 8px", fontSize: "13px" }}>
+                <span style={{ fontWeight: "bold", color: "#566573" }}>Attendance:</span>{" "}
+                <span style={{ borderBottom: "1px dashed #a6acaf", display: "inline-block", width: "70%", fontWeight: 600, paddingLeft: "5px" }}>
+                  {attendance} Day{attendance !== 1 ? "s" : ""}
+                </span>
+              </td>
+              <td style={{ padding: "4px 8px", fontSize: "13px" }}>
+                <span style={{ fontWeight: "bold", color: "#566573" }}>Next Term Begins:</span>{" "}
+                <span style={{ borderBottom: "1px dashed #a6acaf", display: "inline-block", width: "70%", fontWeight: 600, paddingLeft: "5px" }}>
+                  {nextTermDate && !isNaN(new Date(nextTermDate).getTime())
+                    ? new Date(nextTermDate).toLocaleDateString("en-GB")
+                    : "—"}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* ── DATA TABLE ── */}
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            marginBottom: "15px",
+            fontSize: "12px",
+            tableLayout: "fixed",
+          }}
+        >
+          <colgroup>
+            <col style={{ width: "24%" }} />
+            {getVisibleComponentTemplates().map(() => (
+              <col key={Math.random()} style={{ width: "9%" }} />
+            ))}
+            <col style={{ width: "9%" }} />
+            <col style={{ width: "10%" }} />
+            <col style={{ width: "7%" }} />
+            <col style={{ width: "7%" }} />
+            <col style={{ width: "auto" }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th
+                rowSpan={2}
+                style={{
+                  border: "1px solid #a6acaf",
+                  padding: "6px 4px",
+                  textAlign: "center",
+                  background: "#0b5345",
+                  color: "white",
+                  fontWeight: 600,
+                }}
+              >
+                Subjects
+              </th>
+              <th
+                colSpan={getVisibleComponentTemplates().length}
+                style={{
+                  border: "1px solid #a6acaf",
+                  padding: "6px 4px",
+                  textAlign: "center",
+                  background: "#0b5345",
+                  color: "white",
+                  fontWeight: 600,
+                }}
+              >
+                Scores
+              </th>
+              <th
+                rowSpan={2}
+                style={{
+                  border: "1px solid #a6acaf",
+                  padding: "6px 4px",
+                  textAlign: "center",
+                  background: "#0b5345",
+                  color: "white",
+                  fontWeight: 600,
+                }}
+              >
+                Total
+              </th>
+              <th
+                rowSpan={2}
+                style={{
+                  border: "1px solid #a6acaf",
+                  padding: "6px 4px",
+                  textAlign: "center",
+                  background: "#0b5345",
+                  color: "white",
+                  fontWeight: 600,
+                }}
+              >
+                Class<br />Avg
+              </th>
+              <th
+                rowSpan={2}
+                style={{
+                  border: "1px solid #a6acaf",
+                  padding: "6px 4px",
+                  textAlign: "center",
+                  background: "#0b5345",
+                  color: "white",
+                  fontWeight: 600,
+                }}
+              >
+                Pos
+              </th>
+              <th
+                rowSpan={2}
+                style={{
+                  border: "1px solid #a6acaf",
+                  padding: "6px 4px",
+                  textAlign: "center",
+                  background: "#0b5345",
+                  color: "white",
+                  fontWeight: 600,
+                }}
+              >
+                Grade
+              </th>
+              <th
+                rowSpan={2}
+                style={{
+                  border: "1px solid #a6acaf",
+                  padding: "6px 4px",
+                  textAlign: "center",
+                  background: "#0b5345",
+                  color: "white",
+                  fontWeight: 600,
+                }}
+              >
+                Remarks
+              </th>
+            </tr>
+            <tr>
+              {getVisibleComponentTemplates().map((component) => (
+                <th
+                  key={component.component_key}
+                  style={{
+                    border: "1px solid #a6acaf",
+                    padding: "6px 4px",
+                    textAlign: "center",
+                    background: "#0b5345",
+                    color: "white",
+                    fontWeight: 600,
+                    fontSize: "11px",
+                  }}
+                >
+                  {component.component_name}<br />({component.max_score})
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {scores.map((score, index) => (
+              <tr key={score.subject_class_id}>
+                <td
+                  className="subject-name"
+                  style={{
+                    border: "1px solid #a6acaf",
+                    padding: "6px 4px",
+                    textAlign: "left",
+                    paddingLeft: "8px",
+                    fontWeight: 600,
+                    fontSize: "12px",
+                  }}
+                >
+                  {score.subject_name}
+                </td>
+                {getVisibleComponentTemplates().map((component) => (
+                  <td
+                    key={component.component_key}
+                    style={{
+                      border: "1px solid #a6acaf",
+                      padding: "6px 4px",
+                      textAlign: "center",
+                      fontWeight: 600,
+                      fontSize: "12px",
+                    }}
+                  >
+                    {canEdit && !isReadOnly ? (
+                      <input
+                        type="number"
+                        min="0"
+                        max={getComponentLimit(component.component_key)}
+                        value={getComponentScore(score, component.component_key) || ""}
+                        onChange={(e) => updateScore(index, component.component_key, e.target.value)}
+                        style={{
+                          width: "100%",
+                          textAlign: "center",
+                          border: "none",
+                          background: "transparent",
+                          fontWeight: 600,
+                          fontSize: "12px",
+                          padding: 0,
+                          margin: 0,
+                          outline: "none",
+                        }}
+                        disabled={isReadOnly || !canEdit}
+                      />
+                    ) : (
+                      getComponentScore(score, component.component_key)
+                    )}
+                  </td>
+                ))}
+                <td
+                  style={{
+                    border: "1px solid #a6acaf",
+                    padding: "6px 4px",
+                    textAlign: "center",
+                    fontWeight: 700,
+                    fontSize: "12px",
+                    color: "#0b5345",
+                  }}
+                >
+                  {score.total}
+                </td>
+                <td
+                  style={{
+                    border: "1px solid #a6acaf",
+                    padding: "6px 4px",
+                    textAlign: "center",
+                    fontSize: "11px",
+                    color: "#566573",
+                  }}
+                >
+                  {classAverage?.toFixed(1) || "—"}
+                </td>
+                <td
+                  style={{
+                    border: "1px solid #a6acaf",
+                    padding: "6px 4px",
+                    textAlign: "center",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                  }}
+                >
+                  {getPositionDisplay(classPosition)}
+                </td>
+                <td
+                  style={{
+                    border: "1px solid #a6acaf",
+                    padding: "6px 4px",
+                    textAlign: "center",
+                    fontWeight: 700,
+                    fontSize: "12px",
+                    color: getGradeColor(score.grade),
+                  }}
+                >
+                  {score.grade}
+                </td>
+                <td
+                  style={{
+                    border: "1px solid #a6acaf",
+                    padding: "6px 4px",
+                    textAlign: "center",
+                    fontSize: "11px",
+                    fontStyle: "italic",
+                    color: "#566573",
+                  }}
+                >
+                  {score.remark}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* ── DOMAINS (Affective + Psychomotor) ── */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: "15px",
+            marginBottom: "15px",
+          }}
+        >
+          {/* Affective Domain */}
+          <div style={{ flex: 1, width: "50%" }}>
+            <h3
+              style={{
+                color: "#0b5345",
+                fontSize: "13px",
+                borderBottom: "2px solid #0b5345",
+                marginTop: 0,
+                paddingBottom: "3px",
+                marginBottom: "8px",
+              }}
+            >
+              AFFECTIVE DOMAIN
+            </h3>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                fontSize: "12px",
+                tableLayout: "fixed",
+              }}
+            >
+              <colgroup>
+                <col style={{ width: "75%" }} />
+                <col style={{ width: "25%" }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th
+                    style={{
+                      border: "1px solid #a6acaf",
+                      padding: "6px 4px",
+                      textAlign: "left",
+                      paddingLeft: "8px",
+                      background: "#0b5345",
+                      color: "white",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Trait Evaluation
+                  </th>
+                  <th
+                    style={{
+                      border: "1px solid #a6acaf",
+                      padding: "6px 4px",
+                      textAlign: "center",
+                      background: "#0b5345",
+                      color: "white",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Rating
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {DEFAULT_AFFECTIVE_TRAITS.map((trait) => (
+                  <tr key={trait}>
+                    <td
+                      style={{
+                        border: "1px solid #a6acaf",
+                        padding: "5px 4px",
+                        textAlign: "left",
+                        paddingLeft: "8px",
+                        fontSize: "12px",
+                      }}
+                    >
+                      {trait}
+                    </td>
+                    <td
+                      style={{
+                        border: "1px solid #a6acaf",
+                        padding: "5px 4px",
+                        textAlign: "center",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {canEdit && !isReadOnly ? (
+                        <input
+                          type="number"
+                          min="1"
+                          max="5"
+                          value={domainRatings.affective[trait] || 5}
+                          onChange={(e) =>
+                            updateDomainRating("affective", trait, parseInt(e.target.value) || 5)
+                          }
+                          style={{
+                            width: "40px",
+                            textAlign: "center",
+                            border: "1px solid #d1d5db",
+                            borderRadius: "3px",
+                            padding: "2px",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                          }}
+                          disabled={isReadOnly || !canEdit}
+                        />
+                      ) : (
+                        domainRatings.affective[trait] || 5
+                      )}
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {scores.map((score, index) => (
-                    <tr key={score.subject_class_id}>
-                      <td className="border border-gray-300 px-3 py-2 font-medium">
-                        {score.subject_name}
-                      </td>
-                      {getVisibleComponentTemplates().map((component) => (
-                        <td key={component.component_key} className="border border-gray-300 px-3 py-2 text-center font-bold">
-                          {canEdit && !isReadOnly ? (
-                            <input
-                              type="number"
-                              min="0"
-                              max={getComponentLimit(component.component_key)}
-                              value={getComponentScore(score, component.component_key) || ''}
-                              onChange={(e) => updateScore(index, component.component_key, e.target.value)}
-                              className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded bg-transparent font-bold"
-                              disabled={isReadOnly || !canEdit}
-                            />
-                          ) : (
-                            getComponentScore(score, component.component_key)
-                          )}
-                        </td>
-                      ))}
-                      <td className="border border-gray-300 px-3 py-2 text-center font-bold">
-                        {score.total}
-                      </td>
-                      <td className="border border-gray-300 px-3 py-2 text-center font-bold">
-                        {score.grade}
-                      </td>
-                      <td className="border border-gray-300 px-3 py-2 text-center">
-                        {score.remark}
-                      </td>
-                    </tr>
-                  ))}
-                  <tr className="bg-blue-50 font-bold">
-                    <td colSpan={visibleColumnsCount} className="border border-gray-300 px-3 py-2 text-right">
-                      TOTAL SCORE:
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Psychomotor Domain */}
+          <div style={{ flex: 1, width: "50%" }}>
+            <h3
+              style={{
+                color: "#0b5345",
+                fontSize: "13px",
+                borderBottom: "2px solid #0b5345",
+                marginTop: 0,
+                paddingBottom: "3px",
+                marginBottom: "8px",
+              }}
+            >
+              PSYCHOMOTOR DOMAIN
+            </h3>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                fontSize: "12px",
+                tableLayout: "fixed",
+              }}
+            >
+              <colgroup>
+                <col style={{ width: "75%" }} />
+                <col style={{ width: "25%" }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th
+                    style={{
+                      border: "1px solid #a6acaf",
+                      padding: "6px 4px",
+                      textAlign: "left",
+                      paddingLeft: "8px",
+                      background: "#0b5345",
+                      color: "white",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Skill Evaluation
+                  </th>
+                  <th
+                    style={{
+                      border: "1px solid #a6acaf",
+                      padding: "6px 4px",
+                      textAlign: "center",
+                      background: "#0b5345",
+                      color: "white",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Rating
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {DEFAULT_PSYCHOMOTOR_TRAITS.map((trait) => (
+                  <tr key={trait}>
+                    <td
+                      style={{
+                        border: "1px solid #a6acaf",
+                        padding: "5px 4px",
+                        textAlign: "left",
+                        paddingLeft: "8px",
+                        fontSize: "12px",
+                      }}
+                    >
+                      {trait}
                     </td>
-                    <td className="border border-gray-300 px-3 py-2 text-center text-lg">
-                      {totalScore}
+                    <td
+                      style={{
+                        border: "1px solid #a6acaf",
+                        padding: "5px 4px",
+                        textAlign: "center",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {canEdit && !isReadOnly ? (
+                        <input
+                          type="number"
+                          min="1"
+                          max="5"
+                          value={domainRatings.psychomotor[trait] || 5}
+                          onChange={(e) =>
+                            updateDomainRating("psychomotor", trait, parseInt(e.target.value) || 5)
+                          }
+                          style={{
+                            width: "40px",
+                            textAlign: "center",
+                            border: "1px solid #d1d5db",
+                            borderRadius: "3px",
+                            padding: "2px",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                          }}
+                          disabled={isReadOnly || !canEdit}
+                        />
+                      ) : (
+                        domainRatings.psychomotor[trait] || 5
+                      )}
                     </td>
-                    <td className="border border-gray-300 px-3 py-2 text-center text-lg">
-                      {overallGrade}
-                    </td>
-                    <td className="border border-gray-300 px-3 py-2"></td>
                   </tr>
-                  <tr className="bg-green-50">
-                    <td colSpan={visibleColumnsCount} className="border border-gray-300 px-3 py-2 text-right font-semibold">
-                      AVERAGE PERCENTAGE:
-                    </td>
-                    <td colSpan={3} className="border border-gray-300 px-3 py-2 text-center font-bold text-lg">
-                      {averagePercentage.toFixed(2)}%
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div className="grid grid-cols-1 gap-6 mt-8">
-              <div>
-                <label className="block text-sm font-semibold mb-2">
-                  Class Teacher's Remark:
-                </label>
-                <Textarea
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* ── SUMMARY BAR ── */}
+        <div
+          style={{
+            border: "1px solid #0b5345",
+            borderRadius: "4px",
+            padding: "8px",
+            marginBottom: "15px",
+            background: "#fcfcfc",
+          }}
+        >
+          <table style={{ width: "100%", textAlign: "center", borderCollapse: "collapse", fontSize: "13px" }}>
+            <tbody>
+              <tr>
+                <td style={{ padding: "2px", width: "25%" }}>
+                  <strong style={{ color: "#0b5345" }}>TOTAL:</strong>{" "}
+                  <strong>{totalScore} / {maxTotalScore}</strong>
+                </td>
+                <td
+                  style={{
+                    padding: "2px",
+                    borderLeft: "1px solid #a6acaf",
+                    width: "25%",
+                  }}
+                >
+                  <strong style={{ color: "#0b5345" }}>PERCENT:</strong>{" "}
+                  <strong>{averagePercentage.toFixed(2)}%</strong>
+                </td>
+                <td
+                  style={{
+                    padding: "2px",
+                    borderLeft: "1px solid #a6acaf",
+                    width: "25%",
+                  }}
+                >
+                  <strong style={{ color: "#0b5345" }}>CLASS AVG:</strong>{" "}
+                  <strong>{classAverage?.toFixed(2) || "—"}%</strong>
+                </td>
+                <td
+                  style={{
+                    padding: "2px",
+                    borderLeft: "1px solid #a6acaf",
+                    width: "25%",
+                  }}
+                >
+                  <strong style={{ color: "#0b5345" }}>POSITION:</strong>{" "}
+                  <strong>{getPositionOrdinal(classPosition, totalStudents)}</strong>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* ── FOOTER SECTION ── */}
+        <div style={{ marginTop: "15px", fontSize: "13px", pageBreakInside: "avoid" }}>
+          {/* Class Teacher Remark */}
+          <div style={{ marginBottom: "10px", display: "flex", alignItems: "baseline" }}>
+            <span style={{ fontWeight: "bold", width: "150px", flexShrink: 0 }}>
+              Form Teacher's Remark:
+            </span>
+            <span
+              style={{
+                flexGrow: 1,
+                borderBottom: "1px dashed #a6acaf",
+                fontStyle: "italic",
+                paddingLeft: "5px",
+              }}
+            >
+              {canEdit && !isReadOnly ? (
+                <input
+                  type="text"
                   value={classTeacherRemark}
                   onChange={(e) => setClassTeacherRemark(e.target.value)}
-                  placeholder="Enter class teacher's remark..."
-                  rows={3}
-                  className="print:border-0 print:bg-transparent"
+                  style={{
+                    width: "100%",
+                    border: "none",
+                    background: "transparent",
+                    fontStyle: "italic",
+                    fontSize: "13px",
+                    padding: "2px 0",
+                    outline: "none",
+                  }}
+                  placeholder="Enter remark..."
                   disabled={isReadOnly || !canEdit}
                 />
-                <div className="mt-4 flex justify-between items-center">
-                  <div>
-                    <p className="text-sm font-medium">
-                      Name: {teacherName ? teacherName : "_________________________"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">
-                      {teacherSignature ? (
-                        <span className="inline-flex items-center gap-2">
-                          Signature:
-                          <img
-                            src={teacherSignature}
-                            alt="Class Teacher's Signature"
-                            className="h-8 object-contain inline-block"
-                          />
-                        </span>
-                      ) : (
-                        "Signature: _________________________"
-                      )}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold mb-2">
-                  Principal's Comment:
-                </label>
-                <Textarea
+              ) : (
+                classTeacherRemark || "\u00A0"
+              )}
+            </span>
+          </div>
+
+          {/* Principal Remark */}
+          <div style={{ marginBottom: "10px", display: "flex", alignItems: "baseline" }}>
+            <span style={{ fontWeight: "bold", width: "150px", flexShrink: 0 }}>
+              Principal's Remark:
+            </span>
+            <span
+              style={{
+                flexGrow: 1,
+                borderBottom: "1px dashed #a6acaf",
+                fontStyle: "italic",
+                paddingLeft: "5px",
+              }}
+            >
+              {canEditPrincipalComment && !isReadOnly ? (
+                <input
+                  type="text"
                   value={principalRemark}
-                  onChange={(e) => canEditPrincipalComment && !isReadOnly ? setPrincipalRemark(e.target.value) : undefined}
-                  placeholder="Enter principal's comment..."
-                  rows={3}
-                  className="print:border-0 print:bg-transparent"
+                  onChange={(e) => setPrincipalRemark(e.target.value)}
+                  style={{
+                    width: "100%",
+                    border: "none",
+                    background: "transparent",
+                    fontStyle: "italic",
+                    fontSize: "13px",
+                    padding: "2px 0",
+                    outline: "none",
+                  }}
+                  placeholder="Enter remark..."
                   disabled={isReadOnly || !canEditPrincipalComment}
                 />
-                <div className="mt-4 flex justify-between items-center">
-                  <div>
-                    <p className="text-sm font-medium">
-                      {principalSignature ? (
-                        <span className="inline-flex items-center gap-2">
-                          Signature:
-                          <img
-                            src={principalSignature}
-                            alt="Principal's Signature"
-                            className="h-8 object-contain inline-block"
-                          />
-                        </span>
-                      ) : (
-                        "Signature: _________________________"
-                      )}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">
-                      Date: {new Date().toLocaleDateString('en-GB')}
-                    </p>
-                  </div>
-                </div>
+              ) : (
+                principalRemark || "\u00A0"
+              )}
+            </span>
+          </div>
+
+          {/* Vacation / Resumption Dates */}
+          <div
+            style={{
+              marginBottom: "10px",
+              display: "flex",
+              alignItems: "baseline",
+              marginTop: "15px",
+            }}
+          >
+            <span style={{ fontWeight: "bold", width: "150px", flexShrink: 0, color: "#c0392b" }}>
+              Vacation Date:
+            </span>
+            <span
+              style={{
+                flexGrow: 1,
+                borderBottom: "1px dashed #a6acaf",
+                fontWeight: "bold",
+                paddingLeft: "5px",
+              }}
+            >
+              {session?.end_date
+                ? new Date(session.end_date).toLocaleDateString("en-GB", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })
+                : "—"}
+            </span>
+            <span
+              style={{
+                fontWeight: "bold",
+                width: "140px",
+                textAlign: "right",
+                paddingRight: "10px",
+                flexShrink: 0,
+                color: "#27ae60",
+              }}
+            >
+              Resumption Date:
+            </span>
+            <span
+              style={{
+                flexGrow: 1,
+                borderBottom: "1px dashed #a6acaf",
+                fontWeight: "bold",
+                paddingLeft: "5px",
+              }}
+            >
+              {nextTermDate && !isNaN(new Date(nextTermDate).getTime())
+                ? new Date(nextTermDate).toLocaleDateString("en-GB", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })
+                : "—"}
+            </span>
+          </div>
+
+          {/* Signatures / Stamps */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-end",
+              marginTop: "25px",
+              padding: "0 10px",
+            }}
+          >
+            {/* Teacher Signature */}
+            <div style={{ textAlign: "center", width: "180px" }}>
+              <div
+                style={{
+                  height: "25px",
+                  fontFamily: "'Courier New', monospace",
+                  fontSize: "14px",
+                  fontStyle: "italic",
+                  color: "#1a5276",
+                }}
+              >
+                {teacherSignature ? (
+                  <img
+                    src={teacherSignature}
+                    alt="Teacher's Signature"
+                    style={{ height: "30px", objectFit: "contain", display: "inline-block" }}
+                  />
+                ) : (
+                  teacherName || "\u00A0"
+                )}
+              </div>
+              <div
+                style={{
+                  borderTop: "1px dashed #2c3e50",
+                  marginTop: "35px",
+                  paddingTop: "5px",
+                  fontWeight: "bold",
+                  fontSize: "12px",
+                }}
+              >
+                {teacherName ? `${teacherName}` : "Form Teacher's Signature"}
+              </div>
+            </div>
+
+            {/* Official Stamp */}
+            <div style={{ position: "relative", height: "65px", width: "100px" }}>
+              <svg
+                viewBox="0 0 100 100"
+                xmlns="http://www.w3.org/2000/svg"
+                style={{
+                  position: "absolute",
+                  top: "-15px",
+                  left: "12px",
+                  width: "75px",
+                  height: "75px",
+                  opacity: 0.75,
+                }}
+              >
+                <circle cx="50" cy="50" r="42" fill="none" stroke="#1f618d" strokeWidth="1.5" strokeDasharray="3,2" />
+                <circle cx="50" cy="50" r="38" fill="none" stroke="#1f618d" strokeWidth="0.75" />
+                <text x="50" y="32" fontSize="6" fontWeight="bold" fill="#1f618d" textAnchor="middle">
+                  {school?.name ? school.name.substring(0, 18).toUpperCase() : "SCHOOL"}
+                </text>
+                <rect x="22" y="44" width="56" height="12" fill="none" stroke="#1f618d" strokeWidth="0.75" />
+                <text x="50" y="52" fontSize="5" fontWeight="bold" fill="#c0392b" textAnchor="middle">
+                  APPROVED STAMP
+                </text>
+                <text x="50" y="74" fontSize="6" fontWeight="bold" fill="#1f618d" textAnchor="middle">
+                  NIGERIA
+                </text>
+              </svg>
+            </div>
+
+            {/* Principal Signature */}
+            <div style={{ textAlign: "center", width: "180px" }}>
+              <div
+                style={{
+                  height: "25px",
+                  fontFamily: "'Courier New', monospace",
+                  fontSize: "14px",
+                  fontStyle: "italic",
+                  color: "#1a5276",
+                }}
+              >
+                {principalSignature ? (
+                  <img
+                    src={principalSignature}
+                    alt="Principal's Signature"
+                    style={{ height: "30px", objectFit: "contain", display: "inline-block" }}
+                  />
+                ) : (
+                  "\u00A0"
+                )}
+              </div>
+              <div
+                style={{
+                  borderTop: "1px dashed #2c3e50",
+                  marginTop: "35px",
+                  paddingTop: "5px",
+                  fontWeight: "bold",
+                  fontSize: "12px",
+                }}
+              >
+                Principal's Signature & Date
+              </div>
+              <div style={{ fontSize: "11px", color: "#566573", marginTop: "2px" }}>
+                {new Date().toLocaleDateString("en-GB")}
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+
+        {/* ── GRADING LEGEND ── */}
+        <div
+          style={{
+            border: "1px solid #a6acaf",
+            padding: "8px",
+            borderRadius: "4px",
+            background: "#fafafa",
+            marginTop: "15px",
+            display: "flex",
+            justifyContent: "space-around",
+            fontSize: "10px",
+            pageBreakInside: "avoid",
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontWeight: "bold",
+                color: "#0b5345",
+                marginBottom: "2px",
+                fontSize: "11px",
+              }}
+            >
+              COGNITIVE GRADING KEY (WAEC Standard)
+            </div>
+            <span>75 - 100 = A1 (Excellent)</span> &nbsp;&nbsp;
+            <span>70 - 74 = B2 (Very Good)</span> &nbsp;&nbsp;
+            <span>65 - 69 = B3 (Good)</span><br />
+            <span>60 - 64 = C4 (Credit)</span> &nbsp;&nbsp;
+            <span>55 - 59 = C5 (Credit)</span> &nbsp;&nbsp;
+            <span>50 - 54 = C6 (Credit)</span><br />
+            <span>45 - 49 = D7 (Pass)</span> &nbsp;&nbsp;
+            <span>40 - 44 = E8 (Pass)</span> &nbsp;&nbsp;
+            <span>0 - 39 = F9 (Fail)</span>
+          </div>
+          <div style={{ borderLeft: "1px solid #a6acaf", paddingLeft: "15px" }}>
+            <div
+              style={{
+                fontWeight: "bold",
+                color: "#0b5345",
+                marginBottom: "2px",
+                fontSize: "11px",
+              }}
+            >
+              BEHAVIORAL RATING
+            </div>
+            <span>5 = Excellent</span><br />
+            <span>4 = Commendable</span><br />
+            <span>3 = Average</span><br />
+            <span>2 = Needs Improvement</span><br />
+            <span>1 = Unsatisfactory</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Print Styles */}
       <style jsx global>{`
         @media print {
+          @page {
+            size: A4 portrait;
+            margin: 12mm 10mm 12mm 10mm;
+          }
+          body {
+            background-color: #ffffff !important;
+            padding: 0 !important;
+          }
           body * {
             visibility: hidden;
           }
@@ -1283,29 +2129,44 @@ export default function ResultEntry({
             top: 0;
             width: 100%;
             background: white;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            max-width: 100% !important;
           }
-          .print\\:hidden {
+          .print\\\\:hidden {
             display: none !important;
           }
-          input {
+          input[type="number"],
+          input[type="text"] {
             border: none !important;
             background: transparent !important;
             text-align: center !important;
             -webkit-appearance: none;
             -moz-appearance: textfield;
-            padding: 2 !important;
+            padding: 0 !important;
             margin: 0 auto !important;
             display: block !important;
+            outline: none !important;
+          }
+          input[type="text"] {
+            text-align: left !important;
           }
           input[type="number"] {
-            text-align: center !important; 
+            text-align: center !important;
             font-weight: bold !important;
-            position: relative;
-            top: -2px;
           }
-          textarea {
-            border: none !important;
-            background: transparent !important;
+          th {
+            background-color: #0b5345 !important;
+            color: #fff !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .subject-name {
+            font-weight: 600 !important;
+          }
+          button.print-btn {
+            display: none;
           }
         }
       `}</style>

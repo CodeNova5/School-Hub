@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Terminal Report - Excel International College</title>
+    <style>
+        :root {
+            --primary-color: #0b5345; 
+            --secondary-color: #d4ac0d; 
+            --text-dark: #2c3e50;
+            --border-color: #a6acaf;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--text-dark);
+            background-color: #f4f6f6;
+            margin: 0;
+            padding: 10px;
+        }
+
+        .report-card {
+            max-width: 820px; 
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 30px;
+            border: 2px solid var(--primary-color);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        /* Header Layout */
+        .header-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 4px double var(--primary-color);
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+
+        .logo-placeholder {
+            width: 85px;
+            height: 85px;
+            flex-shrink: 0;
+        }
+
+        .school-details {
+            text-align: center;
+            flex-grow: 1;
+            padding: 0 15px;
+        }
+
+        .school-details h1 {
+            color: var(--primary-color);
+            margin: 0 0 3px 0;
+            font-size: 22px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .school-details p {
+            margin: 2px 0;
+            font-size: 13px;
+        }
+
+        .report-title {
+            text-align: center;
+            background: var(--primary-color);
+            color: white;
+            padding: 6px;
+            font-weight: bold;
+            font-size: 14px;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+
+        /* Profile Layout */
+        .profile-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+
+        .profile-table td {
+            padding: 4px 8px;
+            font-size: 13px;
+            width: 50%;
+        }
+
+        .profile-table td .label {
+            font-weight: bold;
+            color: #566573;
+        }
+
+        .profile-table td .value {
+            border-bottom: 1px dashed var(--border-color);
+            display: inline-block;
+            width: 70%;
+            font-weight: 600;
+            padding-left: 5px;
+        }
+
+        /* STRICT TABLE RENDERING CONFIGURATION */
+        table.data-table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            margin-bottom: 15px;
+            font-size: 12px;
+            table-layout: fixed !important; /* Forces columns to obey assigned widths */
+            background-color: #ffffff;
+        }
+
+        table.data-table th, table.data-table td {
+            border: 1px solid var(--border-color) !important;
+            padding: 6px 4px !important;
+            text-align: center;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        table.data-table th {
+            background-color: var(--primary-color) !important;
+            color: white !important;
+            font-weight: 600;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        table.data-table td.subject-name {
+            text-align: left !important;
+            padding-left: 8px !important;
+            font-weight: 600;
+        }
+
+        /* Domain Section (Side-by-Side Tables) */
+        .domains-container {
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .domain-block {
+            flex: 1;
+            width: 50%;
+        }
+
+        .domain-block h3 {
+            color: var(--primary-color);
+            font-size: 13px;
+            border-bottom: 2px solid var(--primary-color);
+            margin-top: 0;
+            padding-bottom: 3px;
+            margin-bottom: 8px;
+        }
+
+        /* Remarks and Signatures */
+        .footer-section {
+            margin-top: 15px;
+            font-size: 13px;
+            page-break-inside: avoid;
+        }
+
+        .remark-row {
+            margin-bottom: 10px;
+            display: flex;
+            align-items: baseline;
+        }
+
+        .remark-row .label {
+            font-weight: bold;
+            width: 150px;
+            flex-shrink: 0;
+        }
+
+        .remark-row .text-line {
+            flex-grow: 1;
+            border-bottom: 1px dashed var(--border-color);
+            font-style: italic;
+            padding-left: 5px;
+        }
+
+        .sign-stamps-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-top: 25px;
+            padding: 0 10px;
+        }
+
+        .signature-block {
+            text-align: center;
+            width: 180px;
+        }
+
+        .signature-line {
+            border-top: 1px dashed var(--text-dark);
+            margin-top: 35px;
+            padding-top: 5px;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        .stamp-box {
+            position: relative;
+            height: 65px;
+            width: 100px;
+        }
+
+        .official-stamp {
+            position: absolute;
+            top: -15px;
+            left: 12px;
+            width: 75px;
+            height: 75px;
+            opacity: 0.75;
+        }
+
+        /* Performance Legend Keys */
+        .legend-container {
+            border: 1px solid var(--border-color);
+            padding: 8px;
+            border-radius: 4px;
+            background: #fafafa;
+            margin-top: 15px;
+            display: flex;
+            justify-content: space-around;
+            font-size: 10px;
+            page-break-inside: avoid;
+        }
+
+        .legend-title {
+            font-weight: bold;
+            color: var(--primary-color);
+            margin-bottom: 2px;
+        }
+
+        /* PRINT CONFIGURATION */
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 12mm 10mm 12mm 10mm;
+            }
+            body {
+                background-color: #ffffff;
+                padding: 0;
+            }
+            .report-card {
+                border: none;
+                box-shadow: none;
+                padding: 0;
+                width: 100%;
+                max-width: 100%;
+            }
+            button.print-btn {
+                display: none;
+            }
+            /* Ensures background colors show on prints */
+            th {
+                background-color: var(--primary-color) !important;
+                color: #fff !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+
+        .print-btn {
+            display: block;
+            margin: 10px auto;
+            padding: 10px 25px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+    <button class="print-btn" onclick="window.print()">Print Report Card</button>
+
+    <div class="report-card">
+        
+        <div class="header-container">
+            <svg class="logo-placeholder" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="50" cy="50" r="45" fill="#0b5345"/>
+                <polygon points="50,18 78,40 68,75 32,75 22,40" fill="#d4ac0d"/>
+                <path d="M35,45 Q50,35 65,45 L65,58 Q50,48 35,58 Z" fill="#ffffff"/>
+                <rect x="47" y="42" width="6" height="25" fill="#0b5345"/>
+                <circle cx="50" cy="33" r="4" fill="#ffffff"/>
+            </svg>
+            
+            <div class="school-details">
+                <h1>Excel International College</h1>
+                <p>12, Independence Avenue, Garki Phase II, Abuja, Nigeria</p>
+                <p>Tel: +234 (0) 803 123 4567 | Email: info@excelcollege.edu.ng</p>
+                <p style="font-weight: bold; margin-top: 5px; color: var(--primary-color);">MOTTO: Knowledge, Discipline and Integrity</p>
+            </div>
+            
+            <div style="width: 85px; height: 85px; border: 1px solid var(--border-color); text-align: center; font-size: 10px; color: #7f8c8d; flex-shrink:0;">
+                <span style="display:inline-block; margin-top:28px;">Passport</span>
+            </div>
+        </div>
+
+        <div class="report-title">TERMINAL STUDENT PROGRESS REPORT</div>
+
+        <table class="profile-table">
+            <tr>
+                <td><span class="label">Student Name:</span> <span class="value">ADEBAYO, Chukwuma I.</span></td>
+                <td><span class="label">Admission No:</span> <span class="value">EIC/2024/0412</span></td>
+            </tr>
+            <tr>
+                <td><span class="label">Class:</span> <span class="value">SSS 2 Science</span></td>
+                <td><span class="label">Term / Year:</span> <span class="value">2nd Term / 2025/2026</span></td>
+            </tr>
+            <tr>
+                <td><span class="label">Sex:</span> <span class="value">Male</span></td>
+                <td><span class="label">No. in Class:</span> <span class="value">32</span></td>
+            </tr>
+            <tr>
+                <td><span class="label">House:</span> <span class="value">Green House</span></td>
+                <td><span class="label">Attendance:</span> <span class="value">58 / 60 Days</span></td>
+            </tr>
+        </table>
+
+        <table class="data-table">
+            <colgroup>
+                <col style="width: 24%;">
+                <col style="width: 6%;">
+                <col style="width: 6%;">
+                <col style="width: 7%;">
+                <col style="width: 7%;">
+                <col style="width: 7%;">
+                <col style="width: 8%;">
+                <col style="width: 8%;">
+                <col style="width: 7%;">
+                <col style="width: 20%;">
+            </colgroup>
+            <thead>
+                <tr>
+                    <th rowspan="2">Subjects</th>
+                    <th colspan="3">CA (40%)</th>
+                    <th rowspan="2">Exam<br>(60)</th>
+                    <th rowspan="2">Total<br>(100)</th>
+                    <th rowspan="2">Class<br>Avg</th>
+                    <th rowspan="2">Pos</th>
+                    <th rowspan="2">Grade</th>
+                    <th rowspan="2">Subject Teacher's Remarks</th>
+                </tr>
+                <tr>
+                    <th>CA1</th>
+                    <th>CA2</th>
+                    <th>Tot</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="subject-name">English Language</td>
+                    <td>14</td>
+                    <td>15</td>
+                    <td>29</td>
+                    <td>48</td>
+                    <td>77</td>
+                    <td>62.4</td>
+                    <td>4th</td>
+                    <td>A1</td>
+                    <td>Excellent expression skills.</td>
+                </tr>
+                <tr>
+                    <td class="subject-name">Mathematics</td>
+                    <td>18</td>
+                    <td>16</td>
+                    <td>34</td>
+                    <td>52</td>
+                    <td>86</td>
+                    <td>55.1</td>
+                    <td>2nd</td>
+                    <td>A1</td>
+                    <td>Brilliant logical mind.</td>
+                </tr>
+                <tr>
+                    <td class="subject-name">Biology</td>
+                    <td>12</td>
+                    <td>14</td>
+                    <td>26</td>
+                    <td>41</td>
+                    <td>67</td>
+                    <td>59.8</td>
+                    <td>11th</td>
+                    <td>B3</td>
+                    <td>Good grasp, needs review.</td>
+                </tr>
+                <tr>
+                    <td class="subject-name">Chemistry</td>
+                    <td>15</td>
+                    <td>13</td>
+                    <td>28</td>
+                    <td>45</td>
+                    <td>73</td>
+                    <td>52.3</td>
+                    <td>5th</td>
+                    <td>B2</td>
+                    <td>Very good laboratory work.</td>
+                </tr>
+                <tr>
+                    <td class="subject-name">Physics</td>
+                    <td>11</td>
+                    <td>12</td>
+                    <td>23</td>
+                    <td>38</td>
+                    <td>61</td>
+                    <td>50.4</td>
+                    <td>9th</td>
+                    <td>C4</td>
+                    <td>A steady performance.</td>
+                </tr>
+                <tr>
+                    <td class="subject-name">Civic Education</td>
+                    <td>16</td>
+                    <td>17</td>
+                    <td>33</td>
+                    <td>49</td>
+                    <td>82</td>
+                    <td>66.2</td>
+                    <td>3rd</td>
+                    <td>A1</td>
+                    <td>Excellent civic awareness.</td>
+                </tr>
+                <tr>
+                    <td class="subject-name">Agricultural Sci.</td>
+                    <td>14</td>
+                    <td>15</td>
+                    <td>29</td>
+                    <td>43</td>
+                    <td>72</td>
+                    <td>60.1</td>
+                    <td>7th</td>
+                    <td>B2</td>
+                    <td>Active on the field.</td>
+                </tr>
+                <tr>
+                    <td class="subject-name">Data Processing</td>
+                    <td>17</td>
+                    <td>18</td>
+                    <td>35</td>
+                    <td>50</td>
+                    <td>85</td>
+                    <td>63.7</td>
+                    <td>2nd</td>
+                    <td>A1</td>
+                    <td>Highly skilled digitally.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="domains-container">
+            <div class="domain-block">
+                <h3>AFFECTIVE DOMAIN</h3>
+                <table class="data-table">
+                    <colgroup>
+                        <col style="width: 75%;">
+                        <col style="width: 25%;">
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th style="text-align: left; padding-left: 8px;">Trait Evaluation</th>
+                            <th>Rating</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td style="text-align: left; padding-left: 8px;">Punctuality / Regularity</td><td>5</td></tr>
+                        <tr><td style="text-align: left; padding-left: 8px;">Neatness & Hygiene</td><td>5</td></tr>
+                        <tr><td style="text-align: left; padding-left: 8px;">Honesty & Trust</td><td>4</td></tr>
+                        <tr><td style="text-align: left; padding-left: 8px;">Relationship with Peers</td><td>4</td></tr>
+                        <tr><td style="text-align: left; padding-left: 8px;">Obedience & Compliance</td><td>5</td></tr>
+                        <tr><td style="text-align: left; padding-left: 8px;">Leadership Dynamics</td><td>4</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="domain-block">
+                <h3>PSYCHOMOTOR DOMAIN</h3>
+                <table class="data-table">
+                    <colgroup>
+                        <col style="width: 75%;">
+                        <col style="width: 25%;">
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th style="text-align: left; padding-left: 8px;">Skill Evaluation</th>
+                            <th>Rating</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td style="text-align: left; padding-left: 8px;">Verbal Fluency</td><td>5</td></tr>
+                        <tr><td style="text-align: left; padding-left: 8px;">Sports & Athletics</td><td>4</td></tr>
+                        <tr><td style="text-align: left; padding-left: 8px;">Crafts & Manual Skills</td><td>3</td></tr>
+                        <tr><td style="text-align: left; padding-left: 8px;">Musical/Artistic Skills</td><td>3</td></tr>
+                        <tr><td style="text-align: left; padding-left: 8px;">Handling Lab Tools</td><td>4</td></tr>
+                        <tr><td style="text-align: left; padding-left: 8px;">Club & Societies</td><td>4</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div style="border: 1px solid var(--primary-color); border-radius: 4px; padding: 8px; margin-bottom: 15px; background-color: #fcfcfc;">
+            <table style="width: 100%; text-align: center; border-collapse: collapse; font-size: 13px;">
+                <tr>
+                    <td style="padding: 2px; width: 25%;"><strong>TOTAL:</strong> 603 / 800</td>
+                    <td style="padding: 2px; border-left: 1px solid var(--border-color); width: 25%;"><strong>PERCENT:</strong> 75.38%</td>
+                    <td style="padding: 2px; border-left: 1px solid var(--border-color); width: 25%;"><strong>CLASS AVG:</strong> 58.74%</td>
+                    <td style="padding: 2px; border-left: 1px solid var(--border-color); width: 25%;"><strong>POSITION:</strong> 3rd / 32</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="footer-section">
+            <div class="remark-row">
+                <span class="label">Form Teacher's Remark:</span>
+                <span class="text-line">Chukwuma is focused, brilliant and very well-behaved. Keep it up.</span>
+            </div>
+            <div class="remark-row">
+                <span class="label">Principal's Remark:</span>
+                <span class="text-line">An outstanding performance. You are an asset to this institution. Certified.</span>
+            </div>
+            <div class="remark-row" style="margin-top: 15px;">
+                <span class="label" style="color: #c0392b;">Vacation Date:</span>
+                <span class="text-line" style="font-weight: bold;">July 24, 2026</span>
+                <span class="label" style="color: #27ae60; width: 130px; text-align: right; padding-right: 10px;">Resumption Date:</span>
+                <span class="text-line" style="font-weight: bold;">September 14, 2026</span>
+            </div>
+
+            <div class="sign-stamps-container">
+                <div class="signature-block">
+                    <div style="height: 25px; font-family: 'Courier New', monospace; font-size: 14px; font-style: italic; color: #1a5276;">Mrs. F. A. Alao</div>
+                    <div class="signature-line">Form Teacher's Signature</div>
+                </div>
+                
+                <div class="stamp-box">
+                    <svg class="official-stamp" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="50" cy="50" r="42" fill="none" stroke="#1f618d" stroke-width="1.5" stroke-dasharray="3,2"/>
+                        <circle cx="50" cy="50" r="38" fill="none" stroke="#1f618d" stroke-width="0.75"/>
+                        <text x="50" y="32" font-size="6" font-weight="bold" fill="#1f618d" text-anchor="middle">EXCEL INT'L COLLEGE</text>
+                        <rect x="22" y="44" width="56" height="12" fill="none" stroke="#1f618d" stroke-width="0.75"/>
+                        <text x="50" y="52" font-size="5" font-weight="bold" fill="#c0392b" text-anchor="middle">APPROVED STAMP</text>
+                        <text x="50" y="74" font-size="6" font-weight="bold" fill="#1f618d" text-anchor="middle">ABUJA, NIGERIA</text>
+                    </svg>
+                </div>
+
+                <div class="signature-block">
+                    <div style="height: 25px; font-family: 'Courier New', monospace; font-size: 14px; font-style: italic; color: #1a5276;">Dr. O. I. Emmanuel</div>
+                    <div class="signature-line">Principal's Signature & Date</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="legend-container">
+            <div>
+                <div class="legend-title">COGNITIVE GRADING KEY (WAEC Standard)</div>
+                75 - 100 = A1 (Excellent) &nbsp;&nbsp;&nbsp; 70 - 74 = B2 (Very Good) &nbsp;&nbsp;&nbsp; 65 - 69 = B3 (Good)<br>
+                60 - 64 = C4 (Credit) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 55 - 59 = C5 (Credit) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 50 - 54 = C6 (Credit)<br>
+                45 - 49 = D7 (Pass) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 40 - 44 = E8 (Pass) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 0 - 39 = F9 (Fail)
+            </div>
+            <div style="border-left: 1px solid var(--border-color); padding-left: 15px;">
+                <div class="legend-title">BEHAVIORAL RATING</div>
+                5 = Excellent<br>
+                4 = Commendable<br>
+                3 = Average<br>
+                2 = Needs Improvement<br>
+                1 = Unsatisfactory
+            </div>
+        </div>
+
+    </div>
+
+</body>
+</html>

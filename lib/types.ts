@@ -37,6 +37,7 @@ export interface School {
   phone?: string;
   email?: string;
   logo_url?: string;
+  motto?: string;
   is_active: boolean;
   plan: SchoolPlan;
   created_at: string;

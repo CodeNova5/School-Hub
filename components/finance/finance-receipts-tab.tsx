@@ -2,13 +2,15 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Receipt, Printer, FileText, CheckCircle2, Calendar } from "lucide-react";
+import type { FinanceReceipt } from "./finance-types";
 
-export function FinanceReceiptsTab({ receipts, formatMoney }: {
-  receipts: any[];
+interface ReceiptsTabProps {
+  receipts: FinanceReceipt[];
   formatMoney: (value: number) => string;
-}) {
+}
+
+export function FinanceReceiptsTab({ receipts, formatMoney }: ReceiptsTabProps) {
   return (
     <div className="space-y-6 mt-6">
       <Card className="overflow-hidden transition-all duration-200 hover:shadow-md">

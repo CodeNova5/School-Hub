@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
   BookOpen,
   Bus,
   GraduationCap,
@@ -23,6 +31,9 @@ import {
   Layers,
   Loader2,
   CheckCircle2,
+  Copy,
+  X,
+  GripVertical,
 } from "lucide-react";
 import type { FeeTemplate, ClassOption } from "./finance-types";
 
@@ -57,6 +68,7 @@ const FREQUENCY_LABELS: Record<string, string> = {
 };
 
 export function FinanceFeesTab({ fees, classes, formatMoney, onRefresh, onError }: FeesTabProps) {
+  const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState({
     name: "",
     category: "tuition",
@@ -66,6 +78,11 @@ export function FinanceFeesTab({ fees, classes, formatMoney, onRefresh, onError 
   });
   const [classAmounts, setClassAmounts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+
+  const resetForm = () => {
+    setForm({ name: "", category: "tuition", frequency: "per_term", amount: "", description: "" });
+    setClassAmounts({});
+  };
 
   const submitFee = async () => {
     const parsedAmount = Number(form.amount);
@@ -97,8 +114,8 @@ export function FinanceFeesTab({ fees, classes, formatMoney, onRefresh, onError 
         throw new Error(payload.error || "Failed to create fee");
       }
 
-      setForm({ name: "", category: "tuition", frequency: "per_term", amount: "", description: "" });
-      setClassAmounts({});
+      resetForm();
+      setModalOpen(false);
       await onRefresh();
     } finally {
       setSaving(false);
@@ -113,155 +130,292 @@ export function FinanceFeesTab({ fees, classes, formatMoney, onRefresh, onError 
     }
   };
 
+  const handleFillAllClasses = () => {
+    const filled: Record<string, string> = {};
+    classes.forEach((c) => {
+      filled[c.id] = form.amount;
+    });
+    setClassAmounts(filled);
+  };
+
+  const hasClassOverrides = useMemo(() => {
+    return Object.values(classAmounts).some((v) => v !== "" && !Number.isNaN(Number(v)));
+  }, [classAmounts]);
+
+  const classOverrideCount = useMemo(() => {
+    return Object.entries(classAmounts).filter(
+      ([, v]) => v !== "" && !Number.isNaN(Number(v))
+    ).length;
+  }, [classAmounts]);
+
   return (
     <div className="space-y-6 mt-6">
-      {/* Create Fee Card */}
-      <Card className="overflow-hidden border-blue-100 transition-all duration-200 hover:shadow-md">
-        <CardHeader className="border-b border-blue-50 bg-gradient-to-r from-blue-50/50 to-white pb-4">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-blue-100">
-              <Plus className="h-4 w-4 text-blue-600" />
-            </div>
-            Configure Fee Template
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-5 space-y-4">
-          {/* Main form row */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-gray-600">Fee Name</Label>
-              <Input
-                placeholder="e.g., Tuition Fee"
-                value={form.name}
-                onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-gray-600">Category</Label>
-              <Select
-                value={form.category}
-                onValueChange={(value) => setForm((prev) => ({ ...prev, category: value }))}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="tuition">Tuition</SelectItem>
-                  <SelectItem value="uniform">Uniform</SelectItem>
-                  <SelectItem value="exam">Exam</SelectItem>
-                  <SelectItem value="bus">Bus</SelectItem>
-                  <SelectItem value="custom">Custom</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-gray-600">Frequency</Label>
-              <Select
-                value={form.frequency}
-                onValueChange={(value) => setForm((prev) => ({ ...prev, frequency: value }))}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Frequency" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="per_term">Per Term</SelectItem>
-                  <SelectItem value="per_session">Per Session</SelectItem>
-                  <SelectItem value="one_time">One-time</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-gray-600">Amount (₦)</Label>
-              <Input
-                placeholder="0.00"
-                type="number"
-                value={form.amount}
-                onChange={(e) => setForm((prev) => ({ ...prev, amount: e.target.value }))}
-              />
-            </div>
-            <div className="flex items-end">
-              <Button
-                className="w-full gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
-                onClick={handleSubmit}
-                disabled={saving}
-              >
-                {saving ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="h-4 w-4" />
-                    Create Fee
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-
-          {/* Description */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-gray-600">Description (optional)</Label>
-            <Input
-              placeholder="Brief description of this fee"
-              value={form.description}
-              onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
-            />
-          </div>
-
-          {/* Class-specific amounts */}
-          <div>
-            <Label className="mb-2 block text-xs font-medium text-gray-600">
-              Class-specific amounts (optional)
-            </Label>
-            {classes.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
-                {classes.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center gap-2 border border-gray-200 rounded-lg p-2.5 transition-all duration-150 hover:border-blue-200 hover:bg-blue-50/30"
-                  >
-                    <span className="text-sm text-gray-700 flex-1 truncate">{item.name}</span>
-                    <div className="relative">
-                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400">₦</span>
-                      <Input
-                        className="w-28 pl-5 h-8 text-xs"
-                        type="number"
-                        placeholder="Amount"
-                        value={classAmounts[item.id] || ""}
-                        onChange={(e) =>
-                          setClassAmounts((prev) => ({ ...prev, [item.id]: e.target.value }))
-                        }
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="p-3 rounded-lg bg-gray-50 border border-dashed border-gray-200 text-center">
-                <Layers className="h-4 w-4 text-gray-300 mx-auto mb-1" />
-                <p className="text-xs text-gray-500">No classes found. Add classes first.</p>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Fees List */}
       <Card className="overflow-hidden transition-all duration-200 hover:shadow-md">
         <CardHeader className="border-b border-gray-100 pb-4">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-gray-100">
-              <Layers className="h-4 w-4 text-gray-600" />
-            </div>
-            Fees Management
-            {fees.length > 0 && (
-              <span className="text-[10px] font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full ml-1">
-                {fees.length}
-              </span>
-            )}
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-gray-100">
+                <Layers className="h-4 w-4 text-gray-600" />
+              </div>
+              Fees Management
+              {fees.length > 0 && (
+                <span className="text-[10px] font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full ml-1">
+                  {fees.length}
+                </span>
+              )}
+            </CardTitle>
+            <Dialog open={modalOpen} onOpenChange={(open) => { setModalOpen(open); if (!open) resetForm(); }}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="gap-1.5 text-xs bg-blue-600 hover:bg-blue-700">
+                  <Plus className="h-3.5 w-3.5" />
+                  Add Fee
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-base">
+                    <div className="p-1 rounded-lg bg-blue-100">
+                      <Plus className="h-4 w-4 text-blue-600" />
+                    </div>
+                    Create Fee Template
+                  </DialogTitle>
+                  <DialogDescription>
+                    Configure the fee structure and set per-class pricing.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-5 pt-2">
+                  {/* Fee details row */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label className="text-xs font-medium text-gray-600">Fee Name</Label>
+                      <Input
+                        placeholder="e.g., Tuition Fee"
+                        value={form.name}
+                        onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium text-gray-600">Category</Label>
+                      <Select
+                        value={form.category}
+                        onValueChange={(value) => setForm((prev) => ({ ...prev, category: value }))}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="tuition">Tuition</SelectItem>
+                          <SelectItem value="uniform">Uniform</SelectItem>
+                          <SelectItem value="exam">Exam</SelectItem>
+                          <SelectItem value="bus">Bus</SelectItem>
+                          <SelectItem value="custom">Custom</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium text-gray-600">Frequency</Label>
+                      <Select
+                        value={form.frequency}
+                        onValueChange={(value) => setForm((prev) => ({ ...prev, frequency: value }))}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Frequency" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="per_term">Per Term</SelectItem>
+                          <SelectItem value="per_session">Per Session</SelectItem>
+                          <SelectItem value="one_time">One-time</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium text-gray-600">Description (optional)</Label>
+                    <Input
+                      placeholder="Brief description of this fee"
+                      value={form.description}
+                      onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
+                    />
+                  </div>
+
+                  {/* Base amount */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium text-gray-600">Base amount</Label>
+                    <div className="relative max-w-[200px]">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">₦</span>
+                      <Input
+                        className="pl-7"
+                        placeholder="0.00"
+                        type="number"
+                        value={form.amount}
+                        onChange={(e) => setForm((prev) => ({ ...prev, amount: e.target.value }))}
+                      />
+                    </div>
+                    <p className="text-[10px] text-gray-400">
+                      This is the default amount. You can override it per class below.
+                    </p>
+                  </div>
+
+                  {/* Class-specific amounts */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="text-xs font-medium text-gray-600">
+                        Per-class fee amounts
+                      </Label>
+                      <div className="flex items-center gap-1.5">
+                        {hasClassOverrides && (
+                          <span className="text-[10px] text-gray-400">
+                            {classOverrideCount} class{classOverrideCount !== 1 ? "es" : ""} overridden
+                          </span>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 gap-1 text-xs text-gray-500"
+                          onClick={handleFillAllClasses}
+                          disabled={!form.amount || Number.isNaN(Number(form.amount))}
+                          title="Copy base amount to all classes"
+                        >
+                          <Copy className="h-3 w-3" />
+                          Fill all
+                        </Button>
+                      </div>
+                    </div>
+
+                    {classes.length > 0 ? (
+                      <div className="rounded-lg border border-gray-200 divide-y divide-gray-100">
+                        {classes.map((item) => {
+                          const hasValue =
+                            classAmounts[item.id] !== undefined &&
+                            classAmounts[item.id] !== "" &&
+                            !Number.isNaN(Number(classAmounts[item.id]));
+                          const isSameAsBase =
+                            hasValue && Number(classAmounts[item.id]) === Number(form.amount);
+
+                          return (
+                            <div
+                              key={item.id}
+                              className={`flex items-center gap-3 px-3 py-2.5 transition-colors duration-150 ${
+                                hasValue && !isSameAsBase
+                                  ? "bg-blue-50/50"
+                                  : "hover:bg-gray-50"
+                              }`}
+                            >
+                              <GripVertical className="h-3.5 w-3.5 text-gray-300 shrink-0" />
+                              <span className="text-sm font-medium text-gray-700 flex-1 min-w-0 truncate">
+                                {item.name}
+                              </span>
+                              <div className="relative">
+                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400">₦</span>
+                                <Input
+                                  className={`w-32 pl-5 h-8 text-xs ${
+                                    isSameAsBase
+                                      ? "border-gray-200 text-gray-500"
+                                      : hasValue
+                                      ? "border-blue-300 text-gray-900 font-medium"
+                                      : "border-gray-200"
+                                  }`}
+                                  type="number"
+                                  placeholder={form.amount || "Amount"}
+                                  value={classAmounts[item.id] ?? ""}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setClassAmounts((prev) => {
+                                      const next = { ...prev };
+                                      if (val === "") {
+                                        delete next[item.id];
+                                      } else {
+                                        next[item.id] = val;
+                                      }
+                                      return next;
+                                    });
+                                  }}
+                                />
+                              </div>
+                              {hasValue && !isSameAsBase && (
+                                <CheckCircle2 className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                              )}
+                              {isSameAsBase && (
+                                <span className="text-[10px] text-gray-400 shrink-0">Base</span>
+                              )}
+                              {hasValue && (
+                                <button
+                                  onClick={() =>
+                                    setClassAmounts((prev) => {
+                                      const next = { ...prev };
+                                      delete next[item.id];
+                                      return next;
+                                    })
+                                  }
+                                  className="p-0.5 rounded hover:bg-gray-200 text-gray-300 hover:text-gray-500 transition-colors shrink-0"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="p-3 rounded-lg bg-gray-50 border border-dashed border-gray-200 text-center">
+                        <Layers className="h-4 w-4 text-gray-300 mx-auto mb-1" />
+                        <p className="text-xs text-gray-500">No classes found. Add classes first.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Summary */}
+                  {hasClassOverrides && (
+                    <div className="p-3 rounded-lg bg-gray-50 border border-gray-200 text-xs text-gray-500">
+                      <span className="font-medium text-gray-700">Summary:</span>{" "}
+                      {classes.filter((c) => {
+                        const v = classAmounts[c.id];
+                        return v !== undefined && v !== "" && !Number.isNaN(Number(v));
+                      }).length}{" "}
+                      of {classes.length} classes have custom amounts set.
+                      {classes.some((c) => {
+                        const v = classAmounts[c.id];
+                        return v === undefined || v === "" || Number.isNaN(Number(v));
+                      }) && (
+                        <span>
+                          {" "}
+                          The remaining classes will use the base amount of{" "}
+                          {form.amount ? `₦${Number(form.amount).toLocaleString()}` : "—"}.
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+                  <Button variant="outline" onClick={() => { setModalOpen(false); resetForm(); }}>
+                    Cancel
+                  </Button>
+                  <Button
+                    className="gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+                    onClick={handleSubmit}
+                    disabled={saving}
+                  >
+                    {saving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-4 w-4" />
+                        Create Fee
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {fees.length > 0 ? (
@@ -291,7 +445,7 @@ export function FinanceFeesTab({ fees, classes, formatMoney, onRefresh, onError 
                       </div>
                       <div className="text-right shrink-0">
                         <p className="text-base font-bold text-gray-900">{formatMoney(fee.amount)}</p>
-                        <div className="flex items-center gap-1.5 mt-1">
+                        <div className="flex items-center gap-1.5 mt-1 justify-end">
                           <span className="text-[10px] text-gray-400 capitalize bg-gray-100 px-1.5 py-0.5 rounded-full">
                             {fee.category}
                           </span>
@@ -330,7 +484,7 @@ export function FinanceFeesTab({ fees, classes, formatMoney, onRefresh, onError 
             <div className="py-12 text-center">
               <Tag className="h-10 w-10 text-gray-300 mx-auto mb-3" />
               <p className="text-sm font-medium text-gray-500">No fee templates created</p>
-              <p className="text-xs text-gray-400 mt-1">Create your first fee template above</p>
+              <p className="text-xs text-gray-400 mt-1">Click "Add Fee" to create your first fee template</p>
             </div>
           )}
         </CardContent>

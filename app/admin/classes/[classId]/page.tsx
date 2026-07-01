@@ -667,6 +667,8 @@ export default function ClassPage() {
               schoolId={schoolId}
               classId={classId}
               className={classData?.name}
+              availableStudents={availableStudents}
+              onAddStudents={handleAddStudentsToClass}
             />
           </TabsContent>
 

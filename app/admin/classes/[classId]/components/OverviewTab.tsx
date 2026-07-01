@@ -1,11 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSchoolContext } from "@/hooks/use-school-context";
 import { supabase } from "@/lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Users,
   BookOpen,
@@ -24,7 +30,9 @@ import {
   ArrowUpRight,
   Calendar,
   Clock,
+  Search,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
 type ClassData = {
   id: string;
@@ -65,6 +73,7 @@ type Student = {
   last_name: string;
   gender: string;
   student_id: string;
+  email?: string;
 };
 
 type Teacher = {
@@ -81,6 +90,8 @@ interface OverviewTabProps {
   schoolId: string | null;
   classId: string;
   className: string;
+  availableStudents: Student[];
+  onAddStudents: (studentIds: string[]) => void;
 }
 
 export function OverviewTab({
@@ -91,6 +102,8 @@ export function OverviewTab({
   schoolId,
   classId,
   className,
+  availableStudents,
+  onAddStudents,
 }: OverviewTabProps) {
   // ── Attendance Snapshot ──
   const [todayAttendance, setTodayAttendance] = useState<{
@@ -264,6 +277,46 @@ export function OverviewTab({
     }
   }
 
+  // ── Quick Add Student Modal ──
+  const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
+  const [addStudentSearch, setAddStudentSearch] = useState("");
+
+  const filteredAvailableStudents = useMemo(() => {
+    return availableStudents.filter((s) => {
+      if (!addStudentSearch) return true;
+      const fullName = `${s.first_name} ${s.last_name}`.toLowerCase();
+      return (
+        fullName.includes(addStudentSearch.toLowerCase()) ||
+        s.student_id.toLowerCase().includes(addStudentSearch.toLowerCase())
+      );
+    });
+  }, [availableStudents, addStudentSearch]);
+
+  function handleToggleSelectStudent(studentId: string) {
+    const next = new Set(selectedStudentIds);
+    if (next.has(studentId)) {
+      next.delete(studentId);
+    } else {
+      next.add(studentId);
+    }
+    setSelectedStudentIds(next);
+  }
+
+  function handleAddStudents() {
+    if (selectedStudentIds.size === 0) return;
+    onAddStudents(Array.from(selectedStudentIds));
+    setSelectedStudentIds(new Set());
+    setAddStudentSearch("");
+    setIsAddStudentOpen(false);
+  }
+
+  function handleCloseAddStudent() {
+    setIsAddStudentOpen(false);
+    setSelectedStudentIds(new Set());
+    setAddStudentSearch("");
+  }
+
   // ── Helpers ──
   function getGradeColor(grade: string) {
     const prefix = grade.charAt(0);
@@ -382,6 +435,27 @@ export function OverviewTab({
                 )}
               </div>
             </div>
+          </div>
+
+          {/* Quick Add Student Button */}
+          <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-slate-500">
+                <span className="font-medium text-slate-700">{totalStudents}</span> student{totalStudents !== 1 ? "s" : ""} enrolled
+                {availableStudents.length > 0 && (
+                  <span className="text-slate-400"> &middot; {availableStudents.length} unassigned available</span>
+                )}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => setIsAddStudentOpen(true)}
+              disabled={availableStudents.length === 0}
+              className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+            >
+              <UserPlus className="h-4 w-4 mr-1.5" />
+              Quick Add Student
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -652,6 +726,99 @@ export function OverviewTab({
           )}
         </CardContent>
       </Card>
+
+      {/* ── QUICK ADD STUDENT DIALOG ── */}
+      <Dialog open={isAddStudentOpen} onOpenChange={setIsAddStudentOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5 text-blue-600" />
+              Add Students to {className}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Select unassigned students to add to this class. Their previous results and subject assignments will be cleared.
+            </p>
+
+            {/* Search */}
+            <div className="relative">
+              <Search className="h-4 w-4 absolute left-3 top-3 text-muted-foreground" />
+              <Input
+                placeholder="Search students by name or ID..."
+                className="pl-9"
+                value={addStudentSearch}
+                onChange={(e) => setAddStudentSearch(e.target.value)}
+              />
+            </div>
+
+            {filteredAvailableStudents.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground">
+                {availableStudents.length === 0
+                  ? "No unassigned students available."
+                  : "No students match your search."}
+              </div>
+            ) : (
+              <div className="border rounded-md">
+                <div className="max-h-72 overflow-y-auto">
+                  {filteredAvailableStudents.map((student) => {
+                    const isSelected = selectedStudentIds.has(student.id);
+                    return (
+                      <div
+                        key={student.id}
+                        className={`flex items-center gap-3 p-3 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer transition-colors ${
+                          isSelected ? "bg-blue-50" : ""
+                        }`}
+                        onClick={() => handleToggleSelectStudent(student.id)}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleSelectStudent(student.id)}
+                          className="cursor-pointer"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm">
+                            {student.first_name} {student.last_name}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {student.student_id} &middot; {student.email || "No email"}
+                          </p>
+                        </div>
+                        {student.gender && (
+                          <Badge variant="outline" className="capitalize text-xs">
+                            {student.gender}
+                          </Badge>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between pt-2 border-t">
+              <p className="text-sm text-muted-foreground">
+                {selectedStudentIds.size > 0
+                  ? `${selectedStudentIds.size} student(s) selected`
+                  : "Select students to add"}
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={handleCloseAddStudent}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleAddStudents}
+                  disabled={selectedStudentIds.size === 0}
+                >
+                  <UserPlus className="h-4 w-4 mr-1.5" />
+                  Add {selectedStudentIds.size > 0 && `(${selectedStudentIds.size})`}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

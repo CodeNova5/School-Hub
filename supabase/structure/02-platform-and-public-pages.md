@@ -3,12 +3,15 @@
 This file covers supporting modules that sit alongside the core school data.
 
 ## Tables And Modules
-- `notification_logs`
+- `notification_logs` (includes `school_id` from later migration)
 - `notification_tokens`
 - `email_logs`
-- `ai_chat_history`
+- `ai_chat_sessions` / `ai_chat_messages`
+- `ai_assistant_daily_usage` — per-user daily token usage tracking with role-based quotas
 - `live_sessions`
 - `teacher_attendance`
+- `student_guardian_links` — links students to guardians (parents) with relationship types
+- `whatsapp_logs` — WhatsApp broadcast delivery tracking
 - website builder page/content tables
 - hall of fame support tables
 - alumni directory tables
@@ -32,6 +35,7 @@ This file covers supporting modules that sit alongside the core school data.
 - `supabase/migrations/20260224_create_notification_logs.sql`
 - `supabase/migrations/20260306_create_ai_chat_history.sql`
 - `supabase/migrations/02_AI_ASSISTANT_FUNCTION.sql`
+- `supabase/migrations/20260319_add_school_id_to_notification_logs.sql`
 - `supabase/migrations/20260405_create_email_logs_table.sql`
 - `supabase/migrations/20260406_remove_delivery_method_from_notification_logs.sql`
 - `supabase/migrations/20260413_create_live_sessions.sql`
@@ -46,3 +50,8 @@ This file covers supporting modules that sit alongside the core school data.
 - `supabase/migrations/20260428_academics_page_support.sql`
 - `supabase/migrations/20260428_add_ip_address_to_admissions.sql`
 - `supabase/migrations/20260428_public_academics_showcase.sql`
+- `supabase/migrations/20260522_ai_assistant_daily_usage.sql`
+- `supabase/migrations/20260523_student_guardian_links.sql`
+- `supabase/migrations/20260523_student_guardian_links_policies.sql`
+- `supabase/migrations/20260524_parents_guardian_search_indexes.sql`
+- `supabase/migrations/20260612_create_whatsapp_logs_table.sql`

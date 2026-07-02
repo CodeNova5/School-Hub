@@ -305,7 +305,477 @@ CREATE TABLE IF NOT EXISTS promotion_class_progress (
 );
 
 -- -----------------------------------------------------------------------------
--- 5) Compatibility and integrity adjustments
+-- 5) Teacher Question Bank Module (Custom Types)
+-- -----------------------------------------------------------------------------
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'teacher_question_visibility') THEN
+    CREATE TYPE teacher_question_visibility AS ENUM ('private', 'public_school');
+  END IF;
+END
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'teacher_question_type') THEN
+    CREATE TYPE teacher_question_type AS ENUM ('objective', 'theory');
+  END IF;
+END
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'teacher_question_difficulty') THEN
+    CREATE TYPE teacher_question_difficulty AS ENUM ('easy', 'medium', 'hard');
+  END IF;
+END
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'teacher_question_generation_status') THEN
+    CREATE TYPE teacher_question_generation_status AS ENUM ('success', 'failed');
+  END IF;
+END
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'lesson_note_status') THEN
+    CREATE TYPE lesson_note_status AS ENUM ('draft', 'published', 'archived');
+  END IF;
+END
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'question_bank_audit_action') THEN
+    CREATE TYPE question_bank_audit_action AS ENUM (
+      'bank_created', 'bank_updated',
+      'question_created', 'question_updated', 'question_deleted', 'question_generated', 'question_duplicated',
+      'exam_printed', 'exam_config_saved', 'exam_config_loaded', 'exam_config_deleted',
+      'group_created', 'group_updated', 'group_deleted'
+    );
+  END IF;
+END
+$$;
+
+-- -----------------------------------------------------------------------------
+-- 6) Teacher Question Bank — Topic Sets, Banks, Questions
+-- -----------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS teacher_question_topic_sets (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  school_id uuid NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+  created_by_teacher_id uuid REFERENCES teachers(id) ON DELETE CASCADE,
+  created_by_admin_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  subject_class_id uuid NOT NULL REFERENCES subject_classes(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  topics jsonb NOT NULL DEFAULT '[]'::jsonb,
+  weeks jsonb NOT NULL DEFAULT '[]'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE teacher_question_topic_sets IS 'Reusable topic lists created by teachers per subject-class assignment';
+COMMENT ON COLUMN teacher_question_topic_sets.weeks IS 'Weekly scheme-of-work: array of { week_number, topics[], is_break } objects';
+
+CREATE TABLE IF NOT EXISTS teacher_question_banks (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  school_id uuid NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+  created_by_teacher_id uuid REFERENCES teachers(id) ON DELETE CASCADE,
+  created_by_admin_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  subject_class_id uuid NOT NULL REFERENCES subject_classes(id) ON DELETE CASCADE,
+  title text NOT NULL,
+  description text,
+  visibility teacher_question_visibility NOT NULL DEFAULT 'private',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE teacher_question_banks IS 'Teacher question banks that can be private or school-shared';
+
+CREATE TABLE IF NOT EXISTS teacher_questions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  school_id uuid NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+  bank_id uuid NOT NULL REFERENCES teacher_question_banks(id) ON DELETE CASCADE,
+  subject_class_id uuid NOT NULL REFERENCES subject_classes(id) ON DELETE CASCADE,
+  topic_set_id uuid REFERENCES teacher_question_topic_sets(id) ON DELETE SET NULL,
+  created_by_teacher_id uuid REFERENCES teachers(id) ON DELETE CASCADE,
+  created_by_admin_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  source_question_id uuid REFERENCES teacher_questions(id) ON DELETE SET NULL,
+  question_type teacher_question_type NOT NULL,
+  difficulty teacher_question_difficulty NOT NULL,
+  visibility teacher_question_visibility NOT NULL DEFAULT 'private',
+  topic text NOT NULL,
+  question_text text NOT NULL,
+  options jsonb NOT NULL DEFAULT '[]'::jsonb,
+  correct_answer text,
+  explanation text,
+  marks integer NOT NULL DEFAULT 1,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE teacher_questions IS 'Questions generated or authored by teachers and stored in question banks';
+
+CREATE TABLE IF NOT EXISTS teacher_question_generation_logs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  school_id uuid NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+  teacher_id uuid NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+  subject_class_id uuid NOT NULL REFERENCES subject_classes(id) ON DELETE CASCADE,
+  bank_id uuid REFERENCES teacher_question_banks(id) ON DELETE SET NULL,
+  topic_set_id uuid REFERENCES teacher_question_topic_sets(id) ON DELETE SET NULL,
+  question_type teacher_question_type NOT NULL,
+  difficulty teacher_question_difficulty NOT NULL,
+  requested_count integer NOT NULL,
+  generated_count integer NOT NULL DEFAULT 0,
+  model text,
+  prompt_version text NOT NULL DEFAULT 'v1',
+  status teacher_question_generation_status NOT NULL,
+  error_message text,
+  request_payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+  response_payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE teacher_question_generation_logs IS 'Audit trail for AI topic/question generation attempts';
+
+CREATE TABLE IF NOT EXISTS exam_paper_configs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  bank_id uuid NOT NULL REFERENCES teacher_question_banks(id) ON DELETE CASCADE,
+  term text NOT NULL CHECK (term IN ('1', '2', '3')),
+  school_id uuid NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+  created_by_teacher_id uuid REFERENCES teachers(id) ON DELETE SET NULL,
+  created_by_admin_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  config jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT unique_config_per_bank_term UNIQUE (bank_id, term)
+);
+
+COMMENT ON TABLE exam_paper_configs IS 'Saved exam paper configurations per bank per term';
+
+CREATE TABLE IF NOT EXISTS question_bank_audit_logs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  bank_id uuid NOT NULL REFERENCES teacher_question_banks(id) ON DELETE CASCADE,
+  school_id uuid NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+  action question_bank_audit_action NOT NULL,
+  actor_id uuid NOT NULL,
+  actor_role text NOT NULL CHECK (actor_role IN ('teacher', 'admin')),
+  actor_name text,
+  details jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE question_bank_audit_logs IS 'Audit trail for all question bank activities';
+
+-- -----------------------------------------------------------------------------
+-- 6a) Question Bank indexes
+-- -----------------------------------------------------------------------------
+
+CREATE INDEX IF NOT EXISTS idx_teacher_q_topic_sets_owner
+  ON teacher_question_topic_sets (school_id, created_by_teacher_id, subject_class_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_teacher_q_topic_sets_admin
+  ON teacher_question_topic_sets (school_id, created_by_admin_id, subject_class_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_teacher_q_banks_owner
+  ON teacher_question_banks (school_id, created_by_teacher_id, subject_class_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_teacher_q_banks_admin
+  ON teacher_question_banks (school_id, created_by_admin_id, subject_class_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_teacher_q_banks_visibility
+  ON teacher_question_banks (school_id, visibility, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_teacher_questions_bank
+  ON teacher_questions (school_id, bank_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_teacher_questions_admin
+  ON teacher_questions (school_id, created_by_admin_id, bank_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_teacher_questions_discovery
+  ON teacher_questions (school_id, subject_class_id, difficulty, question_type, visibility);
+
+CREATE INDEX IF NOT EXISTS idx_teacher_questions_source
+  ON teacher_questions (source_question_id);
+
+CREATE INDEX IF NOT EXISTS idx_teacher_question_generation_logs
+  ON teacher_question_generation_logs (school_id, teacher_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_exam_paper_configs_bank
+  ON exam_paper_configs (bank_id, term);
+
+CREATE INDEX IF NOT EXISTS idx_exam_paper_configs_school
+  ON exam_paper_configs (school_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_bank
+  ON question_bank_audit_logs (bank_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_school
+  ON question_bank_audit_logs (school_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action
+  ON question_bank_audit_logs (bank_id, action, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_teacher_lesson_notes_teacher
+  ON teacher_lesson_notes (school_id, created_by_teacher_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_teacher_lesson_notes_subject
+  ON teacher_lesson_notes (school_id, subject_class_id, created_at DESC);
+
+-- -----------------------------------------------------------------------------
+-- 7) Teacher Lesson Notes
+-- -----------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS teacher_lesson_notes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  school_id uuid NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+  created_by_teacher_id uuid NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+  subject_class_id uuid NOT NULL REFERENCES subject_classes(id) ON DELETE CASCADE,
+  topic text NOT NULL,
+  title text NOT NULL,
+  content jsonb NOT NULL DEFAULT '{}'::jsonb,
+  objectives jsonb NOT NULL DEFAULT '[]'::jsonb,
+  summary text DEFAULT '',
+  status lesson_note_status NOT NULL DEFAULT 'draft',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE teacher_lesson_notes IS 'AI-generated lesson notes created by teachers per subject-class assignment';
+
+-- -----------------------------------------------------------------------------
+-- 8) Domain ratings column on results
+-- -----------------------------------------------------------------------------
+
+ALTER TABLE results ADD COLUMN IF NOT EXISTS domain_ratings jsonb DEFAULT '{}'::jsonb;
+
+-- -----------------------------------------------------------------------------
+-- 8a) RLS for Question Bank and Lesson Notes
+-- -----------------------------------------------------------------------------
+
+ALTER TABLE teacher_question_topic_sets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE teacher_question_banks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE teacher_questions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE teacher_question_generation_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE exam_paper_configs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE question_bank_audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE teacher_lesson_notes ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Teachers and admins can read topic sets" ON teacher_question_topic_sets;
+CREATE POLICY "Teachers and admins can read topic sets"
+  ON teacher_question_topic_sets FOR SELECT
+  TO authenticated
+  USING (
+    school_id = get_my_school_id()
+    AND (
+      created_by_teacher_id IN (SELECT id FROM teachers WHERE user_id = auth.uid() AND school_id = get_my_school_id())
+      OR created_by_admin_id = auth.uid()
+      OR is_admin()
+    )
+  );
+
+DROP POLICY IF EXISTS "Teachers and admins can manage topic sets" ON teacher_question_topic_sets;
+CREATE POLICY "Teachers and admins can manage topic sets"
+  ON teacher_question_topic_sets FOR ALL
+  TO authenticated
+  USING (
+    school_id = get_my_school_id()
+    AND (
+      created_by_teacher_id IN (SELECT id FROM teachers WHERE user_id = auth.uid() AND school_id = get_my_school_id())
+      OR created_by_admin_id = auth.uid()
+      OR is_admin()
+    )
+  )
+  WITH CHECK (
+    school_id = get_my_school_id()
+    AND (
+      created_by_teacher_id IN (SELECT id FROM teachers WHERE user_id = auth.uid() AND school_id = get_my_school_id())
+      OR created_by_admin_id = auth.uid()
+      OR is_admin()
+    )
+  );
+
+DROP POLICY IF EXISTS "Teachers and admins can read banks" ON teacher_question_banks;
+CREATE POLICY "Teachers and admins can read banks"
+  ON teacher_question_banks FOR SELECT
+  TO authenticated
+  USING (
+    school_id = get_my_school_id()
+    AND (
+      created_by_teacher_id IN (SELECT id FROM teachers WHERE user_id = auth.uid() AND school_id = get_my_school_id())
+      OR created_by_admin_id = auth.uid()
+      OR visibility = 'public_school'
+      OR is_admin()
+    )
+  );
+
+DROP POLICY IF EXISTS "Teachers and admins can manage banks" ON teacher_question_banks;
+CREATE POLICY "Teachers and admins can manage banks"
+  ON teacher_question_banks FOR ALL
+  TO authenticated
+  USING (
+    school_id = get_my_school_id()
+    AND (
+      created_by_teacher_id IN (SELECT id FROM teachers WHERE user_id = auth.uid() AND school_id = get_my_school_id())
+      OR created_by_admin_id = auth.uid()
+      OR is_admin()
+    )
+  )
+  WITH CHECK (
+    school_id = get_my_school_id()
+    AND (
+      created_by_teacher_id IN (SELECT id FROM teachers WHERE user_id = auth.uid() AND school_id = get_my_school_id())
+      OR created_by_admin_id = auth.uid()
+      OR is_admin()
+    )
+  );
+
+DROP POLICY IF EXISTS "Users can read questions in their school" ON teacher_questions;
+CREATE POLICY "Users can read questions in their school"
+  ON teacher_questions FOR SELECT
+  TO authenticated
+  USING (
+    school_id = get_my_school_id()
+    AND (
+      created_by_teacher_id IN (SELECT id FROM teachers WHERE user_id = auth.uid() AND school_id = get_my_school_id())
+      OR created_by_admin_id = auth.uid()
+      OR visibility = 'public_school'
+      OR is_admin()
+    )
+  );
+
+DROP POLICY IF EXISTS "Users can manage own questions" ON teacher_questions;
+CREATE POLICY "Users can manage own questions"
+  ON teacher_questions FOR ALL
+  TO authenticated
+  USING (
+    school_id = get_my_school_id()
+    AND (
+      created_by_teacher_id IN (SELECT id FROM teachers WHERE user_id = auth.uid() AND school_id = get_my_school_id())
+      OR created_by_admin_id = auth.uid()
+      OR is_admin()
+    )
+  )
+  WITH CHECK (
+    school_id = get_my_school_id()
+    AND (
+      created_by_teacher_id IN (SELECT id FROM teachers WHERE user_id = auth.uid() AND school_id = get_my_school_id())
+      OR created_by_admin_id = auth.uid()
+      OR is_admin()
+    )
+  );
+
+DROP POLICY IF EXISTS "Teachers can read own generation logs" ON teacher_question_generation_logs;
+CREATE POLICY "Teachers can read own generation logs"
+  ON teacher_question_generation_logs FOR SELECT
+  TO authenticated
+  USING (
+    school_id = get_my_school_id()
+    AND teacher_id IN (SELECT id FROM teachers WHERE user_id = auth.uid() AND school_id = get_my_school_id())
+  );
+
+DROP POLICY IF EXISTS "Teachers can manage own generation logs" ON teacher_question_generation_logs;
+CREATE POLICY "Teachers can manage own generation logs"
+  ON teacher_question_generation_logs FOR ALL
+  TO authenticated
+  USING (
+    school_id = get_my_school_id()
+    AND teacher_id IN (SELECT id FROM teachers WHERE user_id = auth.uid() AND school_id = get_my_school_id())
+  )
+  WITH CHECK (
+    school_id = get_my_school_id()
+    AND teacher_id IN (SELECT id FROM teachers WHERE user_id = auth.uid() AND school_id = get_my_school_id())
+  );
+
+DROP POLICY IF EXISTS "Users can read exam configs" ON exam_paper_configs;
+CREATE POLICY "Users can read exam configs"
+  ON exam_paper_configs FOR SELECT
+  TO authenticated
+  USING (
+    school_id = get_my_school_id()
+    AND (
+      created_by_teacher_id IN (SELECT id FROM teachers WHERE user_id = auth.uid() AND school_id = get_my_school_id())
+      OR created_by_admin_id = auth.uid()
+      OR is_admin()
+    )
+  );
+
+DROP POLICY IF EXISTS "Users can manage own exam configs" ON exam_paper_configs;
+CREATE POLICY "Users can manage own exam configs"
+  ON exam_paper_configs FOR ALL
+  TO authenticated
+  USING (
+    school_id = get_my_school_id()
+    AND (
+      created_by_teacher_id IN (SELECT id FROM teachers WHERE user_id = auth.uid() AND school_id = get_my_school_id())
+      OR created_by_admin_id = auth.uid()
+      OR is_admin()
+    )
+  )
+  WITH CHECK (
+    school_id = get_my_school_id()
+    AND (
+      created_by_teacher_id IN (SELECT id FROM teachers WHERE user_id = auth.uid() AND school_id = get_my_school_id())
+      OR created_by_admin_id = auth.uid()
+      OR is_admin()
+    )
+  );
+
+DROP POLICY IF EXISTS "Users can read audit logs" ON question_bank_audit_logs;
+CREATE POLICY "Users can read audit logs"
+  ON question_bank_audit_logs FOR SELECT
+  TO authenticated
+  USING (
+    school_id = get_my_school_id()
+    AND (
+      is_admin()
+      OR bank_id IN (
+        SELECT id FROM teacher_question_banks
+        WHERE school_id = get_my_school_id()
+        AND (
+          created_by_teacher_id IN (SELECT id FROM teachers WHERE user_id = auth.uid() AND school_id = get_my_school_id())
+          OR created_by_admin_id = auth.uid()
+          OR visibility = 'public_school'
+        )
+      )
+    )
+  );
+
+DROP POLICY IF EXISTS "Authenticated users can insert audit logs" ON question_bank_audit_logs;
+CREATE POLICY "Authenticated users can insert audit logs"
+  ON question_bank_audit_logs FOR INSERT
+  TO authenticated
+  WITH CHECK (school_id = get_my_school_id());
+
+DROP POLICY IF EXISTS "Teachers can read own lesson notes" ON teacher_lesson_notes;
+CREATE POLICY "Teachers can read own lesson notes"
+  ON teacher_lesson_notes FOR SELECT
+  TO authenticated
+  USING (
+    school_id = get_my_school_id()
+    AND created_by_teacher_id IN (SELECT id FROM teachers WHERE user_id = auth.uid() AND school_id = get_my_school_id())
+  );
+
+DROP POLICY IF EXISTS "Teachers can manage own lesson notes" ON teacher_lesson_notes;
+CREATE POLICY "Teachers can manage own lesson notes"
+  ON teacher_lesson_notes FOR ALL
+  TO authenticated
+  USING (
+    school_id = get_my_school_id()
+    AND created_by_teacher_id IN (SELECT id FROM teachers WHERE user_id = auth.uid() AND school_id = get_my_school_id())
+  )
+  WITH CHECK (
+    school_id = get_my_school_id()
+    AND created_by_teacher_id IN (SELECT id FROM teachers WHERE user_id = auth.uid() AND school_id = get_my_school_id())
+  );
+
+-- -----------------------------------------------------------------------------
+-- 9) Compatibility and integrity adjustments
 -- -----------------------------------------------------------------------------
 CREATE UNIQUE INDEX IF NOT EXISTS idx_subjects_id_school_id ON subjects(id, school_id);
 
@@ -381,7 +851,7 @@ CREATE TRIGGER trigger_check_submission_on_time
   EXECUTE FUNCTION check_submission_on_time();
 
 -- -----------------------------------------------------------------------------
--- 6) Shared helper functions used by academic workflows
+-- 10) Shared helper functions used by academic workflows
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION update_result_settings_timestamp()
 RETURNS trigger
@@ -534,7 +1004,7 @@ END;
 $$;
 
 -- -----------------------------------------------------------------------------
--- 7) Indexes
+-- 11) Indexes
 -- -----------------------------------------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_subject_classes_school ON subject_classes(school_id);
 CREATE INDEX IF NOT EXISTS idx_subject_classes_subject ON subject_classes(subject_id);
@@ -597,8 +1067,24 @@ CREATE INDEX IF NOT EXISTS idx_promotion_class_progress_session_id ON promotion_
 CREATE INDEX IF NOT EXISTS idx_promotion_class_progress_status ON promotion_class_progress(status) WHERE status != 'completed';
 
 -- -----------------------------------------------------------------------------
--- 8) updated_at triggers
+-- 12) updated_at triggers
 -- -----------------------------------------------------------------------------
+
+DROP TRIGGER IF EXISTS set_teacher_question_topic_sets_updated_at ON teacher_question_topic_sets;
+CREATE TRIGGER set_teacher_question_topic_sets_updated_at BEFORE UPDATE ON teacher_question_topic_sets FOR EACH ROW EXECUTE FUNCTION set_updated_at_timestamp();
+
+DROP TRIGGER IF EXISTS set_teacher_question_banks_updated_at ON teacher_question_banks;
+CREATE TRIGGER set_teacher_question_banks_updated_at BEFORE UPDATE ON teacher_question_banks FOR EACH ROW EXECUTE FUNCTION set_updated_at_timestamp();
+
+DROP TRIGGER IF EXISTS set_teacher_questions_updated_at ON teacher_questions;
+CREATE TRIGGER set_teacher_questions_updated_at BEFORE UPDATE ON teacher_questions FOR EACH ROW EXECUTE FUNCTION set_updated_at_timestamp();
+
+DROP TRIGGER IF EXISTS set_exam_paper_configs_updated_at ON exam_paper_configs;
+CREATE TRIGGER set_exam_paper_configs_updated_at BEFORE UPDATE ON exam_paper_configs FOR EACH ROW EXECUTE FUNCTION set_updated_at_timestamp();
+
+DROP TRIGGER IF EXISTS set_teacher_lesson_notes_updated_at ON teacher_lesson_notes;
+CREATE TRIGGER set_teacher_lesson_notes_updated_at BEFORE UPDATE ON teacher_lesson_notes FOR EACH ROW EXECUTE FUNCTION set_updated_at_timestamp();
+
 DROP TRIGGER IF EXISTS set_subject_classes_updated_at ON subject_classes;
 CREATE TRIGGER set_subject_classes_updated_at BEFORE UPDATE ON subject_classes FOR EACH ROW EXECUTE FUNCTION set_updated_at_timestamp();
 
@@ -642,7 +1128,7 @@ DROP TRIGGER IF EXISTS set_promotion_class_progress_updated_at ON promotion_clas
 CREATE TRIGGER set_promotion_class_progress_updated_at BEFORE UPDATE ON promotion_class_progress FOR EACH ROW EXECUTE FUNCTION set_updated_at_timestamp();
 
 -- -----------------------------------------------------------------------------
--- 9) RLS
+-- 13) RLS
 -- -----------------------------------------------------------------------------
 ALTER TABLE subject_classes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE student_subjects ENABLE ROW LEVEL SECURITY;
@@ -661,6 +1147,13 @@ ALTER TABLE class_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE promotion_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE promotion_class_mappings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE promotion_class_progress ENABLE ROW LEVEL SECURITY;
+ALTER TABLE teacher_question_topic_sets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE teacher_question_banks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE teacher_questions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE teacher_question_generation_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE exam_paper_configs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE question_bank_audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE teacher_lesson_notes ENABLE ROW LEVEL SECURITY;
 
 -- subject_classes: must allow nested expansions cleanly
 DROP POLICY IF EXISTS "Subject classes school read" ON subject_classes;

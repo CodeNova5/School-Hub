@@ -21,6 +21,14 @@ This file covers the database foundation that every other domain depends on.
 - `timetable_entries`
 - `notification_tokens`
 - `admins` or admin-role primitives where present in the setup bundle
+- `student_guardian_links`
+
+## Column Changes (Post-Initial-Setup)
+- `schools.motto` — optional school motto text (`20260701_add_school_motto_and_domain_ratings.sql`)
+- `teachers.signature_url` — teacher signature image for result sheets
+- `teachers.bank_name`, `teachers.bank_code`, `teachers.account_number`, `teachers.account_name` — bank details for payroll
+- `teachers.paystack_subaccount_code` — Paystack subaccount for salary payments
+- `admins.signature_url` — admin signature image
 
 ## Core Relationships
 - `terms.session_id` -> `sessions.id`
@@ -50,4 +58,11 @@ This file covers the database foundation that every other domain depends on.
 - `supabase/migrations/02_FIX_SCHOOL_ID_LOOKUP.sql`
 - `supabase/migrations/create_admins_table.sql`
 - `supabase/migrations/add_signature_to_admins.sql`
+- `supabase/migrations/add_signature_to_teachers.sql`
 - `supabase/migrations/add_promotion_locking.sql`
+- `supabase/migrations/fix-sessions.SQL`
+- `supabase/migrations/20260316_create_school_level_subject_presets.sql`
+- `supabase/migrations/20260316_drop_category_from_school_level_subject_presets.sql`
+- `supabase/migrations/20260608_add_session_end_date_trigger.sql`
+- `supabase/migrations/20260701_allow_admins_update_own_profile.sql`
+- `supabase/migrations/20260701_add_school_motto_and_domain_ratings.sql`

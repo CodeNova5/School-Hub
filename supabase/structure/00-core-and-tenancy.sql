@@ -293,6 +293,21 @@ CREATE TABLE IF NOT EXISTS admins (
 );
 
 -- -----------------------------------------------------------------------------
+-- Post-setup column additions (from migrations)
+-- -----------------------------------------------------------------------------
+
+ALTER TABLE schools ADD COLUMN IF NOT EXISTS motto text DEFAULT '';
+
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS signature_url text;
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS paystack_subaccount_code text;
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS bank_name text;
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS bank_code text;
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS account_number text;
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS account_name text;
+
+ALTER TABLE admins ADD COLUMN IF NOT EXISTS signature_url text;
+
+-- -----------------------------------------------------------------------------
 -- Indexes
 -- -----------------------------------------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_sessions_school_id ON sessions(school_id);

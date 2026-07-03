@@ -206,7 +206,7 @@ function Navbar() {
                   Sign In
                 </Button>
               </Link>
-              <Link href="/admin/login">
+              <Link href="/subscription">
                 <Button size="sm" className="h-9 rounded-xl text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
                   Get Started
                 </Button>
@@ -252,7 +252,7 @@ function Navbar() {
                 Sign In
               </Button>
             </Link>
-            <Link href="/admin/login" className="block">
+            <Link href="/subscription" className="block">
               <Button className="w-full h-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm">
                 Get Started
               </Button>
@@ -414,7 +414,7 @@ export default function LandingPage() {
 
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
-              <Link href="/admin/login">
+              <Link href="/subscription">
                 <Button className="h-12 px-8 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200 hover:shadow-xl hover:shadow-blue-300 transition-all duration-300">
                   Get Started Free
                   <Rocket className="ml-2 h-4 w-4" />
@@ -698,18 +698,18 @@ export default function LandingPage() {
             academic outcomes, and connect their entire community.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link href="/admin/login">
+            <Link href="/subscription">
               <Button className="h-12 px-8 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 transition-all duration-300">
                 Start Free Trial
                 <Rocket className="ml-2 h-4 w-4" />
               </Button>
             </Link>
-            <Link href="/admin/login">
+            <Link href="/subscription">
               <Button
                 variant="outline"
                 className="h-12 px-8 rounded-xl text-sm font-semibold border-white/10 text-gray-300 hover:bg-white/5 hover:text-white"
               >
-                Schedule a Demo
+                View Plans
                 <ChevronRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>

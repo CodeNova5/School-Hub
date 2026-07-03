@@ -189,6 +189,7 @@ function Navbar() {
           <nav className="hidden md:flex items-center gap-1">
             {[
               { label: "Features", href: "#features" },
+              { label: "Pricing", href: "/subscription" },
               { label: "Portals", href: "#portals" },
               { label: "About", href: "#about" },
             ].map((item) => (
@@ -204,6 +205,11 @@ function Navbar() {
               <Link href="/admin/login">
                 <Button variant="outline" size="sm" className="h-9 rounded-xl text-xs font-medium">
                   Sign In
+                </Button>
+              </Link>
+              <Link href="/register">
+                <Button size="sm" className="h-9 rounded-xl text-xs font-medium bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 hover:border-gray-300 shadow-sm">
+                  Register
                 </Button>
               </Link>
               <Link href="/subscription">
@@ -234,6 +240,7 @@ function Navbar() {
         <div className="bg-white border-t border-gray-100 px-4 py-4 space-y-1">
           {[
             { label: "Features", href: "#features" },
+            { label: "Pricing", href: "/subscription" },
             { label: "Portals", href: "#portals" },
             { label: "About", href: "#about" },
           ].map((item) => (
@@ -250,6 +257,11 @@ function Navbar() {
             <Link href="/admin/login" className="block">
               <Button variant="outline" className="w-full h-10 rounded-xl text-sm">
                 Sign In
+              </Button>
+            </Link>
+            <Link href="/register" className="block">
+              <Button variant="outline" className="w-full h-10 rounded-xl text-sm border-gray-200 hover:bg-gray-50">
+                Register
               </Button>
             </Link>
             <Link href="/subscription" className="block">
@@ -753,13 +765,20 @@ export default function LandingPage() {
                 Product
               </h4>
               <ul className="space-y-2.5">
-                {["Features", "Pricing", "Integrations", "Changelog", "API Docs"].map((item) => (
-                  <li key={item}>
+                {[
+                  { label: "Features", href: "#features" },
+                  { label: "Pricing", href: "/subscription" },
+                  { label: "Register", href: "/register" },
+                  { label: "Integrations", href: "#" },
+                  { label: "Changelog", href: "#" },
+                  { label: "API Docs", href: "#" },
+                ].map((item) => (
+                  <li key={item.label}>
                     <Link
-                      href="#"
+                      href={item.href}
                       className="text-sm text-gray-500 hover:text-gray-300 transition-colors"
                     >
-                      {item}
+                      {item.label}
                     </Link>
                   </li>
                 ))}

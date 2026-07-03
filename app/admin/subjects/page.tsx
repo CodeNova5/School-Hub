@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, ArrowRight, BookOpen, GraduationCap, Settings2 } from "lucide-react";
+import { Search, ArrowRight, BookOpen, GraduationCap, Settings2, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { Subject } from "@/lib/types";
@@ -316,15 +316,29 @@ export default function SubjectsPage() {
             ) : (
               <div className="space-y-3">
                 {subjectCoverage.map((row) => (
-                  <div key={row.subjectId} className="rounded-lg border p-4 hover:shadow-md transition-shadow">
+                  <div key={row.subjectId} className="rounded-lg border p-4 hover:shadow-md transition-shadow group">
                     <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                      <div>
-                        <p className="font-semibold">{row.subjectName}</p>
+                      <div className="flex items-center gap-3">
+                        <Link
+                          href={`/admin/subjects/${row.subjectId}`}
+                          className="font-semibold hover:text-blue-600 transition-colors flex items-center gap-1.5"
+                        >
+                          {row.subjectName}
+                          <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </Link>
                         <p className="text-xs text-gray-500">Code: {row.catalogCode}</p>
                       </div>
-                      <Badge variant={row.classIds.length > 0 ? "default" : "secondary"}>
-                        {row.classIds.length} class(es)
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={row.classIds.length > 0 ? "default" : "secondary"}>
+                          {row.classIds.length} class(es)
+                        </Badge>
+                        <Link
+                          href={`/admin/subjects/${row.subjectId}`}
+                          className="text-xs text-blue-600 hover:text-blue-800 hover:underline font-medium whitespace-nowrap"
+                        >
+                          Manage
+                        </Link>
+                      </div>
                     </div>
 
                     {row.classIds.length === 0 ? (

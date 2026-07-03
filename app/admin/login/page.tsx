@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -171,6 +172,19 @@ export default function AdminLoginPage() {
               <div className="text-center">
                 <p className="text-sm text-gray-600">
                   Restricted access. Contact system administrator if you have issues.
+                </p>
+              </div>
+
+              {/* Register Link */}
+              <div className="text-center">
+                <p className="text-sm text-gray-500">
+                  Don&apos;t have an account?{" "}
+                  <Link
+                    href="/register"
+                    className="font-semibold text-red-600 hover:text-red-700 underline underline-offset-2 transition-colors"
+                  >
+                    Register your school
+                  </Link>
                 </p>
               </div>
 

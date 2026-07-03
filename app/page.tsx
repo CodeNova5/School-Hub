@@ -209,7 +209,7 @@ function Navbar() {
               </Link>
               <Link href="/register">
                 <Button size="sm" className="h-9 rounded-xl text-xs font-medium bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 hover:border-gray-300 shadow-sm">
-                  Register
+                  Register your school
                 </Button>
               </Link>
               <Link href="/subscription">
@@ -261,7 +261,7 @@ function Navbar() {
             </Link>
             <Link href="/register" className="block">
               <Button variant="outline" className="w-full h-10 rounded-xl text-sm border-gray-200 hover:bg-gray-50">
-                Register
+                Register your school
               </Button>
             </Link>
             <Link href="/subscription" className="block">
@@ -768,7 +768,7 @@ export default function LandingPage() {
                 {[
                   { label: "Features", href: "#features" },
                   { label: "Pricing", href: "/subscription" },
-                  { label: "Register", href: "/register" },
+                  { label: "Register your school", href: "/register" },
                   { label: "Integrations", href: "#" },
                   { label: "Changelog", href: "#" },
                   { label: "API Docs", href: "#" },

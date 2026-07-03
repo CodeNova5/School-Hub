@@ -1,154 +1,248 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   GraduationCap,
-  BookOpen,
-  Users,
-  CalendarCheck,
-  School,
-  BarChart3,
-  Shield,
-  Bell,
-  ChevronRight,
-  Star,
   CheckCircle2,
+  Shield,
+  Clock,
   ArrowUpRight,
   Menu,
   X,
+  Palette,
   ChevronDown,
-  Layers,
-  ClipboardList,
-  UserCheck,
-  Phone,
-  Mail,
-  MapPin,
+  ChevronRight,
   Sparkles,
   Rocket,
   Globe,
-  Award,
-  HeartHandshake,
-  TrendingUp,
-  Clock,
+  Users,
+  School,
   FileText,
+  TrendingUp,
+  Star,
+  Phone,
+  Mail,
+  MapPin,
+  Bot,
+  BookOpen,
+  Smartphone,
+  QrCode,
+  CreditCard,
+  CalendarCheck,
+  BarChart3,
+  Bell,
+  HeartHandshake,
   MessageSquare,
-  Database,
+  UserCheck,
+  Wallet,
+  Quote,
 } from "lucide-react";
 
-const features = [
-  {
-    icon: BookOpen,
-    title: "Curriculum & Subjects",
-    description:
-      "Comprehensive subject management with flexible allocation, optional/compulsory tracking, and multi-level curriculum mapping.",
-    gradient: "from-blue-600 to-blue-400",
-  },
-  {
-    icon: Users,
-    title: "Student Management",
-    description:
-      "End-to-end student lifecycle tracking — admissions, attendance, performance analytics, promotions, and behavioral records.",
-    gradient: "from-emerald-600 to-emerald-400",
-  },
-  {
-    icon: ClipboardList,
-    title: "Assessments & Grading",
-    description:
-      "Flexible assessment engine supporting continuous assessment, terminal exams, GPA computation, and automated report cards.",
-    gradient: "from-purple-600 to-purple-400",
-  },
-  {
-    icon: CalendarCheck,
-    title: "Timetable & Scheduling",
-    description:
-      "Intelligent timetable generation with teacher allocation, room management, period slots, and real-time conflict detection.",
-    gradient: "from-orange-600 to-orange-400",
-  },
-  {
-    icon: BarChart3,
-    title: "Analytics & Reports",
-    description:
-      "Rich dashboards with performance trends, grade distribution charts, pass rate analysis, and exportable PDF reports.",
-    gradient: "from-rose-600 to-rose-400",
-  },
-  {
-    icon: Bell,
-    title: "Notifications & Alerts",
-    description:
-      "Multi-channel communication via SMS, email, and push notifications — attendance alerts, exam reminders, and school broadcasts.",
-    gradient: "from-cyan-600 to-cyan-400",
-  },
-  {
-    icon: Shield,
-    title: "Role-Based Access",
-    description:
-      "Granular permissions across Admin, Teacher, Student, and Parent portals with secure authentication and session management.",
-    gradient: "from-violet-600 to-violet-400",
-  },
-  {
-    icon: Database,
-    title: "Multi-Tenant Architecture",
-    description:
-      "Purpose-built for school groups and districts — each school operates independently with isolated data on a unified platform.",
-    gradient: "from-indigo-600 to-indigo-400",
-  },
-  {
-    icon: FileText,
-    title: "Finance & Payroll",
-    description:
-      "Tuition fee management, payment tracking, invoice generation, staff payroll processing, and financial reporting.",
-    gradient: "from-amber-600 to-amber-400",
-  },
-];
+/* ═══════════════════════════════════════
+   ANIMATION HOOK
+═══════════════════════════════════════ */
 
-const portals = [
-  {
-    role: "Admin",
-    href: "/admin/login",
-    description:
-      "Full administrative control — manage users, configure academic structure, oversee operations, and generate institutional reports.",
-    icon: School,
-    stats: ["School Config", "Staff Management", "Finance", "Analytics"],
-    gradient: "from-slate-900 to-slate-700",
-  },
-  {
-    role: "Teacher",
-    href: "/teacher/login",
-    description:
-      "Manage classes, record assessments, track attendance, communicate with parents, and monitor student progress daily.",
-    icon: UserCheck,
-    stats: ["Gradebook", "Attendance", "Lesson Plans", "Analytics"],
-    gradient: "from-blue-700 to-blue-500",
-  },
-  {
-    role: "Student",
-    href: "/student/login",
-    description:
-      "View grades, check timetables, track attendance records, access learning materials, and receive school announcements.",
-    icon: GraduationCap,
-    stats: ["Results", "Timetable", "Assignments", "Progress"],
-    gradient: "from-emerald-700 to-emerald-500",
-  },
-  {
-    role: "Parent",
-    href: "/parent/login",
-    description:
-      "Stay connected with your child's academic journey — monitor performance, attendance, fee status, and school communications.",
-    icon: HeartHandshake,
-    stats: ["Performance", "Attendance", "Payments", "Messages"],
-    gradient: "from-amber-700 to-amber-500",
-  },
-];
+function useReveal(threshold = 0.15) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
 
-const stats = [
-  { value: "10,000+", label: "Students Managed", icon: Users },
-  { value: "500+", label: "Schools Onboarded", icon: School },
-  { value: "50,000+", label: "Reports Generated", icon: FileText },
-  { value: "99.9%", label: "Platform Uptime", icon: TrendingUp },
-];
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.unobserve(el);
+        }
+      },
+      { threshold }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [threshold]);
+
+  return { ref, visible };
+}
+
+/* ═══════════════════════════════════════
+   COUNTER HOOK
+═══════════════════════════════════════ */
+
+function useCountUp(end: number, duration = 2000, startOn = true) {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!startOn) return;
+
+    let startTime: number | null = null;
+    let raf: number;
+
+    const step = (ts: number) => {
+      if (!startTime) startTime = ts;
+      const elapsed = ts - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      // ease-out quart
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setCount(Math.round(eased * end));
+      if (progress < 1) raf = requestAnimationFrame(step);
+    };
+
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [end, duration, startOn]);
+
+  return end >= 1000 ? count.toLocaleString() : count + (end === 100 ? "%" : "+");
+}
+
+/* ═══════════════════════════════════════
+   DEVICE MOCKUPS
+═══════════════════════════════════════ */
+
+function BrowserFrame({
+  src,
+  gradient,
+  icon: Icon,
+  label,
+  aspectRatio = "aspect-[16/10]",
+}: {
+  src?: string;
+  gradient: string;
+  icon: any;
+  label: string;
+  aspectRatio?: string;
+}) {
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
+
+  return (
+    <div className="relative w-full overflow-hidden rounded-xl border border-gray-200/80 bg-white shadow-xl shadow-gray-200/40 transition-all duration-500 hover:shadow-2xl hover:shadow-gray-300/40">
+      {/* Browser chrome */}
+      <div className="flex items-center gap-1.5 border-b border-gray-100 bg-gray-50/80 px-4 py-3">
+        <div className="flex items-center gap-1.5">
+          <div className="h-3 w-3 rounded-full bg-red-400" />
+          <div className="h-3 w-3 rounded-full bg-yellow-400" />
+          <div className="h-3 w-3 rounded-full bg-emerald-400" />
+        </div>
+        <div className="mx-auto flex max-w-[60%] items-center gap-2 rounded-md bg-white px-3 py-1.5 shadow-sm">
+          <Shield className="h-3 w-3 text-emerald-500" />
+          <span className="truncate text-[11px] font-medium text-gray-500">
+            app.schoolhub.com
+          </span>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className={`relative ${aspectRatio} overflow-hidden bg-gray-50`}>
+        {/* Real image */}
+        {src && !imgError && (
+          <img
+            src={src}
+            alt={label}
+            className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-500 ${
+              imgLoaded ? "opacity-100" : "opacity-0"
+            }`}
+            onLoad={() => setImgLoaded(true)}
+            onError={() => setImgError(true)}
+          />
+        )}
+
+        {/* Gradient placeholder */}
+        {(!src || imgError || !imgLoaded) && (
+          <div
+            className={`absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br ${gradient} p-6 transition-opacity duration-500`}
+          >
+            <div className="mb-3 rounded-2xl bg-white/20 p-4 backdrop-blur-sm">
+              <Icon className="h-10 w-10 text-white" />
+            </div>
+            <p className="text-center text-sm font-medium text-white/80">
+              {label}
+            </p>
+            <p className="mt-1 text-center text-xs text-white/50">
+              Replace with your screenshot
+            </p>
+
+            {/* Skeleton UI elements for realistic feel */}
+            <div className="mt-6 w-full max-w-xs space-y-3">
+              <div className="h-2 w-3/4 rounded-full bg-white/20" />
+              <div className="h-2 w-full rounded-full bg-white/10" />
+              <div className="h-2 w-2/3 rounded-full bg-white/10" />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PhoneFrame({
+  src,
+  gradient,
+  icon: Icon,
+  label,
+}: {
+  src?: string;
+  gradient: string;
+  icon: any;
+  label: string;
+}) {
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
+
+  return (
+    <div className="relative mx-auto w-[220px] sm:w-[260px]">
+      {/* Phone body */}
+      <div className="relative overflow-hidden rounded-[2.5rem] border-[3px] border-gray-800 bg-gray-900 shadow-2xl shadow-gray-300/30">
+        {/* Notch */}
+        <div className="absolute left-1/2 top-0 z-10 h-5 w-28 -translate-x-1/2 rounded-b-2xl bg-gray-800" />
+
+        {/* Screen */}
+        <div className="relative aspect-[9/19.5] overflow-hidden bg-gray-800">
+          {src && !imgError && (
+            <img
+              src={src}
+              alt={label}
+              className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-500 ${
+                imgLoaded ? "opacity-100" : "opacity-0"
+              }`}
+              onLoad={() => setImgLoaded(true)}
+              onError={() => setImgError(true)}
+            />
+          )}
+
+          {(!src || imgError || !imgLoaded) && (
+            <div
+              className={`flex h-full flex-col items-center justify-center bg-gradient-to-br ${gradient} p-6 transition-opacity duration-500`}
+            >
+              <div className="mb-3 rounded-2xl bg-white/20 p-4 backdrop-blur-sm">
+                <Icon className="h-8 w-8 text-white" />
+              </div>
+              <p className="text-center text-sm font-medium text-white/80">
+                {label}
+              </p>
+              <p className="mt-1 text-center text-xs text-white/50">
+                Add screenshot
+              </p>
+              <div className="mt-6 w-full space-y-2">
+                <div className="h-1.5 w-full rounded-full bg-white/20" />
+                <div className="h-1.5 w-3/4 rounded-full bg-white/10" />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════
+   NAVBAR
+═══════════════════════════════════════ */
 
 function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -191,7 +285,6 @@ function Navbar() {
               { label: "Features", href: "#features" },
               { label: "Pricing", href: "/subscription" },
               { label: "Portals", href: "#portals" },
-              { label: "About", href: "#about" },
             ].map((item) => (
               <Link
                 key={item.label}
@@ -242,7 +335,6 @@ function Navbar() {
             { label: "Features", href: "#features" },
             { label: "Pricing", href: "/subscription" },
             { label: "Portals", href: "#portals" },
-            { label: "About", href: "#about" },
           ].map((item) => (
             <Link
               key={item.label}
@@ -276,34 +368,151 @@ function Navbar() {
   );
 }
 
-function FeatureCard({
-  icon: Icon,
+/* ═══════════════════════════════════════
+   FEATURE SECTION WRAPPER
+═══════════════════════════════════════ */
+
+function FeatureSection({
+  id,
+  reversed,
+  dark,
+  badge,
   title,
   description,
-  gradient,
+  bullets,
+  media,
 }: {
-  icon: any;
+  id?: string;
+  reversed?: boolean;
+  dark?: boolean;
+  badge: string;
   title: string;
   description: string;
-  gradient: string;
+  bullets: { icon: any; text: string }[];
+  media: React.ReactNode;
 }) {
+  const { ref, visible } = useReveal(0.1);
+
   return (
-    <div className="group relative bg-white rounded-2xl border border-gray-100 p-6 hover:shadow-xl hover:border-gray-200 transition-all duration-300 hover:-translate-y-1">
-      <div className="relative z-10">
-        <div
-          className={`inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br ${gradient} shadow-sm mb-4`}
-        >
-          <Icon className="h-6 w-6 text-white" />
+    <section
+      id={id}
+      className={`relative py-20 sm:py-28 overflow-hidden ${
+        dark
+          ? "bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800"
+          : "bg-white"
+      }`}
+    >
+      {/* Background decoration */}
+      {dark && (
+        <div className="absolute inset-0 pointer-events-none">
+          <div
+            className="absolute inset-0 opacity-[0.03]"
+            style={{
+              backgroundImage: `radial-gradient(circle at 1px 1px, #fff 1px, transparent 0)`,
+              backgroundSize: "32px 32px",
+            }}
+          />
+          <div className="absolute -top-40 -right-40 w-[500px] h-[500px] rounded-full bg-gradient-to-br from-blue-500/10 to-purple-500/10 blur-3xl" />
+          <div className="absolute -bottom-40 -left-40 w-[400px] h-[400px] rounded-full bg-gradient-to-tr from-emerald-500/10 to-cyan-500/10 blur-3xl" />
         </div>
-        <h3 className="text-base font-semibold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
-          {title}
-        </h3>
-        <p className="text-sm text-gray-500 leading-relaxed">{description}</p>
+      )}
+
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div
+          ref={ref}
+          className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center"
+        >
+          {/* Text side */}
+          <div
+            className={`space-y-6 transition-all duration-700 ease-out ${
+              visible
+                ? "translate-y-0 opacity-100"
+                : "translate-y-8 opacity-0"
+            } ${reversed ? "lg:order-2" : "lg:order-1"}`}
+          >
+            <Badge
+              variant="outline"
+              className={`px-4 py-1.5 text-xs font-medium ${
+                dark
+                  ? "border-blue-400/30 text-blue-300 bg-blue-500/10"
+                  : "border-blue-200 text-blue-600 bg-blue-50/50"
+              }`}
+            >
+              <Sparkles
+                className={`h-3.5 w-3.5 mr-1.5 ${
+                  dark ? "text-blue-300" : "text-blue-500"
+                }`}
+              />
+              {badge}
+            </Badge>
+
+            <h2
+              className={`text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight leading-[1.1] ${
+                dark ? "text-white" : "text-gray-900"
+              }`}
+            >
+              {title}
+            </h2>
+
+            <p
+              className={`text-lg leading-relaxed max-w-lg ${
+                dark ? "text-gray-400" : "text-gray-500"
+              }`}
+            >
+              {description}
+            </p>
+
+            <ul className="space-y-3 pt-2">
+              {bullets.map((b, i) => (
+                <li
+                  key={i}
+                  className={`flex items-start gap-3 transition-all duration-500 ease-out ${
+                    visible
+                      ? "translate-y-0 opacity-100"
+                      : "translate-y-4 opacity-0"
+                  }`}
+                  style={{ transitionDelay: `${i * 100}ms` }}
+                >
+                  <div
+                    className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center mt-0.5 ${
+                      dark
+                        ? "bg-blue-500/20 text-blue-300"
+                        : "bg-blue-50 text-blue-600"
+                    }`}
+                  >
+                    <b.icon className="h-4 w-4" />
+                  </div>
+                  <span
+                    className={`text-sm leading-relaxed pt-1 ${
+                      dark ? "text-gray-300" : "text-gray-600"
+                    }`}
+                  >
+                    {b.text}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Media side */}
+          <div
+            className={`transition-all duration-700 ease-out delay-200 ${
+              visible
+                ? "translate-y-0 opacity-100"
+                : "translate-y-8 opacity-0"
+            } ${reversed ? "lg:order-1" : "lg:order-2"}`}
+          >
+            {media}
+          </div>
+        </div>
       </div>
-      <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-gray-50/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-    </div>
+    </section>
   );
 }
+
+/* ═══════════════════════════════════════
+   PORTAL CARD COMPONENT
+═══════════════════════════════════════ */
 
 function PortalCard({
   role,
@@ -312,6 +521,7 @@ function PortalCard({
   icon: Icon,
   stats,
   gradient,
+  delay,
 }: {
   role: string;
   href: string;
@@ -319,75 +529,146 @@ function PortalCard({
   icon: any;
   stats: string[];
   gradient: string;
+  delay: number;
 }) {
-  return (
-    <Link href={href} className="group block">
-      <div className="relative bg-white rounded-2xl border border-gray-100 p-6 hover:shadow-xl hover:border-gray-200 transition-all duration-300 hover:-translate-y-1 overflow-hidden">
-        {/* Gradient accent line */}
-        <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${gradient} opacity-60 group-hover:opacity-100 transition-opacity`} />
+  const { ref, visible } = useReveal(0.1);
 
-        <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-3">
-            <div
-              className={`inline-flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br ${gradient} shadow-sm`}
-            >
-              <Icon className="h-5 w-5 text-white" />
+  return (
+    <div
+      ref={ref}
+      className="group block transition-all duration-700 ease-out"
+      style={{
+        transform: visible ? "translateY(0)" : "translateY(24px)",
+        opacity: visible ? 1 : 0,
+        transitionDelay: `${delay}ms`,
+      }}
+    >
+      <Link href={href}>
+        <div className="relative bg-white rounded-2xl border border-gray-100 p-6 hover:shadow-xl hover:border-gray-200 transition-all duration-300 hover:-translate-y-1 overflow-hidden h-full">
+          <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${gradient} opacity-60 group-hover:opacity-100 transition-opacity`} />
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-3">
+              <div className={`inline-flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br ${gradient} shadow-sm`}>
+                <Icon className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+                  {role} Portal
+                </h3>
+                <Badge
+                  variant="outline"
+                  className="text-[10px] font-medium px-2 py-0 h-5 border-blue-200 text-blue-600 bg-blue-50/50"
+                >
+                  {role === "Admin" ? "Full Access" : role === "Teacher" ? "Instruction" : role === "Student" ? "Learning" : "Guardian"}
+                </Badge>
+              </div>
+              <ArrowUpRight className="h-4 w-4 text-gray-300 group-hover:text-blue-500 ml-auto transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
             </div>
-            <div>
-              <h3 className="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
-                {role} Portal
-              </h3>
-              <Badge
-                variant="outline"
-                className="text-[10px] font-medium px-2 py-0 h-5 border-blue-200 text-blue-600 bg-blue-50/50"
-              >
-                {role === "Admin"
-                  ? "Full Access"
-                  : role === "Teacher"
-                  ? "Instruction"
-                  : role === "Student"
-                  ? "Learning"
-                  : "Guardian"}
-              </Badge>
+            <p className="text-sm text-gray-500 leading-relaxed mb-4">{description}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {stats.map((s) => (
+                <span
+                  key={s}
+                  className="inline-flex items-center px-2.5 py-1 rounded-lg bg-gray-50 text-[11px] font-medium text-gray-600 border border-gray-100"
+                >
+                  {s}
+                </span>
+              ))}
             </div>
-            <ArrowUpRight className="h-4 w-4 text-gray-300 group-hover:text-blue-500 ml-auto transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-          </div>
-          <p className="text-sm text-gray-500 leading-relaxed mb-4">{description}</p>
-          <div className="flex flex-wrap gap-1.5">
-            {stats.map((s) => (
-              <span
-                key={s}
-                className="inline-flex items-center px-2.5 py-1 rounded-lg bg-gray-50 text-[11px] font-medium text-gray-600 border border-gray-100"
-              >
-                {s}
-              </span>
-            ))}
           </div>
         </div>
-      </div>
-    </Link>
+      </Link>
+    </div>
   );
 }
 
+/* ═══════════════════════════════════════
+   TESTIMONIAL CARD COMPONENT
+═══════════════════════════════════════ */
+
+function TestimonialCard({
+  quote,
+  author,
+  role,
+  delay,
+}: {
+  quote: string;
+  author: string;
+  role: string;
+  delay: number;
+}) {
+  const { ref, visible } = useReveal(0.15);
+
+  return (
+    <div
+      ref={ref}
+      className="relative bg-white rounded-2xl border border-gray-100 p-6 sm:p-8 transition-all duration-700 ease-out"
+      style={{
+        transform: visible ? "translateY(0)" : "translateY(24px)",
+        opacity: visible ? 1 : 0,
+        transitionDelay: `${delay}ms`,
+      }}
+    >
+      <Quote className="h-6 w-6 text-blue-200 mb-4" />
+      <p className="text-sm text-gray-600 leading-relaxed mb-6">
+        &ldquo;{quote}&rdquo;
+      </p>
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center text-white text-sm font-bold">
+          {author.charAt(0)}
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-gray-900">{author}</p>
+          <p className="text-xs text-gray-500">{role}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════
+   MAIN PAGE
+═══════════════════════════════════════ */
+
 export default function LandingPage() {
   const [mounted, setMounted] = useState(false);
+  const statsVisible = useReveal(0.3);
+
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  /* ── Scrolling stats counter ── */
+  const Counter = ({ end, suffix = "" }: { end: number; suffix?: string }) => {
+    const { ref: countRef, visible } = useReveal(0.5);
+    const val = useCountUp(end, 2200, visible);
+    return (
+      <span ref={countRef} className="text-3xl sm:text-4xl font-bold text-gray-900 mb-1">
+        {val}{suffix}
+      </span>
+    );
+  };
+
+  const stats = [
+    { end: 10000, suffix: "+", label: "Students Managed", icon: Users },
+    { end: 500, suffix: "+", label: "Schools Onboarded", icon: School },
+    { end: 50000, suffix: "+", label: "Reports Generated", icon: FileText },
+    { end: 99.9, suffix: "%", label: "Platform Uptime", icon: TrendingUp },
+  ];
 
   return (
     <div className="min-h-screen bg-white">
       <Navbar />
 
-      {/* ── Hero Section ── */}
-      <section className="relative pt-28 sm:pt-32 pb-20 sm:pb-28 overflow-hidden">
-        {/* Background decorative elements */}
+      {/* ═══════════════════════════════════════
+          HERO SECTION
+      ═══════════════════════════════════════ */}
+      <section className="relative pt-28 sm:pt-32 pb-16 sm:pb-24 overflow-hidden">
+        {/* Decorative bg */}
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-0 -right-40 w-[600px] h-[600px] rounded-full bg-gradient-to-br from-blue-50/80 to-purple-50/80 blur-3xl" />
+          <div className="absolute top-0 -right-40 w-[700px] h-[700px] rounded-full bg-gradient-to-br from-blue-50/80 to-purple-50/80 blur-3xl" />
           <div className="absolute -bottom-20 -left-40 w-[500px] h-[500px] rounded-full bg-gradient-to-tr from-emerald-50/80 to-cyan-50/80 blur-3xl" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full bg-gradient-to-r from-blue-50/30 to-indigo-50/30 blur-3xl" />
-
-          {/* Grid pattern overlay */}
+          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[900px] h-[900px] rounded-full bg-gradient-to-r from-blue-50/30 to-indigo-50/30 blur-3xl" />
           <div
             className="absolute inset-0 opacity-[0.015]"
             style={{
@@ -398,7 +679,7 @@ export default function LandingPage() {
         </div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-4xl mx-auto text-center">
+          <div className="max-w-4xl mx-auto text-center mb-12">
             {/* Badge */}
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-50 border border-blue-100 mb-6 animate-in fade-in duration-700">
               <Sparkles className="h-3.5 w-3.5 text-blue-500" />
@@ -408,16 +689,15 @@ export default function LandingPage() {
             </div>
 
             {/* Headline */}
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-gray-900 leading-[1.1] mb-6">
+            <h1 className="text-4xl sm:text-5xl lg:text-7xl font-bold tracking-tight text-gray-900 leading-[1.05] mb-6">
               One Platform to{" "}
-              <span className="bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-500 bg-clip-text text-transparent">
                 Manage Every School
               </span>
               <br />
               in Your Network
             </h1>
 
-            {/* Subtitle */}
             <p className="text-lg sm:text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed mb-10">
               A powerful, multi-tenant school management system designed for school groups,
               districts, and education organizations. Manage academics, operations, finance, and
@@ -444,7 +724,7 @@ export default function LandingPage() {
             </div>
 
             {/* Trust indicators */}
-            <div className="mt-12 flex flex-wrap items-center justify-center gap-6 sm:gap-10 text-sm text-gray-400">
+            <div className="mt-10 flex flex-wrap items-center justify-center gap-6 sm:gap-10 text-sm text-gray-400">
               <div className="flex items-center gap-1.5">
                 <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                 <span>No credit card required</span>
@@ -458,76 +738,46 @@ export default function LandingPage() {
                 <span>99.9% uptime SLA</span>
               </div>
             </div>
+          </div>
 
-            {/* Preview / Screenshot mockup */}
-            <div className="mt-16 relative">
-              <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent z-10 pointer-events-none" />
-              <div className="relative bg-gradient-to-b from-gray-50 to-white rounded-2xl border border-gray-100 shadow-2xl overflow-hidden">
-                <div className="flex items-center gap-1.5 px-4 py-3 bg-gray-50 border-b border-gray-100">
-                  <div className="w-3 h-3 rounded-full bg-red-400" />
-                  <div className="w-3 h-3 rounded-full bg-yellow-400" />
-                  <div className="w-3 h-3 rounded-full bg-emerald-400" />
-                  <span className="ml-3 text-[11px] text-gray-400 font-mono">schhub.app</span>
-                </div>
-                <div className="grid grid-cols-3 gap-px bg-gray-100">
-                  {/* Dashboard mockup */}
-                  <div className="col-span-2 bg-white p-6 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="h-4 w-32 bg-gray-200 rounded-full" />
-                      <div className="h-6 w-20 bg-blue-100 rounded-lg" />
-                    </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      {[60, 40, 80].map((pct, i) => (
-                        <div key={i} className="h-20 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 p-3">
-                          <div className="h-2 w-12 bg-gray-200 rounded-full mb-2" />
-                          <div className="h-5 w-16 bg-gray-300 rounded-full" />
-                        </div>
-                      ))}
-                    </div>
-                    <div className="h-32 rounded-xl bg-gradient-to-br from-blue-50/50 to-purple-50/50 border border-blue-100/50 p-4">
-                      <div className="flex items-center gap-4 h-full">
-                        <div className="w-1/2 space-y-2">
-                          <div className="h-2 w-20 bg-blue-200 rounded-full" />
-                          <div className="h-2 w-full bg-blue-100 rounded-full" />
-                          <div className="h-2 w-3/4 bg-blue-100 rounded-full" />
-                          <div className="h-2 w-1/2 bg-blue-100 rounded-full" />
-                        </div>
-                        <div className="w-1/2 h-full rounded-lg bg-gradient-to-t from-blue-200/50 to-transparent" />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="bg-white p-4 space-y-3 border-l border-gray-100">
-                    <div className="h-3 w-16 bg-gray-200 rounded-full" />
-                    {[
-                      { width: "w-20" },
-                      { width: "w-24" },
-                      { width: "w-32" },
-                      { width: "w-20" },
-                      { width: "w-28" },
-                    ].map((item, i) => (
-                      <div key={i} className="h-6 rounded-lg bg-gray-50 flex items-center px-2">
-                        <div className={`h-1.5 ${item.width} bg-gray-200 rounded-full`} />
-                      </div>
-                    ))}
-                    <div className="h-8 rounded-lg bg-blue-600 mt-4" />
-                  </div>
-                </div>
-              </div>
-            </div>
+          {/* Hero screenshot */}
+          <div className="max-w-5xl mx-auto">
+            <BrowserFrame
+              src="/landing/hero-dashboard.png"
+              gradient="from-blue-600 via-indigo-600 to-purple-700"
+              icon={BarChart3}
+              label="Admin Dashboard Overview"
+              aspectRatio="aspect-[16/9.5]"
+            />
           </div>
         </div>
       </section>
 
-      {/* ── Stats Section ── */}
+      {/* ═══════════════════════════════════════
+          STATS SECTION
+      ═══════════════════════════════════════ */}
       <section className="py-16 sm:py-20 bg-gradient-to-b from-gray-50 to-white border-y border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-10">
-            {stats.map((stat) => (
-              <div key={stat.label} className="text-center group">
+          <div
+            ref={statsVisible.ref}
+            className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-10"
+          >
+            {stats.map((stat, i) => (
+              <div
+                key={stat.label}
+                className={`text-center group transition-all duration-700 ease-out ${
+                  statsVisible.visible
+                    ? "translate-y-0 opacity-100"
+                    : "translate-y-8 opacity-0"
+                }`}
+                style={{ transitionDelay: `${i * 150}ms` }}
+              >
                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-blue-50 mb-3 group-hover:bg-blue-100 transition-colors">
                   <stat.icon className="h-6 w-6 text-blue-600" />
                 </div>
-                <div className="text-3xl sm:text-4xl font-bold text-gray-900 mb-1">{stat.value}</div>
+                <div className="text-3xl sm:text-4xl font-bold text-gray-900 mb-1">
+                  <Counter end={stat.end} suffix={stat.suffix} />
+                </div>
                 <div className="text-sm text-gray-500 font-medium">{stat.label}</div>
               </div>
             ))}
@@ -535,35 +785,169 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Features Section ── */}
-      <section id="features" className="py-20 sm:py-28">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-2xl mx-auto text-center mb-14 sm:mb-16">
-            <Badge
-              variant="outline"
-              className="mb-4 px-4 py-1.5 border-blue-200 text-blue-600 bg-blue-50/50 text-xs font-medium"
-            >
-              <Award className="h-3.5 w-3.5 mr-1.5" />
-              Everything You Need
-            </Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-              Powerful Features for Modern Schools
-            </h2>
-            <p className="text-gray-500 leading-relaxed">
-              From curriculum planning to financial management, School Hub provides a complete
-              toolkit to run your educational institution efficiently.
-            </p>
-          </div>
+      {/* ═══════════════════════════════════════
+          FEATURE SECTIONS
+      ═══════════════════════════════════════ */}
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
-            {features.map((feature) => (
-              <FeatureCard key={feature.title} {...feature} />
-            ))}
+      {/* ── 1. School Website Builder ── */}
+      <FeatureSection
+        id="features"
+        badge="No-Code Website Builder"
+        title="Give Your School a Professional Online Presence in Minutes"
+        description="Create stunning school websites without a single line of code. Showcase admissions, alumni achievements, facilities, faculty, and more — all managed from one dashboard."
+        bullets={[
+          { icon: Globe, text: "Fully customizable school website with drag-and-drop sections" },
+          { icon: UserCheck, text: "Admissions portal, alumni showcase, faculty directory, and gallery" },
+          { icon: MapPin, text: "Auto-generated contact pages with maps, hours, and social links" },
+          { icon: Palette, text: "Multiple color themes, custom branding, and mobile-responsive design" },
+        ]}
+        media={
+          <div className="flex items-end justify-center gap-4">
+            <div className="flex-1">
+              <BrowserFrame
+                src="/landing/school-website.png"
+                gradient="from-emerald-600 to-teal-600"
+                icon={Globe}
+                label="Generated School Website"
+              />
+            </div>
+            <div className="hidden sm:block w-1/3 -mb-4">
+              <PhoneFrame
+                src="/landing/school-website.png"
+                gradient="from-emerald-700 to-teal-700"
+                icon={Smartphone}
+                label="Mobile View"
+              />
+            </div>
           </div>
-        </div>
-      </section>
+        }
+      />
 
-      {/* ── Portal Access Section ── */}
+      {/* ── 2. AI-Powered Tools ── */}
+      <FeatureSection
+        reversed
+        dark
+        badge="AI-Powered Platform"
+        title="AI That Works For Your School — From Lesson Notes to Chatbots"
+        description="Leverage artificial intelligence to reduce teacher workload, generate question banks, create lesson notes, and provide instant answers to parents and students through an intelligent chatbot."
+        bullets={[
+          { icon: Bot, text: "School Deck AI — chat with your school data for instant insights" },
+          { icon: BookOpen, text: "AI-powered question bank generator from any topic or subject" },
+          { icon: FileText, text: "Automated lesson note creation aligned with your curriculum" },
+          { icon: MessageSquare, text: "AI chatbot for student & parent inquiries — available 24/7" },
+        ]}
+        media={
+          <BrowserFrame
+            src="/landing/ai-chat.png"
+            gradient="from-blue-700 via-indigo-700 to-purple-800"
+            icon={Bot}
+            label="School Deck AI Chat Interface"
+          />
+        }
+      />
+
+      {/* ── 3. JAMB CBT System ── */}
+      <FeatureSection
+        badge="JAMB CBT Simulator"
+        title="The Most Comprehensive JAMB Practice Platform in Nigeria"
+        description="Give your students access to 30,000+ past questions spanning from 1987 to date across all UTME subjects. Real exam simulation with timed tests, instant scoring, and performance analytics."
+        bullets={[
+          { icon: BookOpen, text: "Complete question bank: 1987 — present, all JAMB subjects" },
+          { icon: Clock, text: "Realistic exam simulation with timer, navigation, and auto-submit" },
+          { icon: BarChart3, text: "Detailed performance analytics by subject, topic, and difficulty" },
+          { icon: Shield, text: "Admin-controlled access — grant/revoke practice permissions per student" },
+        ]}
+        media={
+          <BrowserFrame
+            src="/landing/jamb-cbt.png"
+            gradient="from-orange-600 to-red-600"
+            icon={GraduationCap}
+            label="JAMB CBT Exam Interface"
+          />
+        }
+      />
+
+      {/* ── 4. Smart Communication & Attendance ── */}
+      <FeatureSection
+        reversed
+        dark
+        badge="Multi-Channel Communication"
+        title="Reach Everyone, Everywhere — Instantly"
+        description="Communicate with parents, teachers, and students through every channel imaginable. Push notifications, SMS, WhatsApp, and email — all from one dashboard. Plus, QR-based attendance that takes seconds."
+        bullets={[
+          { icon: Bell, text: "Multi-channel alerts: Push, SMS, WhatsApp, and Email — all unified" },
+          { icon: MessageSquare, text: "Bulk broadcasts and targeted messages by class, level, or group" },
+          { icon: QrCode, text: "QR code attendance scanning — paperless, 2-second check-in" },
+          { icon: TrendingUp, text: "Real-time attendance analytics with auto-parent notifications" },
+        ]}
+        media={
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <BrowserFrame
+                src="/landing/notifications.png"
+                gradient="from-cyan-600 to-blue-600"
+                icon={Bell}
+                label="Notification Center"
+              />
+            </div>
+            <div className="hidden sm:block w-1/3 -mb-8">
+              <PhoneFrame
+                src="/landing/attendance-qr.png"
+                gradient="from-cyan-700 to-blue-700"
+                icon={QrCode}
+                label="QR Attendance"
+              />
+            </div>
+          </div>
+        }
+      />
+
+      {/* ── 5. Finance & Payroll ── */}
+      <FeatureSection
+        badge="Finance & Payroll"
+        title="No More Confusion — Complete Financial Clarity"
+        description="Powered by Paystack, our finance module eliminates payment confusion. Track who has paid, who hasn't, manage teacher payroll, generate invoices, and get real-time financial reports."
+        bullets={[
+          { icon: CreditCard, text: "Paystack-powered payment processing — secure, reliable, familiar" },
+          { icon: Wallet, text: "Student fee management: track balances, due dates, and payment history" },
+          { icon: Users, text: "Teacher payroll automation with deductions, bonuses, and payslips" },
+          { icon: BarChart3, text: "Financial dashboards with revenue trends, expense tracking, and reports" },
+        ]}
+        media={
+          <BrowserFrame
+            src="/landing/finance.png"
+            gradient="from-amber-600 to-orange-600"
+            icon={Wallet}
+            label="Finance Dashboard"
+          />
+        }
+      />
+
+      {/* ── 6. Smart Timetable + Parent Portal ── */}
+      <FeatureSection
+        reversed
+        badge="AI Timetable & Parent Portal"
+        title="AI-Powered Scheduling & Total Parental Involvement"
+        description="Eliminate timetable clashes with our intelligent scheduling engine. Meanwhile, parents stay fully informed with instant attendance alerts, real-time result display, and downloadable report cards."
+        bullets={[
+          { icon: CalendarCheck, text: "AI timetable generation with automatic clash detection & resolution" },
+          { icon: HeartHandshake, text: "Parent portal: attendance notifications, results, and report cards" },
+          { icon: TrendingUp, text: "Real-time student performance tracking across all assessments" },
+          { icon: FileText, text: "Automated PDF report cards with branding and term-by-term comparison" },
+        ]}
+        media={
+          <BrowserFrame
+            src="/landing/timetable.png"
+            gradient="from-violet-600 to-indigo-600"
+            icon={CalendarCheck}
+            label="AI Timetable & Parent Dashboard"
+          />
+        }
+      />
+
+      {/* ═══════════════════════════════════════
+          PORTAL CARDS SECTION (condensed)
+      ═══════════════════════════════════════ */}
       <section id="portals" className="py-20 sm:py-28 bg-gradient-to-b from-gray-50 to-white border-y border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-2xl mx-auto text-center mb-14 sm:mb-16">
@@ -584,109 +968,95 @@ export default function LandingPage() {
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {portals.map((portal) => (
-              <PortalCard key={portal.role} {...portal} />
+            {[
+              {
+                role: "Admin",
+                href: "/admin/login",
+                description: "Full administrative control — manage users, configure academic structure, oversee operations, and generate institutional reports.",
+                icon: School,
+                stats: ["School Config", "Staff Management", "Finance", "Analytics"],
+                gradient: "from-slate-900 to-slate-700",
+              },
+              {
+                role: "Teacher",
+                href: "/teacher/login",
+                description: "Manage classes, record assessments, track attendance, communicate with parents, and monitor student progress daily.",
+                icon: UserCheck,
+                stats: ["Gradebook", "Attendance", "Lesson Plans", "Analytics"],
+                gradient: "from-blue-700 to-blue-500",
+              },
+              {
+                role: "Student",
+                href: "/student/login",
+                description: "View grades, check timetables, track attendance records, access learning materials, and receive school announcements.",
+                icon: GraduationCap,
+                stats: ["Results", "Timetable", "Assignments", "Progress"],
+                gradient: "from-emerald-700 to-emerald-500",
+              },
+              {
+                role: "Parent",
+                href: "/parent/login",
+                description: "Stay connected with your child's academic journey — monitor performance, attendance, fee status, and school communications.",
+                icon: HeartHandshake,
+                stats: ["Performance", "Attendance", "Payments", "Messages"],
+                gradient: "from-amber-700 to-amber-500",
+              },
+            ].map((portal, i) => (
+              <PortalCard key={portal.role} {...portal} delay={i * 100} />
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── About Section ── */}
-      <section id="about" className="py-20 sm:py-28">
+      {/* ═══════════════════════════════════════
+          TESTIMONIAL SECTION
+      ═══════════════════════════════════════ */}
+      <section className="py-20 sm:py-28 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-            <div>
-              <Badge
-                variant="outline"
-                className="mb-4 px-4 py-1.5 border-emerald-200 text-emerald-600 bg-emerald-50/50 text-xs font-medium"
-              >
-                <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-                Why School Hub?
-              </Badge>
-              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-                Built for School Groups &amp; Multi-Campus Networks
-              </h2>
-              <p className="text-gray-500 leading-relaxed mb-6">
-                School Hub is purpose-built for education organizations that manage multiple schools.
-                Each school gets its own isolated environment with shared oversight, centralized
-                reporting, and consistent academic standards across the network.
-              </p>
+          <div className="max-w-2xl mx-auto text-center mb-14 sm:mb-16">
+            <Badge
+              variant="outline"
+              className="mb-4 px-4 py-1.5 border-amber-200 text-amber-600 bg-amber-50/50 text-xs font-medium"
+            >
+              <Quote className="h-3.5 w-3.5 mr-1.5" />
+              Trusted by School Networks
+            </Badge>
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+              What School Leaders Say
+            </h2>
+            <p className="text-gray-500 leading-relaxed">
+              Schools across Nigeria trust School Hub to streamline operations and improve outcomes.
+            </p>
+          </div>
 
-              <div className="space-y-4">
-                {[
-                  { icon: Layers, text: "Fully isolated multi-tenant data architecture" },
-                  { icon: Shield, text: "Role-based permissions with granular access control" },
-                  { icon: TrendingUp, text: "Cross-school analytics and comparative reporting" },
-                  { icon: MessageSquare, text: "Unified communication across all stakeholders" },
-                ].map((item) => (
-                  <div key={item.text} className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center mt-0.5">
-                      <item.icon className="h-4 w-4 text-blue-600" />
-                    </div>
-                    <span className="text-sm text-gray-600 pt-1.5">{item.text}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="relative">
-              {/* Decorative elements */}
-              <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 blur-2xl opacity-60" />
-              <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-gradient-to-tr from-emerald-100 to-cyan-100 blur-2xl opacity-60" />
-
-              <div className="relative bg-gradient-to-br from-gray-50 to-white rounded-2xl border border-gray-100 p-8 shadow-lg">
-                <div className="space-y-6">
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-600 shadow-md">
-                      <GraduationCap className="h-5 w-5 text-white" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-semibold text-gray-900">Centralized Dashboard</div>
-                      <div className="text-xs text-gray-400">Monitor all schools from one place</div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { label: "Total Schools", value: "12" },
-                      { label: "Active Students", value: "8,450" },
-                      { label: "Staff Members", value: "520" },
-                      { label: "Avg. Pass Rate", value: "87%" },
-                    ].map((d) => (
-                      <div
-                        key={d.label}
-                        className="bg-white rounded-xl border border-gray-100 p-3.5"
-                      >
-                        <div className="text-xs text-gray-400 mb-0.5">{d.label}</div>
-                        <div className="text-lg font-bold text-gray-900">{d.value}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="h-24 rounded-xl bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100/50 p-4">
-                    <div className="text-xs font-medium text-gray-500 mb-2">
-                      Performance Trend
-                    </div>
-                    <div className="flex items-end gap-2 h-14">
-                      {[35, 50, 45, 65, 55, 75, 70, 85, 80, 90, 88, 95].map((h, i) => (
-                        <div
-                          key={i}
-                          className="flex-1 rounded-t bg-gradient-to-t from-blue-400 to-blue-300 transition-all duration-500"
-                          style={{ height: `${h}%` }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              {
+                quote: "School Hub transformed how we manage our three campuses. The multi-tenant architecture means each school has autonomy while I get a bird's-eye view of everything.",
+                author: "Dr. Adebayo O.",
+                role: "Executive Director, 3-Campus School Network",
+              },
+              {
+                quote: "The JAMB CBT simulator alone was worth it. Our students went from struggling with the computer-based format to scoring consistently above 280. The AI lesson notes saved our teachers hours every week.",
+                author: "Mrs. Chidinma E.",
+                role: "Principal, Premier Secondary School",
+              },
+              {
+                quote: "Finance used to be our biggest headache. Now with Paystack integration and the billing module, we know exactly who has paid and who hasn't. Parent complaints about fees dropped by 80%.",
+                author: "Mr. Ibrahim S.",
+                role: "School Business Manager",
+              },
+            ].map((t, i) => (
+              <TestimonialCard key={i} {...t} delay={i * 150} />
+            ))}
           </div>
         </div>
       </section>
 
-      {/* ── CTA Section ── */}
+      {/* ═══════════════════════════════════════
+          CTA SECTION
+      ═══════════════════════════════════════ */}
       <section className="py-20 sm:py-28 bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 relative overflow-hidden">
-        {/* Decorative dots */}
         <div
           className="absolute inset-0 opacity-[0.04]"
           style={{
@@ -729,7 +1099,9 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Footer ── */}
+      {/* ═══════════════════════════════════════
+          FOOTER
+      ═══════════════════════════════════════ */}
       <footer className="bg-gray-900 border-t border-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12">
@@ -745,17 +1117,11 @@ export default function LandingPage() {
                 A comprehensive multi-tenant school management platform for modern education
                 organizations.
               </p>
-              <div className="flex items-center gap-3">
-                {[
-                  { icon: Star, color: "text-yellow-400" },
-                  { icon: Star, color: "text-yellow-400" },
-                  { icon: Star, color: "text-yellow-400" },
-                  { icon: Star, color: "text-yellow-400" },
-                  { icon: Star, color: "text-gray-600" },
-                ].map((s, i) => (
-                  <s.icon key={i} className={`h-4 w-4 ${s.color}`} />
+              <div className="flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map((s) => (
+                  <Star key={s} className={`h-4 w-4 ${s <= 4 ? "text-yellow-400 fill-yellow-400" : "text-gray-600"}`} />
                 ))}
-                <span className="text-xs text-gray-500 ml-1">4.8/5</span>
+                <span className="text-xs text-gray-500 ml-2">4.8/5</span>
               </div>
             </div>
 
@@ -770,7 +1136,6 @@ export default function LandingPage() {
                   { label: "Pricing", href: "/subscription" },
                   { label: "Register your school", href: "/register" },
                   { label: "Integrations", href: "#" },
-                  { label: "Changelog", href: "#" },
                   { label: "API Docs", href: "#" },
                 ].map((item) => (
                   <li key={item.label}>

@@ -113,8 +113,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                         first_name,
                         last_name,
                         student_id,
-                        gender,
-                        photo_url
+                        gender
                     )
                 `)
                 .eq("subject_class_id", subjectClassId)
@@ -175,7 +174,6 @@ export default function SubjectAnalyticsPage({ params }: any) {
                         id: r.id,
                         name: `${student.first_name} ${student.last_name}`,
                         student_id: student.student_id,
-                        photo_url: student.photo_url,
                         gender: student.gender,
                         ...componentScoresObj,
                         total: totalScore,
@@ -211,7 +209,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
             // Fetch results without total (it doesn't exist in table)
             let query: any = supabase
                 .from("results")
-                .select(`id, grade, student_id, session_id, term_id, students(first_name, last_name, student_id, gender, photo_url)`)
+                .select(`id, grade, student_id, session_id, term_id, students(first_name, last_name, student_id, gender)`)
                 .eq("subject_class_id", subjectClassId)
                 .eq('school_id', schoolId);
 
@@ -666,15 +664,16 @@ export default function SubjectAnalyticsPage({ params }: any) {
 
                                                     <div className="flex items-center gap-3">
                                                         <Avatar>
-                                                            <AvatarImage
-                                                                src={
-                                                                    s.photo_url
-                                                                        ? s.photo_url
-                                                                        : s.gender === "male"
-                                                                            ? "/male-avatar.jpg"
-                                                                            : "/female-avatar.jpg"
-                                                                }
-                                                            />
+                                                        <AvatarImage
+                                                            src={
+                                                                s.gender === "male"
+                                                                    ? "/male-avatar.jpg"
+                                                                    : "/female-avatar.jpg"
+                                                            }
+                                                        />
+                                                        <AvatarFallback className="bg-blue-100 text-blue-700 text-xs">
+                                                            {s.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
+                                                        </AvatarFallback>
                                                         </Avatar>
                                                         <div>
                                                             <div className="font-medium">
@@ -774,15 +773,13 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                                 <tr key={r.id} className="border-t bg-red-50/30">
                                                     <td className="p-2 flex items-center gap-3">
                                                         <Avatar>
-                                                            <AvatarImage
-                                                                src={
-                                                                    r.students.photo_url
-                                                                        ? r.students.photo_url
-                                                                        : r.students.gender === "male"
-                                                                            ? "/male-avatar.jpg"
-                                                                            : "/female-avatar.jpg"
-                                                                }
-                                                            />
+                                                        <AvatarImage
+                                                            src={
+                                                                r.students.gender === "male"
+                                                                    ? "/male-avatar.jpg"
+                                                                    : "/female-avatar.jpg"
+                                                            }
+                                                        />
 
                                                             <AvatarFallback className="bg-blue-100 text-blue-700">
                                                                 {r.students.first_name.charAt(0)}

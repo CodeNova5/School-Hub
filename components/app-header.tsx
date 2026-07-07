@@ -439,15 +439,113 @@ function NotificationBell({ role }: { role: AppHeaderProps["role"] }) {
 }
 
 /* ───────────────────────────────────────────
+   useUserProfile — fetch real name & avatar from DB
+   ─────────────────────────────────────────── */
+
+interface UserProfile {
+  fullName: string;
+  avatarUrl: string | null;
+  initials: string;
+}
+
+function useUserProfile(role: AppHeaderProps["role"]): {
+  profile: UserProfile | null;
+  loading: boolean;
+} {
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user?.id) {
+      setProfile(null);
+      setLoading(false);
+      return;
+    }
+
+    const fetchUserProfile = async () => {
+      try {
+        setLoading(true);
+        let fullName = user?.email?.split("@")[0] || "User";
+        let avatarUrl: string | null = null;
+
+        if (role === "teacher") {
+          const { data } = await supabase
+            .from("teachers")
+            .select("first_name, last_name, photo_url")
+            .eq("user_id", user!.id)
+            .maybeSingle();
+          if (data) {
+            fullName = `${data.first_name} ${data.last_name}`;
+            avatarUrl = data.photo_url || null;
+          }
+        } else if (role === "student") {
+          const { data } = await supabase
+            .from("students")
+            .select("first_name, last_name, photo_url, image_url")
+            .eq("user_id", user!.id)
+            .maybeSingle();
+          if (data) {
+            fullName = `${data.first_name} ${data.last_name}`;
+            avatarUrl = data.photo_url || data.image_url || null;
+          }
+        } else if (role === "parent") {
+          const { data } = await supabase
+            .from("parents")
+            .select("name")
+            .eq("user_id", user!.id)
+            .maybeSingle();
+          if (data?.name) {
+            fullName = data.name;
+          }
+        } else if (role === "admin") {
+          const { data } = await supabase
+            .from("admins")
+            .select("name")
+            .eq("user_id", user!.id)
+            .maybeSingle();
+          if (data?.name) {
+            fullName = data.name;
+          }
+        }
+
+        setProfile({
+          fullName,
+          avatarUrl,
+          initials: getInitials(fullName),
+        });
+      } catch (err) {
+        console.error("Error fetching user profile:", err);
+        // Fallback to email prefix
+        const fallback = user?.email?.split("@")[0] || "User";
+        setProfile({
+          fullName: fallback,
+          avatarUrl: null,
+          initials: getInitials(fallback),
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserProfile();
+  }, [user?.id, role]);
+
+  return { profile, loading };
+}
+
+/* ───────────────────────────────────────────
    Profile Dropdown
    ─────────────────────────────────────────── */
 
 function ProfileDropdown({ role }: { role: AppHeaderProps["role"] }) {
-  const { user, isLoading: authLoading } = useAuth();
+  const { user } = useAuth();
+  const { profile, loading } = useUserProfile(role);
   const router = useRouter();
 
-  const displayName = user?.email?.split("@")[0] || "User";
-  const initials = getInitials(displayName);
+  const displayName = profile?.fullName || user?.email?.split("@")[0] || "User";
+  const initials = profile?.initials || getInitials(displayName);
+  const avatarUrl = profile?.avatarUrl || null;
   const roleLabel = ROLE_LABELS[role] || role;
 
   const handleSignOut = async () => {
@@ -467,14 +565,16 @@ function ProfileDropdown({ role }: { role: AppHeaderProps["role"] }) {
           )}
         >
           <Avatar className="h-7 w-7">
-            <AvatarImage src="" alt={displayName} />
+            {avatarUrl ? (
+              <AvatarImage src={avatarUrl} alt={displayName} />
+            ) : null}
             <AvatarFallback className="text-[11px] font-semibold bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-              {initials}
+              {loading ? ".." : initials}
             </AvatarFallback>
           </Avatar>
           <div className="hidden md:flex flex-col items-start">
             <span className="text-sm font-medium text-slate-900 leading-tight max-w-[120px] truncate">
-              {displayName}
+              {loading ? "..." : displayName}
             </span>
             <span className="text-[10px] text-slate-500 leading-tight uppercase tracking-wider font-medium">
               {roleLabel}
@@ -491,14 +591,16 @@ function ProfileDropdown({ role }: { role: AppHeaderProps["role"] }) {
         <DropdownMenuLabel className="font-normal p-3">
           <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10">
-              <AvatarImage src="" alt={displayName} />
+              {avatarUrl ? (
+                <AvatarImage src={avatarUrl} alt={displayName} />
+              ) : null}
               <AvatarFallback className="bg-gradient-to-br from-blue-500 to-blue-600 text-white font-semibold">
-                {initials}
+                {loading ? ".." : initials}
               </AvatarFallback>
             </Avatar>
             <div className="flex flex-col">
               <span className="text-sm font-medium text-slate-900">
-                {displayName}
+                {loading ? "Loading..." : displayName}
               </span>
               <span className="text-xs text-slate-500 truncate max-w-[150px]">
                 {user?.email || ""}

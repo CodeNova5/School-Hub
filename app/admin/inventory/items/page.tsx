@@ -456,7 +456,8 @@ export default function InventoryItemsPage() {
 
         {/* Tabs */}
         <Tabs defaultValue={defaultTab} onValueChange={(v) => {
-          router.push(`/admin/inventory/items?tab=${v}`, { scroll: false });
+          // Update URL without triggering navigation/reload
+          window.history.replaceState(null, '', `/admin/inventory/items?tab=${v}`);
           if (v === "transactions") fetchTransactions();
           if (v === "assets") fetchAssets();
         }}>

@@ -15,6 +15,11 @@ DECLARE
   v_user_id      uuid;
   v_admin_id     uuid;
 BEGIN
+  -- First check that the inventory tables exist (migration 06 must be run first)
+  IF to_regclass('public.inventory_items') IS NULL THEN
+    RAISE EXCEPTION 'Inventory tables not found. Please run the 06-inventory-management.sql migration first.';
+  END IF;
+
   -- Get the first school (or the one you want to demo with)
   SELECT id, name INTO v_school_id, v_school_name
   FROM schools

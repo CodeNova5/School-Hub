@@ -158,26 +158,67 @@ export default function AdminInventoryDashboard() {
           </Alert>
         )}
 
-        {/* Low Stock Alert */}
+        {/* Low Stock Alert — Integrated Card */}
         {lowStockItems.length > 0 && (
-          <Alert className="border-amber-200 bg-amber-50">
-            <AlertTriangle className="h-5 w-5 text-amber-600" />
-            <AlertTitle className="text-amber-900">
-              {lowStockItems.length} {lowStockItems.length === 1 ? "item" : "items"} below threshold
-            </AlertTitle>
-            <AlertDescription className="text-amber-800">
-              {lowStockItems.slice(0, 3).map((item) => (
-                <span key={item.id} className="block text-sm">
-                  {item.name} — {item.stock_count} left (threshold: {item.low_stock_threshold})
-                </span>
-              ))}
-              {lowStockItems.length > 3 && (
-                <span className="block text-sm font-medium mt-1">
-                  +{lowStockItems.length - 3} more items
-                </span>
-              )}
-            </AlertDescription>
-          </Alert>
+          <Card className="border-l-4 border-l-amber-500 shadow-md overflow-hidden">
+            <div className="flex items-start gap-4 p-5 bg-gradient-to-r from-amber-50 to-white">
+              <div className="flex-shrink-0 p-2.5 rounded-full bg-amber-100">
+                <AlertTriangle className="h-5 w-5 text-amber-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <h3 className="text-base font-semibold text-amber-900">
+                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-200 text-amber-800 text-sm font-bold mr-2">
+                      {lowStockItems.length}
+                    </span>
+                    {lowStockItems.length === 1 ? "Item" : "Items"} Below Threshold
+                  </h3>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-amber-700 hover:text-amber-900 hover:bg-amber-100"
+                    onClick={() => router.push("/admin/inventory/items")}
+                  >
+                    Restock <ArrowRight className="h-3 w-3 ml-1" />
+                  </Button>
+                </div>
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {lowStockItems.slice(0, 6).map((item) => {
+                    const pct = Math.round((item.stock_count / item.low_stock_threshold) * 100);
+                    const barColor = pct < 25 ? 'bg-red-500' : pct < 50 ? 'bg-amber-500' : 'bg-yellow-500';
+                    return (
+                      <div
+                        key={item.id}
+                        className="flex items-center gap-3 p-2.5 rounded-lg bg-white border border-amber-200 hover:border-amber-300 hover:shadow-sm transition-all"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full ${barColor} rounded-full transition-all`}
+                                style={{ width: `${Math.min(pct, 100)}%` }}
+                              />
+                            </div>
+                            <span className="text-xs font-semibold text-amber-700 whitespace-nowrap">
+                              {item.stock_count} / {item.low_stock_threshold}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {lowStockItems.length > 6 && (
+                    <div className="flex items-center justify-center p-2.5 rounded-lg bg-white border border-amber-200 border-dashed">
+                      <p className="text-sm text-amber-700 font-medium">
+                        +{lowStockItems.length - 6} more
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </Card>
         )}
 
         {/* Stats Grid */}

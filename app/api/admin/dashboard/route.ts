@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { checkIsAdminWithSchool, errorResponse, successResponse } from "@/lib/api-helpers";
 
+export const dynamic = "force-dynamic";
+
 // GET: Fetch dashboard statistics
 export async function GET(req: NextRequest) {
   const permission = await checkIsAdminWithSchool();

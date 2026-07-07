@@ -58,11 +58,6 @@ export default function SubjectAnalyticsPage({ params }: any) {
         if (!schoolId) return;
         setIsLoading(true);
 
-        // Read URL params to restore filter state on refresh
-        const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-        const urlSession = urlParams?.get('session');
-        const urlTerm = urlParams?.get('term');
-
         // Load result components first
         const { data: componentData } = await supabase
             .from("result_component_templates")
@@ -73,6 +68,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
 
         setResultComponents(componentData || []);
 
+        // Fetch sessions, terms, and subject class from DB
         const { data: sessionData } = await supabase.from("sessions").select("*").eq('school_id', schoolId).order("name");
         const { data: termData } = await supabase.from("terms").select("*").eq('school_id', schoolId).order("name");
         const { data: subjectClass } = await supabase
@@ -88,22 +84,31 @@ export default function SubjectAnalyticsPage({ params }: any) {
         setTerms(termData || []);
         setSubject(subjectClass || null);
 
+        // Determine selected session & term:
+        // 1. Start with DB defaults (is_current)
+        // 2. Optionally override with URL params if they're non-empty and reference a valid DB record
         const currentSession = sessionData?.find((s: any) => s.is_current);
         const currentTerm = termData?.find((t: any) => t.is_current);
 
-        // Prefer URL params over DB defaults (user may have navigated away from current session/term)
-        const sessionId = (urlSession && sessionData?.find((s: any) => s.id === urlSession))
-            ? urlSession
-            : (currentSession?.id || "");
-        const termId = (urlTerm && termData?.find((t: any) => t.id === urlTerm))
-            ? urlTerm
-            : (currentTerm?.id || "");
+        let sessionId = currentSession?.id || "";
+        let termId = currentTerm?.id || "";
+
+        const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+        const urlSession = urlParams?.get('session')?.trim();
+        const urlTerm = urlParams?.get('term')?.trim();
+
+        if (urlSession && sessionData?.find((s: any) => s.id === urlSession)) {
+            sessionId = urlSession;
+        }
+        if (urlTerm && termData?.find((t: any) => t.id === urlTerm)) {
+            termId = urlTerm;
+        }
 
         setSelectedSession(sessionId);
         setSelectedTerm(termId);
 
-        // Sync URL with the selected values
-        const params = new URLSearchParams(window.location.search);
+        // Sync URL to reflect the actual selected values (for bookmarking / sharing)
+        const params = new URLSearchParams();
         params.set('session', sessionId);
         params.set('term', termId);
         router.replace(`?${params.toString()}`, { scroll: false });

@@ -1156,12 +1156,12 @@ function ClassCardsGrid({
             </button>
           )}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {sorted.map(([id, summary], idx) => (
             <ClassCard key={id} id={id} summary={summary} rank={idx + 1} total={classCount} />
           ))}
         </div>
-      </div>
     </div>
   );
 }

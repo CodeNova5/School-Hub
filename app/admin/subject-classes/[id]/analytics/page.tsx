@@ -471,13 +471,17 @@ export default function SubjectAnalyticsPage({ params }: any) {
               <BookOpen className="h-4 w-4" />
               <span>Subject Analytics</span>
             </div>
-            <h1 className="text-2xl font-bold tracking-tight">{subject?.subject?.name || "Subject"}</h1>
-            <p className="text-sm text-muted-foreground">
-              {subject?.class?.name} {subject?.class?.level ? `(${subject.class.level})` : ""}
-              {subject?.subject_code && (
-                <Badge variant="outline" className="ml-2 text-[10px] font-mono">{subject.subject_code}</Badge>
+            <h1 className="text-2xl font-bold tracking-tight flex flex-wrap items-center gap-2">
+              <span>{subject?.subject?.name || "Subject"}</span>
+              <span className="text-lg font-normal text-muted-foreground">—</span>
+              <span className="text-lg font-semibold">{subject?.class?.name || ""}</span>
+              {subject?.class?.level && (
+                <span className="text-lg font-normal text-muted-foreground">({subject.class.level})</span>
               )}
-            </p>
+              {subject?.subject_code && (
+                <Badge variant="outline" className="text-[10px] font-mono">{subject.subject_code}</Badge>
+              )}
+            </h1>
           </div>
           {(currentSessionName || currentTermName) && (
             <div className="flex items-center gap-1.5">
@@ -571,11 +575,11 @@ export default function SubjectAnalyticsPage({ params }: any) {
           <StatCard icon={TrendingDown} value={lowestScore} label="Lowest Score" color="red" />
         </div>
 
-        {/* ═══ TREND CHARTS (previously hidden) ═══ */}
+        {/* ═══ TREND CHARTS ═══ */}
         {sessionTrend.length > 1 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div key={`trends-${dataVersion}`} className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Session Trend */}
-            <Card>
+            <Card className="chart-enter">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
                   <BarChart3 className="h-4 w-4 text-primary" />
@@ -590,7 +594,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                     <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
                     <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 13 }}
                       formatter={(value: any) => [`${value}`, "Avg Score"]} />
-                    <Bar dataKey="avg" radius={[4, 4, 0, 0]} fill="#8b5cf6" />
+                    <Bar dataKey="avg" radius={[4, 4, 0, 0]} fill="#8b5cf6" animationBegin={0} animationDuration={600} animationEasing="ease-out" />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -598,7 +602,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
 
             {/* Term Trend */}
             {termTrend.length > 1 && (
-              <Card>
+              <Card className="chart-enter" style={{ animationDelay: "80ms" }}>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm font-semibold flex items-center gap-2">
                     <TrendingUp className="h-4 w-4 text-primary" />
@@ -613,7 +617,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                       <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
                       <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 13 }}
                         formatter={(value: any) => [`${value}`, "Avg Score"]} />
-                      <Bar dataKey="avg" radius={[4, 4, 0, 0]} fill="#06b6d4" />
+                      <Bar dataKey="avg" radius={[4, 4, 0, 0]} fill="#06b6d4" animationBegin={150} animationDuration={600} animationEasing="ease-out" />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -623,9 +627,9 @@ export default function SubjectAnalyticsPage({ params }: any) {
         )}
 
         {/* ═══ GRADE DISTRIBUTION + GENDER ═══ */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div key={`charts-${dataVersion}`} className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Grade Distribution */}
-          <Card>
+          <Card className="chart-enter">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -648,7 +652,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                       const pct = results.length > 0 ? ((value / results.length) * 100).toFixed(1) : "0";
                       return [`${value} (${pct}%)`, props.payload.grade];
                     }} />
-                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                  <Bar dataKey="count" radius={[4, 4, 0, 0]} animationBegin={0} animationDuration={700} animationEasing="ease-out">
                     {gradeDistribution.map((entry) => (
                       <Cell key={entry.grade} fill={GRADE_COLORS[entry.grade] || "#94a3b8"} />
                     ))}
@@ -659,7 +663,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
           </Card>
 
           {/* Male vs Female */}
-          <Card>
+          <Card className="chart-enter" style={{ animationDelay: "100ms" }}>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <Users className="h-4 w-4 text-primary" />
@@ -681,7 +685,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                   <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
                   <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 13 }}
                     formatter={(value: any) => [`${value}`, "Avg Score"]} />
-                  <Bar dataKey="avg" radius={[4, 4, 0, 0]}>
+                  <Bar dataKey="avg" radius={[4, 4, 0, 0]} animationBegin={200} animationDuration={600} animationEasing="ease-out">
                     {genderComparison.map((entry, idx) => (
                       <Cell key={idx} fill={idx === 0 ? "#3b82f6" : "#ec4899"} />
                     ))}
@@ -693,7 +697,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
         </div>
 
         {/* ═══ ASSESSMENT COMPONENT BREAKDOWN ═══ */}
-        <Card>
+        <Card key={`components-${dataVersion}`} className="chart-enter" style={{ animationDelay: "50ms" }}>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <BarChart3 className="h-4 w-4 text-primary" />
@@ -721,7 +725,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                     const pct = props.payload.max > 0 ? Math.round((value / props.payload.max) * 100) : 0;
                     return [`${value} / ${props.payload.max} (${pct}%)`, props.payload.name];
                   }} />
-                <Bar dataKey="avg" radius={[4, 4, 0, 0]} fill="#3b82f6" />
+                <Bar dataKey="avg" radius={[4, 4, 0, 0]} fill="#3b82f6" animationBegin={0} animationDuration={600} animationEasing="ease-out" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -957,12 +961,20 @@ export default function SubjectAnalyticsPage({ params }: any) {
         .stat-card-enter {
           animation: statFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
         }
+        .chart-enter {
+          animation: chartFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
         @keyframes statFadeIn {
           from { opacity: 0; transform: translateY(12px) scale(0.97); }
           to { opacity: 1; transform: translateY(0) scale(1); }
         }
+        @keyframes chartFadeIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
         @media (prefers-reduced-motion: reduce) {
           .stat-card-enter { animation: none !important; }
+          .chart-enter { animation: none !important; }
           * { transition-duration: 0ms !important; animation-duration: 0ms !important; }
         }
       `}</style>

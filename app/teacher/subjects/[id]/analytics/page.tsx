@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useSessionTermFilters } from "@/hooks/use-session-term-filters";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -11,13 +11,18 @@ import { Users, TrendingUp, TrendingDown, Award, } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useSchoolContext } from "@/hooks/use-school-context";
 export default function SubjectAnalyticsPage({ params }: any) {
-    const router = useRouter();
     const subjectClassId = params.id;
+    const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
-    const [sessions, setSessions] = useState<any[]>([]);
-    const [terms, setTerms] = useState<any[]>([]);
-    const [selectedSession, setSelectedSession] = useState<string>("");
-    const [selectedTerm, setSelectedTerm] = useState<string>("");
+    const {
+        sessions,
+        terms,
+        selectedSession,
+        selectedTerm,
+        handleSessionChange,
+        handleTermChange,
+        filtersReady,
+    } = useSessionTermFilters(schoolId);
 
     const [results, setResults] = useState<any[]>([]);
     const [subject, setSubject] = useState<any>(null);
@@ -30,7 +35,6 @@ export default function SubjectAnalyticsPage({ params }: any) {
     const [genderFilter, setGenderFilter] = useState<string>("all");
     const [searchQuery, setSearchQuery] = useState<string>("");
     const [highestPerTerm, setHighestPerTerm] = useState<any[]>([]);
-    const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
     // DB-DRIVEN STATES
     const [resultComponents, setResultComponents] = useState<any[]>([]);
@@ -51,71 +55,39 @@ export default function SubjectAnalyticsPage({ params }: any) {
 
 
     useEffect(() => {
-        loadInitial();
-    }, [schoolId]);
+        if (schoolId && filtersReady) {
+            loadInitial();
+        }
+    }, [schoolId, filtersReady]);
 
     async function loadInitial() {
         if (!schoolId) return;
         setIsLoading(true);
 
-        // Load result components first
-        const { data: componentData } = await supabase
-            .from("result_component_templates")
-            .select("component_key, component_name, max_score, display_order")
-            .eq("school_id", schoolId)
-            .eq("is_active", true)
-            .order("display_order", { ascending: true });
+        // Load result components and subject class in parallel
+        const [componentRes, subjectClassRes] = await Promise.all([
+            supabase
+                .from("result_component_templates")
+                .select("component_key, component_name, max_score, display_order")
+                .eq("school_id", schoolId)
+                .eq("is_active", true)
+                .order("display_order", { ascending: true }),
+            supabase
+                .from("subject_classes")
+                .select(`id, subject_code, subject:subjects!subject_classes_subject_id_fkey ( id, name ), class:classes ( id, name, class_level_id, school_class_levels:class_level_id(id, name) )`)
+                .eq("id", subjectClassId)
+                .eq('school_id', schoolId)
+                .single(),
+        ]);
 
-        setResultComponents(componentData || []);
+        setResultComponents(componentRes.data || []);
 
-        // Fetch sessions, terms, and subject class from DB
-        const { data: sessionData } = await supabase.from("sessions").select("*").eq('school_id', schoolId).order("name");
-        const { data: termData } = await supabase.from("terms").select("*").eq('school_id', schoolId).order("name");
-        const { data: subjectClass } = await supabase
-            .from("subject_classes")
-            .select(`id, subject_code, subject:subjects!subject_classes_subject_id_fkey ( id, name ), class:classes ( id, name, class_level_id, school_class_levels:class_level_id(id, name) )`)
-            .eq("id", subjectClassId)
-            .eq('school_id', schoolId)
-            .single();
-
-        setSubject(subjectClass);
-
-        setSessions(sessionData || []);
-        setTerms(termData || []);
+        const subjectClass = subjectClassRes.data;
         setSubject(subjectClass || null);
 
-        // Determine selected session & term:
-        // 1. Start with DB defaults (is_current)
-        // 2. Optionally override with URL params if they're non-empty and reference a valid DB record
-        const currentSession = sessionData?.find((s: any) => s.is_current);
-        const currentTerm = termData?.find((t: any) => t.is_current);
-
-        let sessionId = currentSession?.id || "";
-        let termId = currentTerm?.id || "";
-
-        const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-        const urlSession = urlParams?.get('session')?.trim();
-        const urlTerm = urlParams?.get('term')?.trim();
-
-        if (urlSession && sessionData?.find((s: any) => s.id === urlSession)) {
-            sessionId = urlSession;
-        }
-        if (urlTerm && termData?.find((t: any) => t.id === urlTerm)) {
-            termId = urlTerm;
-        }
-
-        setSelectedSession(sessionId);
-        setSelectedTerm(termId);
-
-        // Sync URL to reflect the actual selected values (for bookmarking / sharing)
-        const params = new URLSearchParams();
-        params.set('session', sessionId);
-        params.set('term', termId);
-        router.replace(`?${params.toString()}`, { scroll: false });
-
-        loadResults(subjectClassId, sessionId, termId);
-        await loadGenderComparison(subjectClassId, sessionId, termId);
-
+        // Use the hook's already-resolved session/term values
+        loadResults(subjectClassId, selectedSession, selectedTerm);
+        await loadGenderComparison(subjectClassId, selectedSession, selectedTerm);
 
     }
 
@@ -543,12 +515,9 @@ export default function SubjectAnalyticsPage({ params }: any) {
                         <Select
                             value={selectedSession}
                             onValueChange={(val) => {
-                                setSelectedSession(val);
+                                handleSessionChange(val);
                                 loadResults(subjectClassId, val, selectedTerm);
                                 loadGenderComparison(subjectClassId, val, selectedTerm);
-                                const params = new URLSearchParams(window.location.search);
-                                params.set('session', val);
-                                router.replace(`?${params.toString()}`, { scroll: false });
                             }}
                         >
                             <SelectTrigger className="text-sm h-9 sm:h-10">
@@ -566,12 +535,9 @@ export default function SubjectAnalyticsPage({ params }: any) {
                         <Select
                             value={selectedTerm}
                             onValueChange={(val) => {
-                                setSelectedTerm(val);
+                                handleTermChange(val);
                                 loadResults(subjectClassId, selectedSession, val);
                                 loadGenderComparison(subjectClassId, selectedSession, val);
-                                const params = new URLSearchParams(window.location.search);
-                                params.set('term', val);
-                                router.replace(`?${params.toString()}`, { scroll: false });
                             }}
                         >
                             <SelectTrigger className="text-sm h-9 sm:h-10">

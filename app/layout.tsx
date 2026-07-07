@@ -2,6 +2,7 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
+import { AuthProvider } from '@/components/auth-provider';
 import Script from 'next/script';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -25,7 +26,9 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/logo.png" />
       </head>
       <body className={inter.className}>
-        {children}
+        <AuthProvider>
+          {children}
+        </AuthProvider>
         <Toaster />
         <Script id="sw-register" strategy="afterInteractive">
           {`

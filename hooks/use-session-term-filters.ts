@@ -38,7 +38,7 @@ export interface UseSessionTermFiltersReturn {
  * both React state and the URL.
  */
 export function useSessionTermFilters(
-  schoolId: string,
+  schoolId: string | null,
 ): UseSessionTermFiltersReturn {
   const router = useRouter();
 

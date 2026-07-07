@@ -7,12 +7,19 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, ArrowRight, BookOpen, GraduationCap, Settings2, ExternalLink } from "lucide-react";
+import { Search, BookOpen, GraduationCap, Settings2, ExternalLink, BookMarked, School, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { Subject } from "@/lib/types";
 import { useSchoolContext } from "@/hooks/use-school-context";
 import { SubjectsSkeleton } from "@/components/skeletons";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type EducationLevelOption = {
   id: string;
@@ -234,44 +241,59 @@ export default function SubjectsPage() {
           </Button>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-5">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <p className="text-3xl font-bold text-blue-600">{stats.totalClasses}</p>
-                <p className="text-xs text-gray-600 mt-1">Total Classes</p>
+            <div className="grid gap-4 md:grid-cols-5">
+          <Card className="stat-card-enter border-slate-200 shadow-sm" style={{ animationDelay: "0ms" }}>
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+                <School className="h-4 w-4 text-blue-700" />
+              </div>
+              <div>
+                <p className="text-xl font-bold text-blue-700">{stats.totalClasses}</p>
+                <p className="text-xs text-muted-foreground">Total Classes</p>
               </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <p className="text-3xl font-bold text-green-600">{stats.assignedClasses}</p>
-                <p className="text-xs text-gray-600 mt-1">Configured</p>
+          <Card className="stat-card-enter border-slate-200 shadow-sm" style={{ animationDelay: "60ms" }}>
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
+                <BookMarked className="h-4 w-4 text-emerald-700" />
+              </div>
+              <div>
+                <p className="text-xl font-bold text-emerald-700">{stats.assignedClasses}</p>
+                <p className="text-xs text-muted-foreground">Configured</p>
               </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <p className="text-3xl font-bold text-amber-600">{stats.unconfiguredClasses}</p>
-                <p className="text-xs text-gray-600 mt-1">Pending</p>
+          <Card className="stat-card-enter border-slate-200 shadow-sm" style={{ animationDelay: "120ms" }}>
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
+                <GraduationCap className="h-4 w-4 text-amber-700" />
+              </div>
+              <div>
+                <p className="text-xl font-bold text-amber-700">{stats.unconfiguredClasses}</p>
+                <p className="text-xs text-muted-foreground">Pending</p>
               </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <p className="text-3xl font-bold text-purple-600">{stats.totalSubjects}</p>
-                <p className="text-xs text-gray-600 mt-1">Subjects</p>
+          <Card className="stat-card-enter border-slate-200 shadow-sm" style={{ animationDelay: "180ms" }}>
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-purple-100 flex items-center justify-center shrink-0">
+                <BookOpen className="h-4 w-4 text-purple-700" />
+              </div>
+              <div>
+                <p className="text-xl font-bold text-purple-700">{stats.totalSubjects}</p>
+                <p className="text-xs text-muted-foreground">Subjects</p>
               </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <p className="text-3xl font-bold text-indigo-600">{stats.avgSubjectsPerClass}</p>
-                <p className="text-xs text-gray-600 mt-1">Avg per Class</p>
+          <Card className="stat-card-enter border-slate-200 shadow-sm" style={{ animationDelay: "240ms" }}>
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
+                <TrendingUp className="h-4 w-4 text-indigo-700" />
+              </div>
+              <div>
+                <p className="text-xl font-bold text-indigo-700">{stats.avgSubjectsPerClass}</p>
+                <p className="text-xs text-muted-foreground">Avg per Class</p>
               </div>
             </CardContent>
           </Card>
@@ -287,83 +309,105 @@ export default function SubjectsPage() {
           <CardContent className="space-y-4">
             <div className="grid gap-3 md:grid-cols-[1fr_240px]">
               <div className="relative">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search subject"
-                  className="pl-10"
+                  placeholder="Search subjects..."
+                  className="pl-10 h-10 rounded-xl"
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
                 />
               </div>
-              <select
-                className="rounded-md border px-3 py-2"
-                value={filterLevelId}
-                onChange={(event) => setFilterLevelId(event.target.value)}
-              >
-                <option value="all">All education levels</option>
-                {educationLevels.map((level) => (
-                  <option key={level.id} value={level.id}>
-                    {level.name}
-                  </option>
-                ))}
-              </select>
+              <Select value={filterLevelId} onValueChange={(v) => setFilterLevelId(v)}>
+                <SelectTrigger className="h-10 rounded-xl">
+                  <SelectValue placeholder="All education levels" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All education levels</SelectItem>
+                  {educationLevels.map((level) => (
+                    <SelectItem key={level.id} value={level.id}>
+                      {level.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {subjectCoverage.length === 0 ? (
-              <div className="rounded-md border p-8 text-center text-sm text-gray-500">
-                No subjects matched your filter.
+              <div className="rounded-xl border-2 border-dashed border-muted-foreground/30 p-10 text-center">
+                <Search className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">No subjects matched your filter.</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {subjectCoverage.map((row) => (
-                  <div key={row.subjectId} className="rounded-lg border p-4 hover:shadow-md transition-shadow group">
+                {subjectCoverage.map((row, idx) => (
+                  <Link
+                    key={row.subjectId}
+                    href={`/admin/subjects/${row.subjectId}`}
+                    className="subject-card-enter block rounded-xl border bg-card p-4 hover:shadow-md hover:border-primary/30 transition-all duration-200 group"
+                    style={{ animationDelay: `${idx * 50}ms` }}
+                  >
                     <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                       <div className="flex items-center gap-3">
-                        <Link
-                          href={`/admin/subjects/${row.subjectId}`}
-                          className="font-semibold hover:text-blue-600 transition-colors flex items-center gap-1.5"
-                        >
-                          {row.subjectName}
-                          <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </Link>
-                        <p className="text-xs text-gray-500">Code: {row.catalogCode}</p>
+                        <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
+                          <BookOpen className="h-4 w-4 text-primary" />
+                        </div>
+                        <div>
+                          <span className="font-semibold hover:text-primary transition-colors flex items-center gap-1.5">
+                            {row.subjectName}
+                            <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </span>
+                          <p className="text-xs text-muted-foreground">Code: <span className="font-mono font-medium">{row.catalogCode}</span></p>
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant={row.classIds.length > 0 ? "default" : "secondary"}>
-                          {row.classIds.length} class(es)
+                        <Badge variant={row.classIds.length > 0 ? "default" : "secondary"} className="text-xs">
+                          {row.classIds.length} class{row.classIds.length !== 1 ? "es" : ""}
                         </Badge>
-                        <Link
-                          href={`/admin/subjects/${row.subjectId}`}
-                          className="text-xs text-blue-600 hover:text-blue-800 hover:underline font-medium whitespace-nowrap"
-                        >
-                          Manage
-                        </Link>
+                        <span className="text-xs text-primary font-medium opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                          View details →
+                        </span>
                       </div>
                     </div>
 
                     {row.classIds.length === 0 ? (
-                      <p className="mt-3 text-sm text-gray-500">Not assigned to any class yet.</p>
+                      <p className="mt-3 text-sm text-muted-foreground">Not assigned to any class yet.</p>
                     ) : (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {row.classIds.map((classId, index) => (
-                          <Link
-                            key={`${row.subjectId}-${classId}`}
-                            href={`/admin/classes/${classId}?tab=subjects`}
-                            className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {row.classNames.map((name, index) => (
+                          <span
+                            key={`${row.subjectId}-${row.classIds[index]}`}
+                            className="inline-flex items-center gap-1 rounded-md border bg-muted/30 px-2.5 py-1 text-xs text-muted-foreground"
                           >
-                            <GraduationCap className="h-3.5 w-3.5" />
-                            {row.classNames[index]}
-                            <ArrowRight className="h-3 w-3" />
-                          </Link>
+                            <GraduationCap className="h-3 w-3" />
+                            {name}
+                          </span>
                         ))}
                       </div>
                     )}
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
           </CardContent>
         </Card>
+
+        {/* ═══ ANIMATIONS ═══ */}
+        <style>{`
+          .stat-card-enter {
+            animation: cardFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+          }
+          .subject-card-enter {
+            animation: cardFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+          }
+          @keyframes cardFadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .stat-card-enter { animation: none !important; }
+            .subject-card-enter { animation: none !important; }
+          }
+        `}</style>
       </div>
     </DashboardLayout>
   );

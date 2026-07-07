@@ -5,7 +5,6 @@ import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useRouter } from "next/navigation";
 import {
   Package,
@@ -111,11 +110,72 @@ export default function AdminInventoryDashboard() {
     return (
       <DashboardLayout role="admin">
         <div className="space-y-6 p-6">
-          <Skeleton className="h-10 w-64" />
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <Skeleton className="h-9 w-64" />
+              <Skeleton className="h-5 w-48 mt-2" />
+            </div>
+            <div className="flex gap-3">
+              <Skeleton className="h-10 w-24 rounded-lg" />
+              <Skeleton className="h-10 w-32 rounded-lg" />
+            </div>
+          </div>
+
+          {/* Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {Array.from({ length: 8 }).map((_, i) => (
               <Skeleton key={i} className="h-28 rounded-xl" />
             ))}
+          </div>
+
+          {/* Chart + Quick Actions Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <div className="rounded-xl border bg-white shadow-lg overflow-hidden">
+                <div className="border-b p-4 bg-gradient-to-r from-gray-50 to-gray-100">
+                  <Skeleton className="h-6 w-56" />
+                </div>
+                <div className="p-6">
+                  <Skeleton className="h-64 w-full rounded-lg" />
+                </div>
+              </div>
+            </div>
+            <div className="rounded-xl border bg-white shadow-lg overflow-hidden">
+              <div className="border-b p-4 bg-gradient-to-r from-gray-50 to-gray-100">
+                <Skeleton className="h-6 w-36" />
+              </div>
+              <div className="p-6 space-y-4">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-16 w-full rounded-lg" />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Recent Transactions */}
+          <div className="rounded-xl border bg-white shadow-lg overflow-hidden">
+            <div className="border-b p-4 bg-gradient-to-r from-gray-50 to-gray-100 flex items-center justify-between">
+              <Skeleton className="h-6 w-44" />
+              <Skeleton className="h-8 w-24 rounded-md" />
+            </div>
+            <div className="p-6 space-y-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-6 w-20 rounded" />
+                    <div>
+                      <Skeleton className="h-4 w-36" />
+                      <Skeleton className="h-3 w-24 mt-1" />
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <Skeleton className="h-3 w-20" />
+                    <Skeleton className="h-3 w-12 mt-1 ml-auto" />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </DashboardLayout>
@@ -151,11 +211,25 @@ export default function AdminInventoryDashboard() {
         </div>
 
         {error && (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
+          <Card className="border-l-4 border-l-red-500 shadow-md bg-red-50">
+            <div className="flex items-start gap-4 p-5">
+              <div className="flex-shrink-0 p-2.5 rounded-full bg-red-100">
+                <AlertTriangle className="h-5 w-5 text-red-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-semibold text-red-900">Failed to load dashboard</h3>
+                <p className="text-sm text-red-700 mt-1">{error}</p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-red-700 hover:text-red-900 hover:bg-red-100 flex-shrink-0"
+                onClick={fetchDashboard}
+              >
+                Retry
+              </Button>
+            </div>
+          </Card>
         )}
 
         {/* Low Stock Alert — Integrated Card */}

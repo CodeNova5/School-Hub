@@ -31,7 +31,8 @@ import {
   UserCheck,
   Target,
   ScrollText,
-  CreditCard
+  CreditCard,
+  Package
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -148,6 +149,7 @@ export function Sidebar({
     { href: "/admin/finance", label: "Finance", icon: <Wallet className="h-5 w-5" /> },
     { href: "/admin/payroll", label: "Payroll", icon: <Banknote className="h-5 w-5" /> },
     { href: "/admin/history", label: "History", icon: <History className="h-5 w-5" /> },
+    { href: "/admin/inventory", label: "Inventory", icon: <Package className="h-5 w-5" /> },
     { href: "/admin/promotions", label: "Promotions", icon: <TrendingUp className="h-5 w-5" /> },
     { href: "/admin/audit-logs", label: "Audit Trail", icon: <ScrollText className="h-5 w-5" /> },
     { href: "/admin/admissions", label: "Admissions", icon: <ClipboardList className="h-5 w-5" /> },
@@ -186,6 +188,7 @@ export function Sidebar({
     ...(hasJambAccess
       ? [{ href: "/student/jamb", label: "JAMB CBT", icon: <Target className="h-5 w-5" /> }]
       : []),
+    { href: "/student/inventory", label: "My Assets", icon: <Package className="h-5 w-5" /> },
     { href: "/student/finance", label: "Finance", icon: <Wallet className="h-5 w-5" /> },
     { href: "/student/timetable", label: "Timetable", icon: <Calendar className="h-5 w-5" /> },
     { href: "/student/live-classes", label: "Live Classes", icon: <Radio className="h-5 w-5" /> },
@@ -201,6 +204,7 @@ export function Sidebar({
   const parentNav: NavItem[] = [
     { href: "/parent", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
     { href: "/parent/children", label: "My Children", icon: <Users className="h-5 w-5" /> },
+    { href: "/parent/inventory", label: "Assigned Property", icon: <Package className="h-5 w-5" /> },
     { href: "/parent/finance", label: "Finance", icon: <Wallet className="h-5 w-5" /> },
     { href: "/parent/ai-assistant", label: "AI Assistant", icon: <Sparkles className="h-5 w-5" /> },
     { href: "/parent/notifications", label: "Notifications", icon: <Bell className="h-5 w-5" /> },

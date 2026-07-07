@@ -15,6 +15,7 @@ import {
   Settings,
   UserPlus,
   Users,
+  Package,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -220,6 +221,7 @@ const QUICK_ACTIONS = [
   { title: 'Manage Students', icon: GraduationCap, color: 'bg-blue-50', textColor: 'text-blue-600', borderColor: 'border-blue-200', path: '/admin/students' },
   { title: 'Manage Teachers', icon: Users, color: 'bg-purple-50', textColor: 'text-purple-600', borderColor: 'border-purple-200', path: '/admin/teachers' },
   { title: 'Manage Classes', icon: BookOpen, color: 'bg-green-50', textColor: 'text-green-600', borderColor: 'border-green-200', path: '/admin/classes' },
+  { title: 'Inventory', icon: Package, color: 'bg-teal-50', textColor: 'text-teal-600', borderColor: 'border-teal-200', path: '/admin/inventory' },
   { title: 'JAMB CBT Access', icon: FileText, color: 'bg-cyan-50', textColor: 'text-cyan-600', borderColor: 'border-cyan-200', path: '/admin/jamb' },
   { title: 'Notifications', icon: Bell, color: 'bg-amber-50', textColor: 'text-amber-600', borderColor: 'border-amber-200', path: '/admin/notifications' },
   { title: 'Settings', icon: Settings, color: 'bg-orange-50', textColor: 'text-orange-600', borderColor: 'border-orange-200', path: '/admin/settings' },

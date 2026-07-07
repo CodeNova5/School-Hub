@@ -17,7 +17,9 @@ import {
   AlertCircle,
   Eye,
   MapPin,
-  ArrowRight
+  ArrowRight,
+  Package,
+  Box,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
@@ -382,6 +384,48 @@ export default function ParentDashboardPage() {
               ))}
             </div>
           )}
+        </div>
+
+        {/* Quick Actions */}
+        <div>
+          <h2 className="text-xl font-bold mb-4">Quick Actions</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card
+              className="cursor-pointer hover:shadow-lg transition-all border-2 border-transparent hover:border-teal-200 group"
+              onClick={() => router.push("/parent/inventory")}
+            >
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 rounded-lg bg-teal-50 text-teal-600 group-hover:scale-110 transition-transform">
+                    <Package className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">Assigned Property</h3>
+                    <p className="text-sm text-gray-500">View school items assigned to your children</p>
+                  </div>
+                  <ArrowRight className="h-5 w-5 ml-auto text-gray-300 group-hover:text-teal-500 transition-colors" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card
+              className="cursor-pointer hover:shadow-lg transition-all border-2 border-transparent hover:border-blue-200 group"
+              onClick={() => router.push("/parent/children")}
+            >
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 rounded-lg bg-blue-50 text-blue-600 group-hover:scale-110 transition-transform">
+                    <Users className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">My Children</h3>
+                    <p className="text-sm text-gray-500">View all your children&apos;s academic progress</p>
+                  </div>
+                  <ArrowRight className="h-5 w-5 ml-auto text-gray-300 group-hover:text-blue-500 transition-colors" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {/* Upcoming Events */}

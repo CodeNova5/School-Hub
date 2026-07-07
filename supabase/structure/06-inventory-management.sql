@@ -285,9 +285,7 @@ CREATE TRIGGER trg_inventory_low_stock_alert
   AFTER INSERT OR UPDATE OF stock_count
   ON inventory_items
   FOR EACH ROW
-  EXECUTE FUNCTION check_and_alert_low_stock();
-
--- -----------------------------------------------------------------------------
+  EXECUTE FUNCTION check_and_alert_low_stock();-- -----------------------------------------------------------------------------
 -- 8) Prevent double-checkout trigger for assets
 -- -----------------------------------------------------------------------------
 
@@ -312,3 +310,57 @@ CREATE TRIGGER trg_inventory_prevent_double_checkout
   FOR EACH ROW
   WHEN (NEW.status = 'checked_out')
   EXECUTE FUNCTION prevent_double_asset_checkout();
+
+-- -----------------------------------------------------------------------------
+-- 9) Feature registration for subscription-based plan enforcement
+--    Depends on 04-plans-and-subscriptions.sql (subscription_* tables)
+-- -----------------------------------------------------------------------------
+
+-- Register the feature metadata
+INSERT INTO subscription_features (feature_key, label, label_short, description, icon, category)
+VALUES (
+  'inventory_management',
+  'Inventory Management',
+  'Inventory',
+  'Track assets, consumables, saleables, check-in/check-out, and stock levels',
+  '📦',
+  'engagement'
+)
+ON CONFLICT (feature_key) DO NOTHING;
+
+-- Register page routes for plan enforcement via middleware
+INSERT INTO subscription_feature_routes (feature_key, path_pattern, portal, is_api, is_excluded) VALUES
+  ('inventory_management', '/admin/inventory',              'admin',   false, false),
+  ('inventory_management', '/admin/inventory/items',        'admin',   false, false),
+  ('inventory_management', '/student/inventory',            'student', false, false),
+  ('inventory_management', '/parent/inventory',             'parent',  false, false)
+ON CONFLICT (path_pattern, COALESCE(portal, ''), is_api) DO NOTHING;
+
+-- Register API routes for plan enforcement
+INSERT INTO subscription_feature_routes (feature_key, path_pattern, portal, is_api, is_excluded) VALUES
+  ('inventory_management', '/api/admin/inventory',              'admin',   true, false),
+  ('inventory_management', '/api/student/inventory',            'student', true, false),
+  ('inventory_management', '/api/parent/inventory',             'parent',  true, false)
+ON CONFLICT (path_pattern, COALESCE(portal, ''), is_api) DO NOTHING;
+
+-- Associate with Pro and Premium plans
+DO $$
+DECLARE
+  v_pro_id     uuid;
+  v_premium_id uuid;
+BEGIN
+  SELECT id INTO v_pro_id     FROM subscription_plans WHERE plan_key = 'pro';
+  SELECT id INTO v_premium_id FROM subscription_plans WHERE plan_key = 'premium';
+
+  IF v_pro_id IS NOT NULL THEN
+    INSERT INTO subscription_plan_features (plan_id, feature_key, is_enabled)
+    VALUES (v_pro_id, 'inventory_management', true)
+    ON CONFLICT (plan_id, feature_key) DO NOTHING;
+  END IF;
+
+  IF v_premium_id IS NOT NULL THEN
+    INSERT INTO subscription_plan_features (plan_id, feature_key, is_enabled)
+    VALUES (v_premium_id, 'inventory_management', true)
+    ON CONFLICT (plan_id, feature_key) DO NOTHING;
+  END IF;
+END $$;

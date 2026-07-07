@@ -23,6 +23,7 @@ import {
   Bell,
   Activity,
   Loader2,
+  Package,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
@@ -876,6 +877,15 @@ export default function StudentDashboardPage() {
             </CardHeader>
             <CardContent className="pt-6">
               <div className="space-y-2">
+                <Link href="/student/inventory">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-left hover:bg-teal-50 hover:text-teal-600 transition-colors"
+                  >
+                    <Package className="h-5 w-5 mr-3" />
+                    My Assets
+                  </Button>
+                </Link>
                 <Link href="/student/attendance">
                   <Button
                     variant="ghost"

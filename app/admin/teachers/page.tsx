@@ -174,7 +174,7 @@ export default function TeachersPage() {
 
   // Pagination
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(10);
 
   // Image handling state
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -983,7 +983,7 @@ export default function TeachersPage() {
             </div>
             <div className="overflow-x-auto bg-white">
               <table className="w-full">
-                <thead className="bg-muted">
+                <thead className="bg-muted sticky top-0 z-10">
                   <tr>
                     <th className="text-left p-4 text-[11px] font-semibold uppercase tracking-widest text-slate-400 w-12">#</th>
                     <th className="text-left p-4 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Teacher</th>
@@ -997,7 +997,7 @@ export default function TeachersPage() {
                 </thead>
                 <tbody>
                   {filteredTeachers.map((teacher, index) => (
-                    <tr key={teacher.id} className="border-t border-slate-100 transition-colors hover:bg-slate-50/80">
+                    <tr key={teacher.id} className="border-t border-slate-100 transition-all duration-150 hover:bg-slate-50/80" style={{ animation: `fadeSlideIn 0.25s ease-out ${(index % pageSize) * 25}ms both` }}>
                       <td className="p-4 text-sm text-slate-500">{index + 1}</td>
                       <td className="p-4">
                         <div className="flex items-center gap-3">
@@ -1066,15 +1066,42 @@ export default function TeachersPage() {
               </table>
 
               {filteredTeachers.length === 0 && (
-                <div className="p-12 text-center">
-                  <p className="text-sm text-slate-500">No teachers found</p>
+                <div className="flex flex-col items-center justify-center py-16 px-6">
+                  <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100">
+                    <Users className="h-7 w-7 text-slate-400" />
+                  </div>
+                  <h3 className="text-base font-semibold text-slate-900">
+                    {debouncedSearch || statusFilter ? 'No teachers match your search' : 'No teachers yet'}
+                  </h3>
+                  <p className="mt-1.5 max-w-sm text-center text-sm text-slate-500">
+                    {debouncedSearch || statusFilter
+                      ? 'Try adjusting your search or filter criteria.'
+                      : 'Get started by adding your first teacher to the system.'}
+                  </p>
                 </div>
               )}
             </div>
+
+            {/* Pagination */}
+            {filteredTeachers.length > 0 && (
+              <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-slate-500">
+                  Showing {filteredTeachers.length} teacher{filteredTeachers.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
       </div>
+
+      {/* Animations */}
+      <style jsx global>{`
+        @keyframes fadeSlideIn {
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </DashboardLayout>
   );
 }

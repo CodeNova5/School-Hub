@@ -171,13 +171,28 @@ export function SubjectAnalyticsTab({ subjectId, schoolId, subjectName }: Subjec
       setSessions(sessionData);
       setTerms(termData);
 
+      // Start with DB defaults (is_current)
       const currentSession = sessionData.find((s) => s.is_current);
       const currentTerm = termData.find((t) => t.is_current);
-      const sesId = currentSession?.id || sessionData[0]?.id || "";
-      const termId = currentTerm?.id || termData[0]?.id || "";
+      let sesId = currentSession?.id || sessionData[0]?.id || "";
+      let termId = currentTerm?.id || termData[0]?.id || "";
+
+      // Override with URL params if non-empty and valid
+      const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+      const urlSession = urlParams?.get("session")?.trim();
+      const urlTerm = urlParams?.get("term")?.trim();
+
+      if (urlSession && sessionData.find((s) => s.id === urlSession)) sesId = urlSession;
+      if (urlTerm && termData.find((t) => t.id === urlTerm)) termId = urlTerm;
 
       setSelectedSession(sesId);
       setSelectedTerm(termId);
+
+      // Sync URL to reflect final selection
+      const params = new URLSearchParams();
+      params.set("session", sesId);
+      params.set("term", termId);
+      router.replace(`?${params.toString()}`, { scroll: false });
 
       const classes = await loadSubjectClasses();
       setSubjectClasses(classes);
@@ -301,11 +316,18 @@ export function SubjectAnalyticsTab({ subjectId, schoolId, subjectName }: Subjec
     setSelectedSession(val);
     setSelectedTerm("");
     loadOverviewSummaries(val);
+    const params = new URLSearchParams(window.location.search);
+    params.set("session", val);
+    params.delete("term");
+    router.replace(`?${params.toString()}`, { scroll: false });
   }
 
   function handleTermChange(val: string) {
     setSelectedTerm(val);
     loadOverviewSummaries(selectedSession, val);
+    const params = new URLSearchParams(window.location.search);
+    params.set("term", val);
+    router.replace(`?${params.toString()}`, { scroll: false });
   }
 
   /* ═══════════════════════════════════════

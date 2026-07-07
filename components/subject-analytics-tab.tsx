@@ -20,6 +20,7 @@ import {
   ExternalLink,
   BarChart3,
   SortAsc,
+  FileDown,
 } from "lucide-react";
 
 /* ─────────────────────────────────────────────
@@ -147,6 +148,39 @@ export function SubjectAnalyticsTab({ subjectId, schoolId, subjectName }: Subjec
   // Sort preference for class cards
   const [sortBy, setSortBy] = useState<"avg" | "passRate" | "alpha">("avg");
 
+  // Export CSV
+  function exportCSV() {
+    const rows = Object.entries(classSummaries).map(([id, s]) => ({
+      Class: s.className,
+      Code: s.subjectCode || "",
+      Teacher: s.teacherName,
+      Students: s.studentCount,
+      Avg: s.avg,
+      "Pass %": s.passRate,
+      Highest: s.highest,
+      Lowest: s.lowest,
+    }));
+    if (rows.length === 0) return;
+    const headers = Object.keys(rows[0]);
+    const csv = [
+      headers.join(","),
+      ...rows.map((row) => headers.map((h) => `"${(row as any)[h]}"`).join(",")),
+    ].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${subjectName.replace(/\s+/g, "_")}_analytics.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // Cross-class analytics data
+  const [gradeDistribution, setGradeDistribution] = useState<{ grade: string; count: number }[]>([]);
+  const [genderPerformance, setGenderPerformance] = useState<{ className: string; maleAvg: string; femaleAvg: string }[]>([]);
+  const [componentAverages, setComponentAverages] = useState<{ name: string; avg: string; maxScore: number }[]>([]);
+  const [resultComponents, setResultComponents] = useState<any[]>([]);
+
   /* ═══════════════════════════════════════
      DATA LOADING
   ═══════════════════════════════════════ */
@@ -160,13 +194,15 @@ export function SubjectAnalyticsTab({ subjectId, schoolId, subjectName }: Subjec
     setIsLoading(true);
 
     try {
-      const [sessionRes, termRes] = await Promise.all([
+      const [sessionRes, termRes, compRes] = await Promise.all([
         supabase.from("sessions").select("*").eq("school_id", schoolId).order("name"),
         supabase.from("terms").select("*").eq("school_id", schoolId).order("name"),
+        supabase.from("result_component_templates").select("*").eq("school_id", schoolId).eq("is_active", true).order("display_order"),
       ]);
 
       const sessionData = (sessionRes.data ?? []) as Session[];
       const termData = (termRes.data ?? []) as Term[];
+      setResultComponents(compRes.data ?? []);
 
       setSessions(sessionData);
       setTerms(termData);
@@ -237,7 +273,7 @@ export function SubjectAnalyticsTab({ subjectId, schoolId, subjectName }: Subjec
 
       let query: any = supabase
         .from("results")
-        .select(`id, grade, student_id, subject_class_id`)
+        .select(`id, grade, student_id, subject_class_id, students(gender)`)
         .in("subject_class_id", scIds)
         .eq("school_id", schoolId);
 
@@ -270,7 +306,7 @@ export function SubjectAnalyticsTab({ subjectId, schoolId, subjectName }: Subjec
       const resultIds = allResults.map((r: any) => r.id);
       const { data: scoreRows } = await supabase
         .from("result_component_scores")
-        .select("result_id, score")
+        .select("result_id, component_key, score")
         .in("result_id", resultIds)
         .eq("school_id", schoolId);
 
@@ -303,6 +339,51 @@ export function SubjectAnalyticsTab({ subjectId, schoolId, subjectName }: Subjec
       });
 
       setClassSummaries(grouped);
+
+      // ═══ Compute cross-class analytics ═══
+
+      // Grade Distribution
+      const gradeOrder = ["A1", "B2", "B3", "C4", "C5", "C6", "D7", "E8", "F9"];
+      const gradeCounts: Record<string, number> = {};
+      gradeOrder.forEach((g) => (gradeCounts[g] = 0));
+      allResults.forEach((r: any) => {
+        if (r.grade && gradeCounts[r.grade] !== undefined) gradeCounts[r.grade]++;
+      });
+      setGradeDistribution(gradeOrder.map((g) => ({ grade: g, count: gradeCounts[g] })));
+
+      // Gender Performance per class
+      const genderMap: Record<string, { male: number[]; female: number[] }> = {};
+      scs.forEach((sc) => { genderMap[sc.id] = { male: [], female: [] }; });
+      allResults.forEach((r: any) => {
+        const gender = (r as any).students?.gender?.toLowerCase();
+        const total = totalsMap.get(r.id) || 0;
+        if (gender === "male") genderMap[r.subject_class_id]?.male.push(total);
+        else if (gender === "female") genderMap[r.subject_class_id]?.female.push(total);
+      });
+      setGenderPerformance(
+        Object.entries(genderMap).map(([scId, data]) => ({
+          className: (scs.find((sc) => sc.id === scId) as any)?.class?.name || "Unknown",
+          maleAvg: data.male.length ? (data.male.reduce((a, b) => a + b, 0) / data.male.length).toFixed(1) : "—",
+          femaleAvg: data.female.length ? (data.female.reduce((a, b) => a + b, 0) / data.female.length).toFixed(1) : "—",
+        })),
+      );
+
+      // Component Averages (across all classes)
+      if (resultComponents.length > 0) {
+        const compTotals: Record<string, { sum: number; count: number }> = {};
+        (scoreRows || []).forEach((cs: any) => {
+          if (!compTotals[cs.component_key]) compTotals[cs.component_key] = { sum: 0, count: 0 };
+          compTotals[cs.component_key].sum += cs.score;
+          compTotals[cs.component_key].count++;
+        });
+        setComponentAverages(
+          resultComponents.map((comp: any) => {
+            const d = compTotals[comp.component_key];
+            return { name: comp.component_name, avg: d ? (d.sum / d.count).toFixed(1) : "0.0", maxScore: comp.max_score };
+          }),
+        );
+      }
+
       setDataVersion((v) => v + 1);
     } catch (err) {
       console.error("Error loading overview summaries:", err);
@@ -437,6 +518,24 @@ export function SubjectAnalyticsTab({ subjectId, schoolId, subjectName }: Subjec
       />
 
       {/* ═══════════════════════════════════
+          CROSS-CLASS INSIGHTS (maps + charts)
+      ═══════════════════════════════════ */}
+      {!isOverviewLoading && summaryList.length > 0 && (
+        <div className="space-y-4">
+          {/* Grade Distribution + Gender Comparison side by side */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <GradeDistributionChart data={gradeDistribution} dataVersion={dataVersion} />
+            <GenderComparisonChart data={genderPerformance} dataVersion={dataVersion} />
+          </div>
+
+          {/* Component Analysis */}
+          {componentAverages.length > 0 && (
+            <ComponentAnalysisChart data={componentAverages} dataVersion={dataVersion} />
+          )}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════
           CHART
       ═══════════════════════════════════ */}
       {comparisonData.length > 1 && (
@@ -467,6 +566,17 @@ export function SubjectAnalyticsTab({ subjectId, schoolId, subjectName }: Subjec
           dataVersion={dataVersion}
           sortBy={sortBy}
           onSortChange={setSortBy}
+          onExportCSV={exportCSV}
+        />
+      )}
+
+      {/* ═══════════════════════════════════
+          PERFORMANCE DISTRIBUTION
+      ═══════════════════════════════════ */}
+      {!isOverviewLoading && summaryList.length > 1 && (
+        <PerformanceDistributionChart
+          classSummaries={classSummaries}
+          dataVersion={dataVersion}
         />
       )}
 
@@ -733,14 +843,257 @@ function EmptyState() {
   );
 }
 
+/* ─────────────────────────────────────────────
+   GRADE DISTRIBUTION CHART
+───────────────────────────────────────────── */
+const GRADE_COLORS: Record<string, string> = {
+  A1: "#16a34a", B2: "#4ade80", B3: "#86efac",
+  C4: "#fef08a", C5: "#fde047", C6: "#facc15",
+  D7: "#f97316", E8: "#fb923c", F9: "#ef4444",
+};
+
+function GradeDistributionChart({ data, dataVersion }: { data: { grade: string; count: number }[]; dataVersion: number }) {
+  const total = data.reduce((s, d) => s + d.count, 0);
+  const passGrades = ["A1", "B2", "B3", "C4", "C5", "C6"];
+  const passCount = data.filter((d) => passGrades.includes(d.grade)).reduce((s, d) => s + d.count, 0);
+  const passRate = total > 0 ? Math.round((passCount / total) * 100) : 0;
+
+  return (
+    <Card key={`grade-${dataVersion}`} className="border-slate-200 shadow-sm">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Award className="h-4 w-4 text-amber-500" />
+            Grade Distribution
+          </CardTitle>
+          {total > 0 && (
+            <Badge variant="secondary" className="text-xs">
+              {passRate}% pass rate
+            </Badge>
+          )}
+        </div>
+        <CardDescription className="text-xs">
+          {total} student{total !== 1 ? "s" : ""} across all classes
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {total === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-4">No grades recorded</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+              <XAxis dataKey="grade" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+              <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} allowDecimals={false} />
+              <Tooltip
+                contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 13 }}
+                formatter={(value: number, _: any, props: any) => {
+                  const pct = total > 0 ? ((value / total) * 100).toFixed(1) : "0";
+                  return [`${value} (${pct}%)`, props.payload.grade];
+                }}
+              />
+              <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                {data.map((entry) => (
+                  <Cell key={entry.grade} fill={GRADE_COLORS[entry.grade] || "#94a3b8"} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   GENDER COMPARISON CHART
+───────────────────────────────────────────── */
+function GenderComparisonChart({ data, dataVersion }: { data: { className: string; maleAvg: string; femaleAvg: string }[]; dataVersion: number }) {
+  const chartData = data.filter((d) => d.maleAvg !== "—" || d.femaleAvg !== "—");
+
+  // Also compute overall averages
+  const maleVals = data.filter((d) => d.maleAvg !== "—").map((d) => parseFloat(d.maleAvg));
+  const femaleVals = data.filter((d) => d.femaleAvg !== "—").map((d) => parseFloat(d.femaleAvg));
+  const overallMale = maleVals.length > 0 ? (maleVals.reduce((a, b) => a + b, 0) / maleVals.length).toFixed(1) : "—";
+  const overallFemale = femaleVals.length > 0 ? (femaleVals.reduce((a, b) => a + b, 0) / femaleVals.length).toFixed(1) : "—";
+
+  if (chartData.length === 0) return null;
+
+  return (
+    <Card key={`gender-${dataVersion}`} className="border-slate-200 shadow-sm">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <Users className="h-4 w-4 text-primary" />
+          Gender Performance Comparison
+        </CardTitle>
+        <CardDescription className="text-xs">
+          Male vs female average scores by class
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Overall averages */}
+        <div className="flex items-center gap-4 text-xs bg-muted/30 rounded-lg px-3 py-2">
+          <span className="text-muted-foreground">Overall:</span>
+          <span className="font-semibold text-blue-600">♂ {overallMale}</span>
+          <span className="font-semibold text-pink-600">♀ {overallFemale}</span>
+        </div>
+
+        {/* Per-class breakdown */}
+        <div className="space-y-2">
+          {chartData.map((d) => (
+            <div key={d.className} className="flex items-center justify-between text-xs border-b pb-1.5 last:border-0">
+              <span className="text-muted-foreground w-28 truncate">{d.className}</span>
+              <div className="flex items-center gap-3">
+                <span className="font-medium text-blue-600 w-10 text-right">{d.maleAvg}</span>
+                <div className="h-2 w-16 bg-muted rounded-full overflow-hidden flex">
+                  {d.maleAvg !== "—" && d.femaleAvg !== "—" && (
+                    <>
+                      <div
+                        className="h-full bg-blue-400 rounded-l-full"
+                        style={{
+                          width: `${(parseFloat(d.maleAvg) / (parseFloat(d.maleAvg) + parseFloat(d.femaleAvg))) * 100 || 50}%`,
+                        }}
+                      />
+                      <div
+                        className="h-full bg-pink-400 rounded-r-full"
+                        style={{
+                          width: `${(parseFloat(d.femaleAvg) / (parseFloat(d.maleAvg) + parseFloat(d.femaleAvg))) * 100 || 50}%`,
+                        }}
+                      />
+                    </>
+                  )}
+                </div>
+                <span className="font-medium text-pink-600 w-10">{d.femaleAvg}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   COMPONENT ANALYSIS CHART
+───────────────────────────────────────────── */
+function ComponentAnalysisChart({ data, dataVersion }: { data: { name: string; avg: string; maxScore: number }[]; dataVersion: number }) {
+  const chartData = data.map((d) => ({
+    name: d.name,
+    score: parseFloat(d.avg),
+    pct: d.maxScore > 0 ? Math.round((parseFloat(d.avg) / d.maxScore) * 100) : 0,
+    maxScore: d.maxScore,
+  }));
+
+  return (
+    <Card key={`component-${dataVersion}`} className="border-slate-200 shadow-sm">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <BarChart3 className="h-4 w-4 text-primary" />
+          Subject Component Performance
+        </CardTitle>
+        <CardDescription className="text-xs">
+          Average scores per assessment component across all classes
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {chartData.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-4">No component data available</p>
+        ) : (
+          <div className="space-y-3">
+            {chartData.map((comp) => {
+              const fillColor = comp.pct >= 70 ? "#10b981" : comp.pct >= 40 ? "#f59e0b" : "#ef4444";
+              return (
+                <div key={comp.name} className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-medium text-foreground">{comp.name}</span>
+                    <span className="text-muted-foreground">
+                      <span className="font-semibold text-foreground">{comp.score}</span> / {comp.maxScore} ({comp.pct}%)
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-500 ease-out"
+                      style={{ width: `${comp.pct}%`, backgroundColor: fillColor }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   PERFORMANCE DISTRIBUTION
+───────────────────────────────────────────── */
+function PerformanceDistributionChart({ classSummaries, dataVersion }: { classSummaries: Record<string, ClassSummary>; dataVersion: number }) {
+  const bands = [
+    { label: "0–20", min: 0, max: 20, color: "#ef4444" },
+    { label: "20–40", min: 20, max: 40, color: "#f97316" },
+    { label: "40–60", min: 40, max: 60, color: "#f59e0b" },
+    { label: "60–80", min: 60, max: 80, color: "#10b981" },
+    { label: "80–100", min: 80, max: 100, color: "#16a34a" },
+  ];
+
+  const summaryList = Object.values(classSummaries);
+  const chartData = bands.map((band) => ({
+    range: band.label,
+    count: summaryList.filter((s) => {
+      const avg = parseFloat(s.avg);
+      return avg >= band.min && avg < band.max;
+    }).length,
+    fill: band.color,
+  }));
+
+  const total = chartData.reduce((s, d) => s + d.count, 0);
+  if (total === 0) return null;
+
+  return (
+    <Card key={`dist-${dataVersion}`} className="border-slate-200 shadow-sm">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <TrendingUp className="h-4 w-4 text-primary" />
+          Class Performance Distribution
+        </CardTitle>
+        <CardDescription className="text-xs">
+          How classes are distributed across performance bands
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ResponsiveContainer width="100%" height={200}>
+          <BarChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+            <XAxis dataKey="range" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+            <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} allowDecimals={false} />
+            <Tooltip
+              contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0" }}
+              formatter={(value: number, _: any, props: any) => [
+                `${value} class${value !== 1 ? "es" : ""}`,
+                `${props.payload.range} avg`,
+              ]}
+            />
+            <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+              {chartData.map((entry) => (
+                <Cell key={entry.range} fill={entry.fill} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
 /* ── Class Cards Grid ── */
 function ClassCardsGrid({
-  summaryList, dataVersion, sortBy, onSortChange,
+  summaryList, dataVersion, sortBy, onSortChange, onExportCSV,
 }: {
   summaryList: [string, ClassSummary][];
   dataVersion: number;
   sortBy: "avg" | "passRate" | "alpha";
   onSortChange: (value: "avg" | "passRate" | "alpha") => void;
+  onExportCSV?: () => void;
 }) {
   const classCount = summaryList.length;
 
@@ -771,35 +1124,47 @@ function ClassCardsGrid({
           </Badge>
         </div>
 
-        {/* Sort toggle */}
-        <div className="flex items-center gap-1.5 bg-muted/30 border rounded-lg p-0.5 w-fit">
-          {sortOptions.map((opt) => (
+        <div className="flex items-center gap-2">
+          {/* Sort toggle */}
+          <div className="flex items-center gap-1.5 bg-muted/30 border rounded-lg p-0.5 w-fit">
+            {sortOptions.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                title={opt.description}
+                onClick={() => onSortChange(opt.value)}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all duration-150 ${sortBy === opt.value
+                    ? "bg-white text-foreground shadow-sm border"
+                    : "text-muted-foreground hover:text-foreground"
+                  }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Export CSV */}
+          {onExportCSV && classCount > 0 && (
             <button
-              key={opt.value}
               type="button"
-              title={opt.description}
-              onClick={() => onSortChange(opt.value)}
-              className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all duration-150 ${
-                sortBy === opt.value
-                  ? "bg-white text-foreground shadow-sm border"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
+              title="Export class data as CSV"
+              onClick={onExportCSV}
+              className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md border text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all duration-150"
             >
-              {opt.label}
+              <FileDown className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Export</span>
             </button>
+          )}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {sorted.map(([id, summary], idx) => (
+            <ClassCard key={id} id={id} summary={summary} rank={idx + 1} total={classCount} />
           ))}
         </div>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {sorted.map(([id, summary], idx) => (
-          <ClassCard key={id} id={id} summary={summary} rank={idx + 1} total={classCount} />
-        ))}
       </div>
     </div>
   );
 }
-
-/* ── Single Class Card ── */
 function ClassCard({ id, summary, rank, total }: {
   id: string;
   summary: ClassSummary;

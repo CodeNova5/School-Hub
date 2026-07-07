@@ -471,6 +471,81 @@ export interface PromotionSettings {
   updated_at: string;
 }
 
+// ── Inventory Management Types ───────────────────────────────────────────
+
+export type InventoryItemType = 'asset' | 'consumable' | 'saleable';
+export type InventoryAssetStatus = 'available' | 'checked_out' | 'maintenance' | 'lost';
+export type InventoryTransactionType = 'checkout' | 'return' | 'purchase' | 'restock' | 'damage_reported';
+export type AdminAlertType = 'low_stock' | 'maintenance_needed' | 'asset_lost';
+
+export interface InventoryItem {
+  id: string;
+  school_id: string;
+  name: string;
+  category: string;
+  item_type: InventoryItemType;
+  stock_count: number;
+  low_stock_threshold: number;
+  description?: string;
+  unit_price?: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  // Denormalized for UI
+  asset_count?: number;
+  checked_out_count?: number;
+  available_count?: number;
+}
+
+export interface InventoryAsset {
+  id: string;
+  school_id: string;
+  item_id: string;
+  serial_number: string;
+  status: InventoryAssetStatus;
+  assigned_user_id?: string | null;
+  assigned_user_role?: string;
+  purchase_date?: string | null;
+  purchase_price?: number;
+  notes?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  // Denormalized for UI
+  item?: InventoryItem;
+  assigned_user_name?: string;
+}
+
+export interface InventoryTransaction {
+  id: string;
+  school_id: string;
+  item_id?: string | null;
+  asset_id?: string | null;
+  user_id?: string | null;
+  user_role?: string;
+  transaction_type: InventoryTransactionType;
+  quantity: number;
+  notes?: string;
+  created_at: string;
+  // Denormalized for UI
+  item?: InventoryItem;
+  asset?: InventoryAsset;
+  user_name?: string;
+}
+
+export interface AdminAlert {
+  id: string;
+  school_id: string;
+  alert_type: AdminAlertType;
+  title: string;
+  message: string;
+  reference_type?: string;
+  reference_id?: string | null;
+  is_read: boolean;
+  is_dismissed: boolean;
+  created_at: string;
+}
+
 export type FinanceFeeCategory = 'tuition' | 'uniform' | 'exam' | 'bus' | 'custom';
 export type FinanceFeeFrequency = 'per_term' | 'per_session' | 'one_time';
 export type FinanceBillStatus = 'pending' | 'partial' | 'paid' | 'waived' | 'overdue' | 'cancelled';

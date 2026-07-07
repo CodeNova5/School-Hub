@@ -1,0 +1,960 @@
+"use client";
+
+import { useEffect, useState, useCallback, useTransition } from "react";
+import { DashboardLayout } from "@/components/dashboard-layout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { toast } from "sonner";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  Package,
+  Plus,
+  Search,
+  ArrowUpDown,
+  Loader2,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  RefreshCw,
+  ClipboardList,
+  Box,
+  ShoppingCart,
+  Undo2,
+  Hash,
+  Tag,
+  Layers,
+  FileDigit,
+  User,
+  Wrench,
+  Eye,
+} from "lucide-react";
+
+interface InventoryItem {
+  id: string;
+  name: string;
+  category: string;
+  item_type: "asset" | "consumable" | "saleable";
+  stock_count: number;
+  low_stock_threshold: number;
+  description?: string;
+  unit_price?: number;
+  is_active: boolean;
+  created_at: string;
+  asset_count?: number;
+  checked_out_count?: number;
+  available_count?: number;
+}
+
+interface InventoryAsset {
+  id: string;
+  serial_number: string;
+  status: string;
+  assigned_user_id: string | null;
+  assigned_user_role: string;
+  created_at: string;
+  inventory_items: { name: string; category: string; item_type: string } | null;
+}
+
+interface Transaction {
+  id: string;
+  transaction_type: string;
+  quantity: number;
+  notes: string;
+  created_at: string;
+  inventory_items: { name: string } | null;
+  inventory_assets: { serial_number: string } | null;
+}
+
+export default function InventoryItemsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const defaultTab = searchParams.get("tab") || "all";
+
+  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+
+  // Add item modal
+  const [showAddItem, setShowAddItem] = useState(false);
+  const [addItemForm, setAddItemForm] = useState({
+    name: "",
+    category: "",
+    item_type: "consumable" as "asset" | "consumable" | "saleable",
+    stock_count: 0,
+    low_stock_threshold: 5,
+    description: "",
+    unit_price: 0,
+  });
+  const [saving, setSaving] = useState(false);
+
+  // Register assets modal
+  const [showRegisterAssets, setShowRegisterAssets] = useState(false);
+  const [registerAssetItem, setRegisterAssetItem] = useState("");
+  const [serialNumbers, setSerialNumbers] = useState("");
+  const [registering, setRegistering] = useState(false);
+
+  // Checkout asset
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [checkoutAssetSerial, setCheckoutAssetSerial] = useState("");
+  const [checkoutUserId, setCheckoutUserId] = useState("");
+  const [checkoutUserRole, setCheckoutUserRole] = useState("student");
+  const [checkingOut, setCheckingOut] = useState(false);
+
+  // Return asset
+  const [showReturn, setShowReturn] = useState(false);
+  const [returnAssetSerial, setReturnAssetSerial] = useState("");
+  const [returning, setReturning] = useState(false);
+
+  // Consume stock
+  const [showConsume, setShowConsume] = useState(false);
+  const [consumeItemId, setConsumeItemId] = useState("");
+  const [consumeQty, setConsumeQty] = useState(1);
+  const [consuming, setConsuming] = useState(false);
+
+  // Restock
+  const [showRestock, setShowRestock] = useState(false);
+  const [restockItemId, setRestockItemId] = useState("");
+  const [restockQty, setRestockQty] = useState(1);
+  const [restocking, setRestocking] = useState(false);
+
+  // Transactions
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loadingTx, setLoadingTx] = useState(false);
+
+  // Assets list
+  const [assets, setAssets] = useState<InventoryAsset[]>([]);
+  const [loadingAssets, setLoadingAssets] = useState(false);
+
+  // Optimistic UI
+  const [, startTransition] = useTransition();
+
+  // Sort
+  const [sortField, setSortField] = useState<"name" | "stock_count" | "category">("name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const fetchItems = useCallback(async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (typeFilter) params.set("type", typeFilter);
+      if (search) params.set("search", search);
+
+      const res = await fetch(`/api/admin/inventory/items?${params}`);
+      const result = await res.json();
+      if (result.success) setItems(result.data.items || []);
+    } catch (err) {
+      toast.error("Failed to load items");
+    } finally {
+      setLoading(false);
+    }
+  }, [typeFilter, search]);
+
+  const fetchTransactions = useCallback(async () => {
+    try {
+      setLoadingTx(true);
+      const res = await fetch("/api/admin/inventory/transactions?limit=100");
+      const result = await res.json();
+      if (result.success) setTransactions(result.data.transactions || []);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingTx(false);
+    }
+  }, []);
+
+  const fetchAssets = useCallback(async () => {
+    try {
+      setLoadingAssets(true);
+      const res = await fetch("/api/admin/inventory/assets");
+      const result = await res.json();
+      if (result.success) setAssets(result.data.assets || []);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingAssets(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchItems();
+  }, [fetchItems]);
+
+  useEffect(() => {
+    if (defaultTab === "transactions") fetchTransactions();
+    if (defaultTab === "assets") fetchAssets();
+  }, [defaultTab, fetchTransactions, fetchAssets]);
+
+  const sortedItems = [...items].sort((a, b) => {
+    const aVal = a[sortField] ?? "";
+    const bVal = b[sortField] ?? "";
+    const cmp = typeof aVal === "string" ? aVal.localeCompare(bVal as string) : (aVal as number) - (bVal as number);
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+
+  const toggleSort = (field: typeof sortField) => {
+    if (sortField === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortField(field); setSortDir("asc"); }
+  };
+
+  // ── Handlers ──
+
+  async function handleAddItem() {
+    if (!addItemForm.name) return toast.error("Item name is required");
+    try {
+      setSaving(true);
+      const res = await fetch("/api/admin/inventory/items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(addItemForm),
+      });
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error);
+      toast.success("Item created");
+      setShowAddItem(false);
+      setAddItemForm({ name: "", category: "", item_type: "consumable", stock_count: 0, low_stock_threshold: 5, description: "", unit_price: 0 });
+      fetchItems();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create item");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleRegisterAssets() {
+    if (!registerAssetItem || !serialNumbers.trim()) return toast.error("Select an item and enter serial numbers");
+    try {
+      setRegistering(true);
+      const serials = serialNumbers.split("\n").map((s) => s.trim()).filter(Boolean);
+      const res = await fetch("/api/admin/inventory/assets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ item_id: registerAssetItem, serial_numbers: serials }),
+      });
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error);
+      toast.success(`${serials.length} asset(s) registered`);
+      setShowRegisterAssets(false);
+      setRegisterAssetItem("");
+      setSerialNumbers("");
+      fetchItems();
+      fetchAssets();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to register assets");
+    } finally {
+      setRegistering(false);
+    }
+  }
+
+  async function handleCheckout() {
+    if (!checkoutAssetSerial) return toast.error("Enter a serial number");
+
+    startTransition(async () => {
+      setCheckingOut(true);
+      // Optimistic: close dialog immediately
+      const serial = checkoutAssetSerial;
+      setShowCheckout(false);
+      setCheckoutAssetSerial("");
+      toast.loading("Checking out asset...");
+
+      try {
+        const assetRes = await fetch(`/api/admin/inventory/assets?search=${encodeURIComponent(serial)}`);
+        const assetResult = await assetRes.json();
+        const foundAsset = assetResult.data?.assets?.find((a: any) => a.serial_number.toLowerCase() === serial.toLowerCase());
+
+        if (!foundAsset) { toast.dismiss(); toast.error("Asset not found with that serial number"); return; }
+        if (foundAsset.status !== "available") { toast.dismiss(); toast.error(`Asset is ${foundAsset.status}, not available`); return; }
+
+        const res = await fetch("/api/admin/inventory/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ asset_id: foundAsset.id, user_id: checkoutUserId || null, user_role: checkoutUserRole }),
+        });
+        const result = await res.json();
+        if (!result.success) throw new Error(result.error);
+
+        toast.dismiss();
+        toast.success("Asset checked out successfully");
+        setCheckoutUserId("");
+        fetchItems();
+        fetchAssets();
+        fetchTransactions();
+      } catch (err: any) {
+        toast.dismiss();
+        toast.error(err.message || "Failed to checkout");
+      } finally {
+        setCheckingOut(false);
+      }
+    });
+  }
+
+  async function handleReturn() {
+    if (!returnAssetSerial) return toast.error("Enter a serial number");
+
+    startTransition(async () => {
+      setReturning(true);
+      const serial = returnAssetSerial;
+      setShowReturn(false);
+      setReturnAssetSerial("");
+      toast.loading("Returning asset...");
+
+      try {
+        const assetRes = await fetch(`/api/admin/inventory/assets?search=${encodeURIComponent(serial)}`);
+        const assetResult = await assetRes.json();
+        const foundAsset = assetResult.data?.assets?.find((a: any) => a.serial_number.toLowerCase() === serial.toLowerCase());
+
+        if (!foundAsset) { toast.dismiss(); toast.error("Asset not found"); return; }
+        if (foundAsset.status !== "checked_out") { toast.dismiss(); toast.error("Asset is not checked out"); return; }
+
+        const res = await fetch("/api/admin/inventory/return", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ asset_id: foundAsset.id }),
+        });
+        const result = await res.json();
+        if (!result.success) throw new Error(result.error);
+
+        toast.dismiss();
+        toast.success("Asset returned successfully");
+        fetchItems();
+        fetchAssets();
+        fetchTransactions();
+      } catch (err: any) {
+        toast.dismiss();
+        toast.error(err.message || "Failed to return");
+      } finally {
+        setReturning(false);
+      }
+    });
+  }
+
+  async function handleConsume() {
+    if (!consumeItemId || consumeQty <= 0) return toast.error("Select an item and enter quantity");
+
+    startTransition(async () => {
+      setConsuming(true);
+      setShowConsume(false);
+      toast.loading("Consuming stock...");
+
+      try {
+        const res = await fetch("/api/admin/inventory/consume", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ item_id: consumeItemId, quantity: consumeQty }),
+        });
+        const result = await res.json();
+        if (!result.success) throw new Error(result.error);
+
+        toast.dismiss();
+        toast.success("Stock consumed");
+        setConsumeItemId("");
+        setConsumeQty(1);
+        fetchItems();
+        fetchTransactions();
+      } catch (err: any) {
+        toast.dismiss();
+        toast.error(err.message || "Failed to consume");
+      } finally {
+        setConsuming(false);
+      }
+    });
+  }
+
+  async function handleRestock() {
+    if (!restockItemId || restockQty <= 0) return toast.error("Select an item and enter quantity");
+
+    startTransition(async () => {
+      setRestocking(true);
+      setShowRestock(false);
+      toast.loading("Restocking...");
+
+      try {
+        const res = await fetch("/api/admin/inventory/restock", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ item_id: restockItemId, quantity: restockQty }),
+        });
+        const result = await res.json();
+        if (!result.success) throw new Error(result.error);
+
+        toast.dismiss();
+        toast.success("Stock restocked");
+        setRestockItemId("");
+        setRestockQty(1);
+        fetchItems();
+        fetchTransactions();
+      } catch (err: any) {
+        toast.dismiss();
+        toast.error(err.message || "Failed to restock");
+      } finally {
+        setRestocking(false);
+      }
+    });
+  }
+
+  const typeBadge = (type: string) => {
+    switch (type) {
+      case "asset": return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-200">Asset</Badge>;
+      case "consumable": return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-200">Consumable</Badge>;
+      case "saleable": return <Badge className="bg-green-100 text-green-800 hover:bg-green-200">Saleable</Badge>;
+      default: return <Badge>{type}</Badge>;
+    }
+  };
+
+  const formatDate = (d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+  return (
+    <DashboardLayout role="admin">
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Inventory Items</h1>
+            <p className="text-gray-600 mt-1">Manage your school&apos;s inventory catalog</p>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <Button variant="outline" onClick={() => router.push("/admin/inventory")}>
+              <Eye className="h-4 w-4 mr-2" />
+              Dashboard
+            </Button>
+            <Button variant="outline" onClick={() => { setShowCheckout(true); }}>
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Check Out
+            </Button>
+            <Button variant="outline" onClick={() => { setShowReturn(true); }}>
+              <Undo2 className="h-4 w-4 mr-2" />
+              Return
+            </Button>
+            <Button onClick={() => setShowAddItem(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Item
+            </Button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <Tabs defaultValue={defaultTab} onValueChange={(v) => {
+          router.push(`/admin/inventory/items?tab=${v}`, { scroll: false });
+          if (v === "transactions") fetchTransactions();
+          if (v === "assets") fetchAssets();
+        }}>
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="all"><Package className="h-4 w-4 mr-2" />All Items</TabsTrigger>
+            <TabsTrigger value="assets"><Box className="h-4 w-4 mr-2" />Assets</TabsTrigger>
+            <TabsTrigger value="transactions"><ClipboardList className="h-4 w-4 mr-2" />Transactions</TabsTrigger>
+            <TabsTrigger value="actions"><Wrench className="h-4 w-4 mr-2" />Actions</TabsTrigger>
+          </TabsList>
+
+          {/* ── All Items Tab ── */}
+          <TabsContent value="all" className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search items..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger className="w-full sm:w-40">
+                  <SelectValue placeholder="All types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="asset">Assets</SelectItem>
+                  <SelectItem value="consumable">Consumables</SelectItem>
+                  <SelectItem value="saleable">Saleables</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="icon" onClick={fetchItems}>
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {loading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Skeleton key={i} className="h-16 rounded-lg" />
+                ))}
+              </div>
+            ) : sortedItems.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <Package className="h-12 w-12 mx-auto text-gray-300 mb-3" />
+                  <p className="text-gray-500 text-lg font-medium">No items found</p>
+                  <p className="text-gray-400 text-sm mt-1">Add your first inventory item to get started</p>
+                  <Button className="mt-4" onClick={() => setShowAddItem(true)}>
+                    <Plus className="h-4 w-4 mr-2" /> Add Item
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {/* Header Row */}
+                <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50 rounded-lg">
+                  <button className="col-span-3 flex items-center gap-1" onClick={() => toggleSort("name")}>
+                    <Tag className="h-3 w-3" /> Name <ArrowUpDown className="h-3 w-3" />
+                  </button>
+                  <div className="col-span-2">Category</div>
+                  <div className="col-span-2">Type</div>
+                  <button className="col-span-2 flex items-center gap-1" onClick={() => toggleSort("stock_count")}>
+                    <Hash className="h-3 w-3" /> Stock <ArrowUpDown className="h-3 w-3" />
+                  </button>
+                  <div className="col-span-2">Assets</div>
+                  <div className="col-span-1"></div>
+                </div>
+
+                {sortedItems.map((item) => (
+                  <Card key={item.id} className="hover:shadow-md transition-shadow">
+                    <CardContent className="py-4">
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+                        <div className="md:col-span-3">
+                          <p className="font-medium text-gray-900">{item.name}</p>
+                          {item.description && <p className="text-xs text-gray-500 truncate">{item.description}</p>}
+                        </div>
+                        <div className="md:col-span-2">
+                          <span className="text-sm text-gray-600">{item.category || "-"}</span>
+                        </div>
+                        <div className="md:col-span-2">{typeBadge(item.item_type)}</div>
+                        <div className="md:col-span-2">
+                          {item.item_type === "asset" ? (
+                            <span className="text-sm text-gray-500">N/A</span>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span className={`text-sm font-semibold ${item.stock_count < item.low_stock_threshold ? "text-red-600" : "text-green-600"}`}>
+                                {item.stock_count}
+                              </span>
+                              {item.stock_count < item.low_stock_threshold && (
+                                <AlertTriangle className="h-4 w-4 text-red-500" />
+                              )}
+                              <span className="text-xs text-gray-400">/ {item.low_stock_threshold}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="md:col-span-2">
+                          {item.item_type === "asset" ? (
+                            <div className="flex gap-2 text-xs">
+                              <span className="text-green-600 font-medium">{item.available_count ?? 0} free</span>
+                              <span className="text-blue-600 font-medium">{item.checked_out_count ?? 0} out</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">-</span>
+                          )}
+                        </div>
+                        <div className="md:col-span-1 flex gap-1">
+                          {item.item_type === "asset" && (
+                            <Button variant="ghost" size="sm" onClick={() => { setRegisterAssetItem(item.id); setShowRegisterAssets(true); }}>
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          )}
+                          {item.item_type !== "asset" && (
+                            <>
+                              <Button variant="ghost" size="sm" onClick={() => { setConsumeItemId(item.id); setShowConsume(true); }}>
+                                <Package className="h-3 w-3" />
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => { setRestockItemId(item.id); setShowRestock(true); }}>
+                                <ShoppingCart className="h-3 w-3" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* ── Assets Tab ── */}
+          <TabsContent value="assets" className="space-y-4">
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-gray-500">{assets.length} total assets</p>
+              <Button size="sm" onClick={() => setShowRegisterAssets(true)}>
+                <Plus className="h-4 w-4 mr-2" /> Register Assets
+              </Button>
+            </div>
+            {loadingAssets ? (
+              <div className="space-y-3">
+                {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-14 rounded-lg" />)}
+              </div>
+            ) : assets.length === 0 ? (
+              <Card><CardContent className="py-12 text-center text-gray-500"><Box className="h-12 w-12 mx-auto mb-3 text-gray-300" /><p>No assets registered</p></CardContent></Card>
+            ) : (
+              <div className="space-y-2">
+                {assets.map((asset) => (
+                  <div key={asset.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                    <div className="flex items-center gap-3">
+                      <FileDigit className="h-5 w-5 text-gray-400" />
+                      <div>
+                        <p className="text-sm font-medium">{asset.inventory_items?.name || "Unknown"} — <span className="font-mono text-gray-500">{asset.serial_number}</span></p>
+                        <p className="text-xs text-gray-400">{asset.assigned_user_id ? `Assigned to: ${asset.assigned_user_id.slice(0, 8)}...` : "Unassigned"}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge className={
+                        asset.status === "available" ? "bg-green-100 text-green-800" :
+                        asset.status === "checked_out" ? "bg-blue-100 text-blue-800" :
+                        asset.status === "maintenance" ? "bg-amber-100 text-amber-800" :
+                        "bg-red-100 text-red-800"
+                      }>
+                        {asset.status.replace("_", " ")}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* ── Transactions Tab ── */}
+          <TabsContent value="transactions" className="space-y-4">
+            {loadingTx ? (
+              <div className="space-y-3">
+                {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-14 rounded-lg" />)}
+              </div>
+            ) : transactions.length === 0 ? (
+              <Card><CardContent className="py-12 text-center text-gray-500"><ClipboardList className="h-12 w-12 mx-auto mb-3 text-gray-300" /><p>No transactions yet</p></CardContent></Card>
+            ) : (
+              <div className="space-y-2">
+                {transactions.map((tx) => (
+                  <div key={tx.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                    <div className="flex items-center gap-3">
+                      <Badge className={`capitalize ${
+                        tx.transaction_type === "checkout" ? "bg-blue-100 text-blue-800" :
+                        tx.transaction_type === "return" ? "bg-green-100 text-green-800" :
+                        tx.transaction_type === "purchase" ? "bg-purple-100 text-purple-800" :
+                        tx.transaction_type === "restock" ? "bg-amber-100 text-amber-800" :
+                        "bg-red-100 text-red-800"
+                      }`}>
+                        {tx.transaction_type.replace("_", " ")}
+                      </Badge>
+                      <div>
+                        <p className="text-sm font-medium">{tx.inventory_items?.name || "Unknown"} {tx.inventory_assets?.serial_number && <span className="text-gray-400 font-mono">({tx.inventory_assets.serial_number})</span>}</p>
+                        {tx.notes && <p className="text-xs text-gray-500">{tx.notes}</p>}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-gray-500">Qty: {tx.quantity}</p>
+                      <p className="text-xs text-gray-400">{formatDate(tx.created_at)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* ── Actions Tab ── */}
+          <TabsContent value="actions" className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setShowCheckout(true)}>
+                <CardContent className="pt-6 text-center">
+                  <CheckCircle className="h-10 w-10 mx-auto text-blue-600 mb-3" />
+                  <h3 className="font-semibold text-lg">Check Out Asset</h3>
+                  <p className="text-sm text-gray-500 mt-1">Assign an asset to a user by serial number</p>
+                </CardContent>
+              </Card>
+
+              <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setShowReturn(true)}>
+                <CardContent className="pt-6 text-center">
+                  <Undo2 className="h-10 w-10 mx-auto text-green-600 mb-3" />
+                  <h3 className="font-semibold text-lg">Return Asset</h3>
+                  <p className="text-sm text-gray-500 mt-1">Mark a checked-out asset as returned</p>
+                </CardContent>
+              </Card>
+
+              <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => {
+                setShowConsume(true);
+                setConsumeItemId("");
+              }}>
+                <CardContent className="pt-6 text-center">
+                  <Package className="h-10 w-10 mx-auto text-amber-600 mb-3" />
+                  <h3 className="font-semibold text-lg">Consume Stock</h3>
+                  <p className="text-sm text-gray-500 mt-1">Decrement stock for consumables/saleables</p>
+                </CardContent>
+              </Card>
+
+              <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => {
+                setShowRestock(true);
+                setRestockItemId("");
+              }}>
+                <CardContent className="pt-6 text-center">
+                  <ShoppingCart className="h-10 w-10 mx-auto text-purple-600 mb-3" />
+                  <h3 className="font-semibold text-lg">Restock</h3>
+                  <p className="text-sm text-gray-500 mt-1">Add stock to consumable or saleable items</p>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      {/* ── Dialogs ── */}
+
+      {/* Add Item Dialog */}
+      <Dialog open={showAddItem} onOpenChange={setShowAddItem}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add Inventory Item</DialogTitle>
+            <DialogDescription>Create a new item in the inventory catalog</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Name *</Label>
+              <Input value={addItemForm.name} onChange={(e) => setAddItemForm({ ...addItemForm, name: e.target.value })} placeholder="e.g. Laptop, Whiteboard Marker" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Category</Label>
+                <Input value={addItemForm.category} onChange={(e) => setAddItemForm({ ...addItemForm, category: e.target.value })} placeholder="e.g. Electronics, Stationery" />
+              </div>
+              <div>
+                <Label>Type *</Label>
+                <Select value={addItemForm.item_type} onValueChange={(v: any) => setAddItemForm({ ...addItemForm, item_type: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="asset">Asset (trackable)</SelectItem>
+                    <SelectItem value="consumable">Consumable (uses stock)</SelectItem>
+                    <SelectItem value="saleable">Saleable (uses stock)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {addItemForm.item_type !== "asset" && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Stock Count</Label>
+                  <Input type="number" min={0} value={addItemForm.stock_count} onChange={(e) => setAddItemForm({ ...addItemForm, stock_count: parseInt(e.target.value) || 0 })} />
+                </div>
+                <div>
+                  <Label>Low Stock Threshold</Label>
+                  <Input type="number" min={0} value={addItemForm.low_stock_threshold} onChange={(e) => setAddItemForm({ ...addItemForm, low_stock_threshold: parseInt(e.target.value) || 0 })} />
+                </div>
+              </div>
+            )}
+            <div>
+              <Label>Description</Label>
+              <Input value={addItemForm.description} onChange={(e) => setAddItemForm({ ...addItemForm, description: e.target.value })} placeholder="Optional description" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddItem(false)}>Cancel</Button>
+            <Button onClick={handleAddItem} disabled={saving}>
+              {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Creating...</> : "Create Item"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Register Assets Dialog */}
+      <Dialog open={showRegisterAssets} onOpenChange={setShowRegisterAssets}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Register Assets</DialogTitle>
+            <DialogDescription>Add individual assets with unique serial numbers</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Item *</Label>
+              <Select value={registerAssetItem} onValueChange={setRegisterAssetItem}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select an asset item..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {items.filter((i) => i.item_type === "asset").map((item) => (
+                    <SelectItem key={item.id} value={item.id}>{item.name} {item.category ? `(${item.category})` : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Serial Numbers *</Label>
+              <p className="text-xs text-gray-500 mb-1">Enter one serial number per line</p>
+              <textarea
+                className="w-full min-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                placeholder={`SN001\nSN002\nSN003`}
+                value={serialNumbers}
+                onChange={(e) => setSerialNumbers(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRegisterAssets(false)}>Cancel</Button>
+            <Button onClick={handleRegisterAssets} disabled={registering}>
+              {registering ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Registering...</> : "Register Assets"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Checkout Dialog */}
+      <Dialog open={showCheckout} onOpenChange={setShowCheckout}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Check Out Asset</DialogTitle>
+            <DialogDescription>Assign an asset to a user by serial number</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Asset Serial Number *</Label>
+              <Input
+                value={checkoutAssetSerial}
+                onChange={(e) => setCheckoutAssetSerial(e.target.value)}
+                placeholder="e.g. LAPTOP-001"
+              />
+            </div>
+            <div>
+              <Label>User ID (optional)</Label>
+              <Input
+                value={checkoutUserId}
+                onChange={(e) => setCheckoutUserId(e.target.value)}
+                placeholder="auth.users UUID or leave empty"
+              />
+            </div>
+            <div>
+              <Label>User Role</Label>
+              <Select value={checkoutUserRole} onValueChange={setCheckoutUserRole}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="student">Student</SelectItem>
+                  <SelectItem value="teacher">Teacher</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCheckout(false)}>Cancel</Button>
+            <Button onClick={handleCheckout} disabled={checkingOut}>
+              {checkingOut ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Checking out...</> : "Check Out"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Return Dialog */}
+      <Dialog open={showReturn} onOpenChange={setShowReturn}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Return Asset</DialogTitle>
+            <DialogDescription>Mark a checked-out asset as returned</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Asset Serial Number *</Label>
+              <Input value={returnAssetSerial} onChange={(e) => setReturnAssetSerial(e.target.value)} placeholder="e.g. LAPTOP-001" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowReturn(false)}>Cancel</Button>
+            <Button onClick={handleReturn} disabled={returning}>
+              {returning ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Returning...</> : "Return Asset"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Consume Dialog */}
+      <Dialog open={showConsume} onOpenChange={setShowConsume}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Consume Stock</DialogTitle>
+            <DialogDescription>Decrement stock for a consumable or saleable item</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Item *</Label>
+              <Select value={consumeItemId} onValueChange={setConsumeItemId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select item..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {items.filter((i) => i.item_type !== "asset").map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.name} ({item.stock_count} left)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Quantity *</Label>
+              <Input type="number" min={1} value={consumeQty} onChange={(e) => setConsumeQty(parseInt(e.target.value) || 1)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowConsume(false)}>Cancel</Button>
+            <Button onClick={handleConsume} disabled={consuming}>
+              {consuming ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Consuming...</> : "Consume"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Restock Dialog */}
+      <Dialog open={showRestock} onOpenChange={setShowRestock}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Restock</DialogTitle>
+            <DialogDescription>Add stock to a consumable or saleable item</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Item *</Label>
+              <Select value={restockItemId} onValueChange={setRestockItemId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select item..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {items.filter((i) => i.item_type !== "asset").map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.name} ({item.stock_count} left)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Quantity to Add *</Label>
+              <Input type="number" min={1} value={restockQty} onChange={(e) => setRestockQty(parseInt(e.target.value) || 1)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRestock(false)}>Cancel</Button>
+            <Button onClick={handleRestock} disabled={restocking}>
+              {restocking ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Restocking...</> : "Restock"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </DashboardLayout>
+  );
+}

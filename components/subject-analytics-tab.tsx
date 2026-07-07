@@ -144,6 +144,9 @@ export function SubjectAnalyticsTab({ subjectId, schoolId, subjectName }: Subjec
   // Track data version for fade transitions on filter change
   const [dataVersion, setDataVersion] = useState(0);
 
+  // Sort preference for class cards
+  const [sortBy, setSortBy] = useState<"avg" | "passRate" | "alpha">("avg");
+
   /* ═══════════════════════════════════════
      DATA LOADING
   ═══════════════════════════════════════ */
@@ -440,6 +443,8 @@ export function SubjectAnalyticsTab({ subjectId, schoolId, subjectName }: Subjec
         <ClassCardsGrid
           summaryList={summaryList}
           dataVersion={dataVersion}
+          sortBy={sortBy}
+          onSortChange={setSortBy}
         />
       )}
 
@@ -581,7 +586,7 @@ function StatCardsSection({
           key={stat.label}
           className="stat-card-enter"
           style={{
-            animation: isOverviewLoading ? "none" : `statFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) ${STAT_ENTRY_DELAYS[idx]}ms both`,
+            animation: isLoading ? "none" : `statFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) ${STAT_ENTRY_DELAYS[idx]}ms both`,
           }}
         >
           <Card className="border-slate-200 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5">
@@ -708,28 +713,60 @@ function EmptyState() {
 
 /* ── Class Cards Grid ── */
 function ClassCardsGrid({
-  summaryList, dataVersion,
+  summaryList, dataVersion, sortBy, onSortChange,
 }: {
   summaryList: [string, ClassSummary][];
   dataVersion: number;
+  sortBy: "avg" | "passRate" | "alpha";
+  onSortChange: (value: "avg" | "passRate" | "alpha") => void;
 }) {
   const classCount = summaryList.length;
 
-  // Sort by avg descending for ranking
-  const sorted = [...summaryList].sort(
-    ([, a], [, b]) => parseFloat(b.avg) - parseFloat(a.avg),
-  );
+  // Sort based on the selected criteria
+  const sorted = [...summaryList].sort(([, a], [, b]) => {
+    if (sortBy === "avg") return parseFloat(b.avg) - parseFloat(a.avg);
+    if (sortBy === "passRate") return b.passRate - a.passRate;
+    return a.className.localeCompare(b.className);
+  });
+
+  // Sort options config
+  const sortOptions: { value: typeof sortBy; label: string; description: string }[] = [
+    { value: "avg", label: "Avg", description: "Sort by average score" },
+    { value: "passRate", label: "Pass %", description: "Sort by pass rate" },
+    { value: "alpha", label: "A–Z", description: "Sort alphabetically" },
+  ];
 
   return (
     <div key={`classes-${dataVersion}`}>
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-          <SortAsc className="h-4 w-4 text-muted-foreground" />
-          Classes Teaching This Subject
-        </h3>
-        <Badge variant="secondary" className="text-xs">
-          {classCount} class{classCount !== 1 ? "es" : ""}
-        </Badge>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2">
+          <SortAsc className="h-4 w-4 text-muted-foreground shrink-0" />
+          <h3 className="text-sm font-semibold text-foreground">
+            Classes Teaching This Subject
+          </h3>
+          <Badge variant="secondary" className="text-xs ml-1">
+            {classCount} class{classCount !== 1 ? "es" : ""}
+          </Badge>
+        </div>
+
+        {/* Sort toggle */}
+        <div className="flex items-center gap-1.5 bg-muted/30 border rounded-lg p-0.5 w-fit">
+          {sortOptions.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              title={opt.description}
+              onClick={() => onSortChange(opt.value)}
+              className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all duration-150 ${
+                sortBy === opt.value
+                  ? "bg-white text-foreground shadow-sm border"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {sorted.map(([id, summary], idx) => (

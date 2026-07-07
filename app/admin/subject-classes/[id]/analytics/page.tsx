@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useSchoolContext } from "@/hooks/use-school-context";
 import { DashboardLayout } from "@/components/dashboard-layout";
@@ -12,6 +13,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 export default function SubjectAnalyticsPage({ params }: any) {
     const { schoolId } = useSchoolContext();
+    const router = useRouter();
     const subjectClassId = params.id;
 
     const [sessions, setSessions] = useState<any[]>([]);
@@ -59,6 +61,11 @@ export default function SubjectAnalyticsPage({ params }: any) {
         if (!schoolId) return;
         setIsLoading(true);
 
+        // Read URL params to restore filter state on refresh
+        const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+        const urlSession = urlParams?.get('session');
+        const urlTerm = urlParams?.get('term');
+
         // Load result components first
         const { data: componentData } = await supabase
             .from("result_component_templates")
@@ -87,16 +94,31 @@ export default function SubjectAnalyticsPage({ params }: any) {
         const currentSession = sessionData?.find((s: any) => s.is_current);
         const currentTerm = termData?.find((t: any) => t.is_current);
 
-        setSelectedSession(currentSession?.id || "");
-        setSelectedTerm(currentTerm?.id || "");
+        // Prefer URL params over DB defaults (user may have navigated away from current session/term)
+        const sessionId = (urlSession && sessionData?.find((s: any) => s.id === urlSession))
+            ? urlSession
+            : (currentSession?.id || "");
+        const termId = (urlTerm && termData?.find((t: any) => t.id === urlTerm))
+            ? urlTerm
+            : (currentTerm?.id || "");
 
-        loadResults(subjectClassId, currentSession?.id, currentTerm?.id);
+        setSelectedSession(sessionId);
+        setSelectedTerm(termId);
+
+        // Sync URL with the selected values
+        const params = new URLSearchParams(window.location.search);
+        params.set('session', sessionId);
+        params.set('term', termId);
+        router.replace(`?${params.toString()}`, { scroll: false });
+
+        loadResults(subjectClassId, sessionId, termId);
         await loadGenderComparison(subjectClassId);
     }
 
     async function loadStudentBreakdown(subjectClassId: string, sessionId: string, termId: string, components: any[]) {
         if (!schoolId || components.length === 0) {
             setStudentBreakdown([]);
+            setIsLoading(false);
             return;
         }
 
@@ -124,11 +146,13 @@ export default function SubjectAnalyticsPage({ params }: any) {
             if (resultsError) {
                 console.error("Error loading results:", resultsError);
                 setStudentBreakdown([]);
+                setIsLoading(false);
                 return;
             }
 
             if (!results || results.length === 0) {
                 setStudentBreakdown([]);
+                setIsLoading(false);
                 return;
             }
 
@@ -186,6 +210,8 @@ export default function SubjectAnalyticsPage({ params }: any) {
         } catch (error) {
             console.error("Error in loadStudentBreakdown:", error);
             setStudentBreakdown([]);
+        } finally {
+            setIsLoading(false);
         }
     }
 
@@ -508,6 +534,9 @@ export default function SubjectAnalyticsPage({ params }: any) {
                             onValueChange={(val) => {
                                 setSelectedSession(val);
                                 loadResults(subjectClassId, val, selectedTerm);
+                                const params = new URLSearchParams(window.location.search);
+                                params.set('session', val);
+                                router.replace(`?${params.toString()}`, { scroll: false });
                             }}
                         >
                             <SelectTrigger>
@@ -528,6 +557,9 @@ export default function SubjectAnalyticsPage({ params }: any) {
                             onValueChange={(val) => {
                                 setSelectedTerm(val);
                                 loadResults(subjectClassId, selectedSession, val);
+                                const params = new URLSearchParams(window.location.search);
+                                params.set('term', val);
+                                router.replace(`?${params.toString()}`, { scroll: false });
                             }}
                         >
                             <SelectTrigger>

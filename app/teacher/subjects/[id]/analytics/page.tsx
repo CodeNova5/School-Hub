@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -10,6 +11,7 @@ import { Users, TrendingUp, TrendingDown, Award, } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useSchoolContext } from "@/hooks/use-school-context";
 export default function SubjectAnalyticsPage({ params }: any) {
+    const router = useRouter();
     const subjectClassId = params.id;
 
     const [sessions, setSessions] = useState<any[]>([]);
@@ -56,6 +58,11 @@ export default function SubjectAnalyticsPage({ params }: any) {
         if (!schoolId) return;
         setIsLoading(true);
 
+        // Read URL params to restore filter state on refresh
+        const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+        const urlSession = urlParams?.get('session');
+        const urlTerm = urlParams?.get('term');
+
         // Load result components first
         const { data: componentData } = await supabase
             .from("result_component_templates")
@@ -84,11 +91,25 @@ export default function SubjectAnalyticsPage({ params }: any) {
         const currentSession = sessionData?.find((s: any) => s.is_current);
         const currentTerm = termData?.find((t: any) => t.is_current);
 
-        setSelectedSession(currentSession?.id || "");
-        setSelectedTerm(currentTerm?.id || "");
+        // Prefer URL params over DB defaults (user may have navigated away from current session/term)
+        const sessionId = (urlSession && sessionData?.find((s: any) => s.id === urlSession))
+            ? urlSession
+            : (currentSession?.id || "");
+        const termId = (urlTerm && termData?.find((t: any) => t.id === urlTerm))
+            ? urlTerm
+            : (currentTerm?.id || "");
 
-        loadResults(subjectClassId, currentSession?.id, currentTerm?.id);
-        await loadGenderComparison(subjectClassId, currentSession?.id, currentTerm?.id);
+        setSelectedSession(sessionId);
+        setSelectedTerm(termId);
+
+        // Sync URL with the selected values
+        const params = new URLSearchParams(window.location.search);
+        params.set('session', sessionId);
+        params.set('term', termId);
+        router.replace(`?${params.toString()}`, { scroll: false });
+
+        loadResults(subjectClassId, sessionId, termId);
+        await loadGenderComparison(subjectClassId, sessionId, termId);
 
 
     }
@@ -112,8 +133,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                         first_name,
                         last_name,
                         student_id,
-                        gender,
-                        photo_url
+                        gender
                     )
                 `)
                 .eq("subject_class_id", subjectClassId)
@@ -175,7 +195,6 @@ export default function SubjectAnalyticsPage({ params }: any) {
                         id: r.id,
                         name: `${student.first_name} ${student.last_name}`,
                         student_id: student.student_id,
-                        photo_url: student.photo_url,
                         gender: student.gender,
                         ...componentScoresObj,
                         total: totalScore,
@@ -213,7 +232,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
             // Fetch results without total (it doesn't exist in table)
             let query: any = supabase
                 .from("results")
-                .select(`id, grade, student_id, session_id, term_id, students(first_name, last_name, student_id, gender, photo_url)`)
+                .select(`id, grade, student_id, session_id, term_id, students(first_name, last_name, student_id, gender)`)
                 .eq("subject_class_id", subjectClassId)
                 .eq('school_id', schoolId);
 
@@ -522,6 +541,9 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                 setSelectedSession(val);
                                 loadResults(subjectClassId, val, selectedTerm);
                                 loadGenderComparison(subjectClassId, val, selectedTerm);
+                                const params = new URLSearchParams(window.location.search);
+                                params.set('session', val);
+                                router.replace(`?${params.toString()}`, { scroll: false });
                             }}
                         >
                             <SelectTrigger className="text-sm h-9 sm:h-10">
@@ -542,6 +564,9 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                 setSelectedTerm(val);
                                 loadResults(subjectClassId, selectedSession, val);
                                 loadGenderComparison(subjectClassId, selectedSession, val);
+                                const params = new URLSearchParams(window.location.search);
+                                params.set('term', val);
+                                router.replace(`?${params.toString()}`, { scroll: false });
                             }}
                         >
                             <SelectTrigger className="text-sm h-9 sm:h-10">

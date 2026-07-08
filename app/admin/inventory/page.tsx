@@ -177,6 +177,41 @@ export default function AdminInventoryDashboard() {
     }
   };
 
+  // ── Memoized data (MUST be before the early return to keep hook count consistent) ──
+
+  const chartData = [
+    { name: "Available", value: stats?.available || 0, fill: "#22c55e" },
+    { name: "Checked Out", value: stats?.checked_out || 0, fill: "#3b82f6" },
+    { name: "Maintenance", value: stats?.in_maintenance || 0, fill: "#f59e0b" },
+    { name: "Lost", value: stats?.lost || 0, fill: "#ef4444" },
+  ];
+
+  const lowStockCategoryData = useMemo(() => {
+    const grouped: Record<string, { count: number; items: { name: string; stock: number; threshold: number }[] }> = {};
+    for (const item of lowStockItems) {
+      const cat = item.category || "Uncategorized";
+      if (!grouped[cat]) grouped[cat] = { count: 0, items: [] };
+      grouped[cat].count++;
+      grouped[cat].items.push({ name: item.name, stock: item.stock_count, threshold: item.low_stock_threshold });
+    }
+    return Object.entries(grouped)
+      .map(([name, data]) => ({ name, value: data.count, items: data.items }))
+      .sort((a, b) => b.value - a.value);
+  }, [lowStockItems]);
+
+  const PIE_COLORS = ["#f59e0b", "#8b5cf6", "#06b6d4", "#ef4444"];
+
+  const lowStockByTypeData = useMemo(() => {
+    const grouped: Record<string, number> = {};
+    for (const item of lowStockItems) {
+      const type = item.item_type || "unknown";
+      grouped[type] = (grouped[type] || 0) + 1;
+    }
+    return Object.entries(grouped)
+      .map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value }))
+      .sort((a, b) => b.value - a.value);
+  }, [lowStockItems]);
+
   if (loading) {
     return (
       <DashboardLayout role="admin">
@@ -286,39 +321,6 @@ export default function AdminInventoryDashboard() {
       </DashboardLayout>
     );
   }
-
-  const chartData = [
-    { name: "Available", value: stats?.available || 0, fill: "#22c55e" },
-    { name: "Checked Out", value: stats?.checked_out || 0, fill: "#3b82f6" },
-    { name: "Maintenance", value: stats?.in_maintenance || 0, fill: "#f59e0b" },
-    { name: "Lost", value: stats?.lost || 0, fill: "#ef4444" },
-  ];
-
-  const lowStockCategoryData = useMemo(() => {
-    const grouped: Record<string, { count: number; items: { name: string; stock: number; threshold: number }[] }> = {};
-    for (const item of lowStockItems) {
-      const cat = item.category || "Uncategorized";
-      if (!grouped[cat]) grouped[cat] = { count: 0, items: [] };
-      grouped[cat].count++;
-      grouped[cat].items.push({ name: item.name, stock: item.stock_count, threshold: item.low_stock_threshold });
-    }
-    return Object.entries(grouped)
-      .map(([name, data]) => ({ name, value: data.count, items: data.items }))
-      .sort((a, b) => b.value - a.value);
-  }, [lowStockItems]);
-
-  const PIE_COLORS = ["#f59e0b", "#8b5cf6", "#06b6d4", "#ef4444"];
-
-  const lowStockByTypeData = useMemo(() => {
-    const grouped: Record<string, number> = {};
-    for (const item of lowStockItems) {
-      const type = item.item_type || "unknown";
-      grouped[type] = (grouped[type] || 0) + 1;
-    }
-    return Object.entries(grouped)
-      .map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value }))
-      .sort((a, b) => b.value - a.value);
-  }, [lowStockItems]);
 
   return (
     <DashboardLayout role="admin">

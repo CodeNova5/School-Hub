@@ -79,7 +79,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { format } from "date-fns";
+import { format, startOfWeek, startOfMonth, startOfYear } from "date-fns";
 
 export default function AdminInventoryDashboard() {
   const router = useRouter();
@@ -141,6 +141,41 @@ export default function AdminInventoryDashboard() {
       }
     }
   }
+
+    const quickRanges = [
+    {
+      label: "Today",
+      apply: () => {
+        const now = new Date();
+        setDateFrom(now);
+        setDateTo(now);
+      },
+    },
+    {
+      label: "This Week",
+      apply: () => {
+        const now = new Date();
+        setDateFrom(startOfWeek(now, { weekStartsOn: 0 }));
+        setDateTo(now);
+      },
+    },
+    {
+      label: "This Month",
+      apply: () => {
+        const now = new Date();
+        setDateFrom(startOfMonth(now));
+        setDateTo(now);
+      },
+    },
+    {
+      label: "This Year",
+      apply: () => {
+        const now = new Date();
+        setDateFrom(startOfYear(now));
+        setDateTo(now);
+      },
+    },
+  ];
 
   function clearFilters() {
     setDateFrom(undefined);
@@ -234,8 +269,9 @@ export default function AdminInventoryDashboard() {
               <Skeleton className="h-4 w-4" />
               <Skeleton className="h-4 w-12" />
             </div>
-            <Skeleton className="h-9 w-44 rounded-md" />
-            <Skeleton className="h-9 w-44 rounded-md" />
+            <Skeleton className="h-8 w-64 rounded-md" />
+            <Skeleton className="h-9 w-36 rounded-md" />
+            <Skeleton className="h-9 w-36 rounded-md" />
             <Skeleton className="h-9 w-48 rounded-md" />
           </div>
 
@@ -350,13 +386,28 @@ export default function AdminInventoryDashboard() {
             Filters
           </div>
 
+          {/* Quick-select presets */}
+          <div className="flex items-center gap-1 border-r border-gray-200 pr-3">
+            {quickRanges.map((r) => (
+              <Button
+                key={r.label}
+                variant="ghost"
+                size="sm"
+                onClick={r.apply}
+                className="text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 px-2.5"
+              >
+                {r.label}
+              </Button>
+            ))}
+          </div>
+
           {/* Date From */}
           <Popover open={dateFromOpen} onOpenChange={setDateFromOpen}>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
                 size="sm"
-                className={`justify-start text-left font-normal w-44 ${!dateFrom ? "text-muted-foreground" : ""}`}
+                className={`justify-start text-left font-normal w-36 ${!dateFrom ? "text-muted-foreground" : ""}`}
               >
                 <CalendarIcon className="h-4 w-4 mr-2" />
                 {dateFrom ? format(dateFrom, "MMM d, yyyy") : "From date"}
@@ -381,7 +432,7 @@ export default function AdminInventoryDashboard() {
               <Button
                 variant="outline"
                 size="sm"
-                className={`justify-start text-left font-normal w-44 ${!dateTo ? "text-muted-foreground" : ""}`}
+                className={`justify-start text-left font-normal w-36 ${!dateTo ? "text-muted-foreground" : ""}`}
               >
                 <CalendarIcon className="h-4 w-4 mr-2" />
                 {dateTo ? format(dateTo, "MMM d, yyyy") : "To date"}

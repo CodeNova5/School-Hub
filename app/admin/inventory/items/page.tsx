@@ -49,6 +49,9 @@ import {
   User,
   Wrench,
   Eye,
+  FolderTree,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 
 interface InventoryItem {
@@ -155,6 +158,34 @@ export default function InventoryItemsPage() {
   const [sortField, setSortField] = useState<"name" | "stock_count" | "category">("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
+  // ── Categories management ──
+  interface CategoryInfo {
+    name: string;
+    total: number;
+    assets: number;
+    consumables: number;
+    saleables: number;
+  }
+  const [categories, setCategories] = useState<CategoryInfo[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
+
+  // Rename category
+  const [showRenameCategory, setShowRenameCategory] = useState(false);
+  const [renameFrom, setRenameFrom] = useState("");
+  const [renameTo, setRenameTo] = useState("");
+  const [renamingCategory, setRenamingCategory] = useState(false);
+
+  // Delete category
+  const [showDeleteCategory, setShowDeleteCategory] = useState(false);
+  const [deleteCatName, setDeleteCatName] = useState("");
+  const [deletingCategory, setDeletingCategory] = useState(false);
+
+  // Add category (from Add Item or standalone)
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [showAddCategory, setShowAddCategory] = useState(false);
+  // Track whether user is typing a new category in Add Item
+  const [isNewCategory, setIsNewCategory] = useState(false);
+
   const fetchItems = useCallback(async () => {
     try {
       setLoading(true);
@@ -198,14 +229,29 @@ export default function InventoryItemsPage() {
     }
   }, []);
 
+  const fetchCategories = useCallback(async () => {
+    try {
+      setLoadingCategories(true);
+      const res = await fetch("/api/admin/inventory/categories");
+      const result = await res.json();
+      if (result.success) setCategories(result.data.categories || []);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingCategories(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchItems();
-  }, [fetchItems]);
+    fetchCategories(); // Eagerly load categories for the Add Item dialog dropdown
+  }, [fetchItems, fetchCategories]);
 
   useEffect(() => {
     if (defaultTab === "transactions") fetchTransactions();
     if (defaultTab === "assets") fetchAssets();
-  }, [defaultTab, fetchTransactions, fetchAssets]);
+    if (defaultTab === "categories") fetchCategories();
+  }, [defaultTab, fetchTransactions, fetchAssets, fetchCategories]);
 
   const sortedItems = [...items].sort((a, b) => {
     const aVal = a[sortField] ?? "";
@@ -235,7 +281,9 @@ export default function InventoryItemsPage() {
       toast.success("Item created");
       setShowAddItem(false);
       setAddItemForm({ name: "", category: "", item_type: "consumable", stock_count: 0, low_stock_threshold: 5, description: "", unit_price: 0 });
+      setIsNewCategory(false);
       fetchItems();
+      fetchCategories();
     } catch (err: any) {
       toast.error(err.message || "Failed to create item");
     } finally {
@@ -461,9 +509,10 @@ export default function InventoryItemsPage() {
           if (v === "transactions") fetchTransactions();
           if (v === "assets") fetchAssets();
         }}>
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="all"><Package className="h-4 w-4 mr-2" />All Items</TabsTrigger>
             <TabsTrigger value="assets"><Box className="h-4 w-4 mr-2" />Assets</TabsTrigger>
+            <TabsTrigger value="categories"><FolderTree className="h-4 w-4 mr-2" />Categories</TabsTrigger>
             <TabsTrigger value="transactions"><ClipboardList className="h-4 w-4 mr-2" />Transactions</TabsTrigger>
             <TabsTrigger value="actions"><Wrench className="h-4 w-4 mr-2" />Actions</TabsTrigger>
           </TabsList>
@@ -632,6 +681,93 @@ export default function InventoryItemsPage() {
             )}
           </TabsContent>
 
+          {/* ── Categories Tab ── */}
+          <TabsContent value="categories" className="space-y-4">
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-gray-500">{categories.length} categories</p>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={fetchCategories}
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
+                <Button size="sm" onClick={() => { setNewCategoryName(""); setShowAddCategory(true); }}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Category
+                </Button>
+              </div>
+            </div>
+
+            {loadingCategories ? (
+              <div className="space-y-3">
+                {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
+              </div>
+            ) : categories.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <FolderTree className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                  <p className="text-gray-500 text-lg font-medium">No categories yet</p>
+                  <p className="text-gray-400 text-sm mt-1">Categories are created automatically when you add items with a category name</p>
+                  <Button className="mt-4" onClick={() => { setNewCategoryName(""); setShowAddCategory(true); }}>
+                    <Plus className="h-4 w-4 mr-2" /> Add Category
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                {categories.map((cat) => (
+                  <Card key={cat.name} className="hover:shadow-md transition-shadow">
+                    <CardContent className="py-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600">
+                            <FolderTree className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-gray-900">{cat.name}</p>
+                            <p className="text-xs text-gray-500">
+                              {cat.total} item{cat.total !== 1 ? "s" : ""}
+                              {cat.assets > 0 && ` · ${cat.assets} asset${cat.assets !== 1 ? "s" : ""}`}
+                              {cat.consumables > 0 && ` · ${cat.consumables} consumable${cat.consumables !== 1 ? "s" : ""}`}
+                              {cat.saleables > 0 && ` · ${cat.saleables} saleable${cat.saleables !== 1 ? "s" : ""}`}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setRenameFrom(cat.name);
+                              setRenameTo(cat.name);
+                              setShowRenameCategory(true);
+                            }}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => {
+                              setDeleteCatName(cat.name);
+                              setShowDeleteCategory(true);
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
           {/* ── Transactions Tab ── */}
           <TabsContent value="transactions" className="space-y-4">
             {loadingTx ? (
@@ -731,7 +867,53 @@ export default function InventoryItemsPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Category</Label>
-                <Input value={addItemForm.category} onChange={(e) => setAddItemForm({ ...addItemForm, category: e.target.value })} placeholder="e.g. Electronics, Stationery" />
+                {isNewCategory ? (
+                  <div className="flex gap-2">
+                    <Input
+                      value={addItemForm.category}
+                      onChange={(e) => setAddItemForm({ ...addItemForm, category: e.target.value })}
+                      placeholder="New category name"
+                      className="flex-1"
+                      autoFocus
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setIsNewCategory(false);
+                        setAddItemForm({ ...addItemForm, category: "" });
+                      }}
+                    >
+                      <XCircle className="h-4 w-4 text-gray-400" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Select
+                    value={addItemForm.category}
+                    onValueChange={(v) => {
+                      if (v === "__new__") {
+                        setIsNewCategory(true);
+                        setAddItemForm({ ...addItemForm, category: "" });
+                      } else {
+                        setAddItemForm({ ...addItemForm, category: v });
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select or type new..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat.name} value={cat.name}>
+                          {cat.name} ({cat.total})
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="__new__" className="text-blue-600 font-medium">
+                        + Add new category...
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               <div>
                 <Label>Type *</Label>
@@ -952,6 +1134,155 @@ export default function InventoryItemsPage() {
             <Button variant="outline" onClick={() => setShowRestock(false)}>Cancel</Button>
             <Button onClick={handleRestock} disabled={restocking}>
               {restocking ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Restocking...</> : "Restock"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Category Dialogs ── */}
+
+      {/* Add Category Dialog */}
+      <Dialog open={showAddCategory} onOpenChange={setShowAddCategory}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Add Category</DialogTitle>
+            <DialogDescription>Create a new inventory category</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Category Name *</Label>
+              <Input
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                placeholder="e.g. Electronics, Stationery"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newCategoryName.trim()) {
+                    setAddItemForm((prev) => ({ ...prev, category: newCategoryName.trim() }));
+                    setShowAddCategory(false);
+                    setShowAddItem(true);
+                    toast.success(`Category "${newCategoryName.trim()}" will be used`);
+                  }
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddCategory(false)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                if (!newCategoryName.trim()) return toast.error("Category name is required");
+                setAddItemForm((prev) => ({ ...prev, category: newCategoryName.trim() }));
+                setShowAddCategory(false);
+                setShowAddItem(true);
+                toast.success(`Category "${newCategoryName.trim()}" ready`);
+              }}
+              disabled={!newCategoryName.trim()}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Create & Continue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename Category Dialog */}
+      <Dialog open={showRenameCategory} onOpenChange={setShowRenameCategory}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Rename Category</DialogTitle>
+            <DialogDescription>
+              Rename "{renameFrom}" — all items in this category will be updated
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>New Name *</Label>
+              <Input
+                value={renameTo}
+                onChange={(e) => setRenameTo(e.target.value)}
+                placeholder="New category name"
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRenameCategory(false)}>Cancel</Button>
+            <Button
+              onClick={async () => {
+                if (!renameTo.trim()) return toast.error("New name is required");
+                if (renameTo.trim() === renameFrom) {
+                  setShowRenameCategory(false);
+                  return;
+                }
+                setRenamingCategory(true);
+                try {
+                  const res = await fetch("/api/admin/inventory/categories", {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ old_name: renameFrom, new_name: renameTo.trim() }),
+                  });
+                  const result = await res.json();
+                  if (!result.success) throw new Error(result.error);
+                  toast.success(`Renamed to "${renameTo.trim()}"`);
+                  setShowRenameCategory(false);
+                  fetchCategories();
+                  fetchItems();
+                } catch (err: any) {
+                  toast.error(err.message || "Failed to rename");
+                } finally {
+                  setRenamingCategory(false);
+                }
+              }}
+              disabled={!renameTo.trim() || renamingCategory}
+            >
+              {renamingCategory ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Renaming...</> : "Rename"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Category Dialog */}
+      <Dialog open={showDeleteCategory} onOpenChange={setShowDeleteCategory}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Remove Category</DialogTitle>
+            <DialogDescription>
+              Remove the category "{deleteCatName}" from all items. Items will keep their
+              category field but it will be cleared.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <AlertTriangle className="h-4 w-4 inline mr-1" />
+              This action cannot be undone. Items will have no category assigned.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteCategory(false)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                setDeletingCategory(true);
+                try {
+                  const res = await fetch(`/api/admin/inventory/categories?name=${encodeURIComponent(deleteCatName)}`, {
+                    method: "DELETE",
+                  });
+                  const result = await res.json();
+                  if (!result.success) throw new Error(result.error);
+                  toast.success(`Category "${deleteCatName}" removed`);
+                  setShowDeleteCategory(false);
+                  fetchCategories();
+                  fetchItems();
+                } catch (err: any) {
+                  toast.error(err.message || "Failed to remove category");
+                } finally {
+                  setDeletingCategory(false);
+                }
+              }}
+              disabled={deletingCategory}
+            >
+              {deletingCategory ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Removing...</> : "Remove Category"}
             </Button>
           </DialogFooter>
         </DialogContent>

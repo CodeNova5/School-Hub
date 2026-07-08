@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import {
   ClipboardList,
   Wrench,
   XCircle,
+  PieChart as PieChartIcon,
 } from "lucide-react";
 import {
   BarChart,
@@ -29,6 +30,9 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  PieChart as RechartsPieChart,
+  Pie,
+  Cell,
 } from "recharts";
 
 interface DashboardStats {
@@ -47,6 +51,8 @@ interface LowStockItem {
   name: string;
   stock_count: number;
   low_stock_threshold: number;
+  category?: string | null;
+  item_type?: string | null;
 }
 
 interface Transaction {
@@ -150,6 +156,29 @@ export default function AdminInventoryDashboard() {
                   <Skeleton key={i} className="h-16 w-full rounded-lg" />
                 ))}
               </div>
+            </div>          </div>
+
+          {/* Low-Stock Charts Row skeleton */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 rounded-xl border bg-white shadow-lg overflow-hidden">
+              <div className="border-b p-4 bg-gradient-to-r from-amber-50 to-orange-50">
+                <Skeleton className="h-6 w-56" />
+              </div>
+              <div className="p-6">
+                <Skeleton className="h-72 w-full rounded-lg" />
+              </div>
+            </div>
+            <div className="rounded-xl border bg-white shadow-lg overflow-hidden">
+              <div className="border-b p-4 bg-gradient-to-r from-purple-50 to-pink-50">
+                <Skeleton className="h-6 w-32" />
+              </div>
+              <div className="p-6 flex flex-col items-center">
+                <Skeleton className="h-44 w-44 rounded-full" />
+                <div className="flex gap-4 mt-4">
+                  <Skeleton className="h-4 w-16 rounded" />
+                  <Skeleton className="h-4 w-16 rounded" />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -188,6 +217,32 @@ export default function AdminInventoryDashboard() {
     { name: "Maintenance", value: stats?.in_maintenance || 0, fill: "#f59e0b" },
     { name: "Lost", value: stats?.lost || 0, fill: "#ef4444" },
   ];
+
+  const lowStockCategoryData = useMemo(() => {
+    const grouped: Record<string, { count: number; items: { name: string; stock: number; threshold: number }[] }> = {};
+    for (const item of lowStockItems) {
+      const cat = item.category || "Uncategorized";
+      if (!grouped[cat]) grouped[cat] = { count: 0, items: [] };
+      grouped[cat].count++;
+      grouped[cat].items.push({ name: item.name, stock: item.stock_count, threshold: item.low_stock_threshold });
+    }
+    return Object.entries(grouped)
+      .map(([name, data]) => ({ name, value: data.count, items: data.items }))
+      .sort((a, b) => b.value - a.value);
+  }, [lowStockItems]);
+
+  const PIE_COLORS = ["#f59e0b", "#8b5cf6", "#06b6d4", "#ef4444"];
+
+  const lowStockByTypeData = useMemo(() => {
+    const grouped: Record<string, number> = {};
+    for (const item of lowStockItems) {
+      const type = item.item_type || "unknown";
+      grouped[type] = (grouped[type] || 0) + 1;
+    }
+    return Object.entries(grouped)
+      .map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value }))
+      .sort((a, b) => b.value - a.value);
+  }, [lowStockItems]);
 
   return (
     <DashboardLayout role="admin">
@@ -426,8 +481,113 @@ export default function AdminInventoryDashboard() {
                 <ArrowRight className="h-4 w-4 ml-auto text-gray-400" />
               </Button>
             </CardContent>
-          </Card>
-        </div>
+          </Card>          </div>
+
+        {/* Low-Stock Charts Row */}
+        {lowStockItems.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Low-Stock by Category Chart */}
+            <Card className="lg:col-span-2 shadow-lg">
+              <CardHeader className="border-b bg-gradient-to-r from-amber-50 to-orange-50">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-amber-600" />
+                  Low-Stock Items by Category
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={lowStockCategoryData}
+                      layout="vertical"
+                      margin={{ top: 5, right: 30, left: 100, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 12 }} />
+                      <YAxis type="category" dataKey="name" tick={{ fontSize: 13 }} width={100} />
+                      <Tooltip
+                        contentStyle={{
+                          borderRadius: "8px",
+                          border: "1px solid #e5e7eb",
+                          boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
+                        }}
+                        formatter={(value: number, _name: string, props: any) => (
+                          <div className="text-sm">
+                            <p className="font-semibold text-amber-800 mb-1">{props.payload.name}</p>
+                            <p className="text-gray-700">{value} low-stock item{value !== 1 ? "s" : ""}</p>
+                            <ul className="mt-1 space-y-0.5">
+                              {props.payload.items?.map((item: any, i: number) => (
+                                <li key={i} className="text-xs text-gray-500">
+                                  • {item.name} ({item.stock}/{item.threshold})
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      />
+                      <Bar dataKey="value" radius={[0, 4, 4, 0]} fill="#f59e0b" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Low-Stock by Type Pie Chart */}
+            <Card className="shadow-lg">
+              <CardHeader className="border-b bg-gradient-to-r from-purple-50 to-pink-50">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <PieChartIcon className="h-5 w-5 text-purple-600" />
+                  By Item Type
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <div className="h-72 flex items-center">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsPieChart>
+                      <Pie
+                        data={lowStockByTypeData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={90}
+                        paddingAngle={4}
+                        dataKey="value"
+                      >
+                        {lowStockByTypeData.map((_entry, index) => (
+                          <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          borderRadius: "8px",
+                          border: "1px solid #e5e7eb",
+                          boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
+                        }}
+                        formatter={(value: number, name: string) => [
+                          <span key="v" className="font-medium">{value} item{value !== 1 ? "s" : ""}</span>,
+                          name,
+                        ]}
+                      />
+                    </RechartsPieChart>
+                  </ResponsiveContainer>
+                </div>
+                {/* Legend */}
+                <div className="flex flex-wrap gap-4 justify-center mt-3 pt-3 border-t border-gray-100">
+                  {lowStockByTypeData.map((entry, index) => (
+                    <div key={entry.name} className="flex items-center gap-1.5 text-sm">
+                      <span
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }}
+                      />
+                      <span className="text-gray-700">{entry.name}</span>
+                      <span className="text-gray-500 font-medium">({entry.value})</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Recent Transactions */}
         <Card className="shadow-lg">

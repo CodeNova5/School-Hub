@@ -38,7 +38,7 @@ export async function GET(_req: NextRequest) {
     // Low-stock items: fetch all consumable/saleable items and filter in code
     const { data: allConsumableItems } = await supabase
       .from("inventory_items")
-      .select("id, name, stock_count, low_stock_threshold")
+      .select("id, name, stock_count, low_stock_threshold, category, item_type")
       .eq("school_id", schoolId)
       .eq("is_active", true)
       .in("item_type", ["consumable", "saleable"]);

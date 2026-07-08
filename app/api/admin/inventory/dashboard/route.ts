@@ -6,7 +6,7 @@ import { checkIsAdminWithSchool, errorResponse, successResponse } from "@/lib/ap
 export const dynamic = "force-dynamic";
 
 // GET: Fetch inventory dashboard summary statistics
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   const permission = await checkIsAdminWithSchool();
   if (!permission.authorized || !permission.schoolId) {
     return errorResponse(permission.error || "Unauthorized", permission.status || 401);
@@ -15,6 +15,41 @@ export async function GET(_req: NextRequest) {
   try {
     const supabase = createRouteHandlerClient({ cookies });
     const schoolId = permission.schoolId;
+
+    // ── Parse filter query params ──
+    const { searchParams } = new URL(req.url);
+    const dateFrom = searchParams.get("date_from") || null;
+    const dateTo = searchParams.get("date_to") || null;
+    const categoryFilter = searchParams.get("category") || null;
+
+    // ── Fetch distinct categories for the filter dropdown ──
+    const { data: categoriesData } = await supabase
+      .from("inventory_items")
+      .select("category")
+      .eq("school_id", schoolId)
+      .eq("is_active", true)
+      .neq("category", "")
+      .not("category", "is", null);
+
+    const distinctCategories = [...new Set((categoriesData || []).map((c) => c.category))].sort();
+
+    // ── Build transaction query with optional date filter ──
+    let txQuery = supabase
+      .from("inventory_transactions")
+      .select("*, inventory_items(name), inventory_assets(serial_number)")
+      .eq("school_id", schoolId);
+
+    if (dateFrom) {
+      txQuery = txQuery.gte("created_at", dateFrom);
+    }
+    if (dateTo) {
+      // Include the entire end date
+      txQuery = txQuery.lte("created_at", `${dateTo}T23:59:59.999Z`);
+    }
+
+    const { data: recentTransactions } = await txQuery
+      .order("created_at", { ascending: false })
+      .limit(10);
 
     // Total assets (inventory_assets count)
     const { count: totalAssets } = await supabase
@@ -35,13 +70,19 @@ export async function GET(_req: NextRequest) {
     const maintenanceCount = (allAssets || []).filter((a) => a.status === "maintenance").length;
     const lostCount = (allAssets || []).filter((a) => a.status === "lost").length;
 
-    // Low-stock items: fetch all consumable/saleable items and filter in code
-    const { data: allConsumableItems } = await supabase
+    // ── Build low-stock query with optional category filter ──
+    let itemsQuery = supabase
       .from("inventory_items")
       .select("id, name, stock_count, low_stock_threshold, category, item_type")
       .eq("school_id", schoolId)
       .eq("is_active", true)
       .in("item_type", ["consumable", "saleable"]);
+
+    if (categoryFilter) {
+      itemsQuery = itemsQuery.eq("category", categoryFilter);
+    }
+
+    const { data: allConsumableItems } = await itemsQuery;
 
     const lowStock = (allConsumableItems || []).filter(
       (item) => item.stock_count < item.low_stock_threshold
@@ -53,14 +94,6 @@ export async function GET(_req: NextRequest) {
       .select("*", { count: "exact", head: true })
       .eq("school_id", schoolId)
       .eq("is_active", true);
-
-    // Recent transactions (last 10)
-    const { data: recentTransactions } = await supabase
-      .from("inventory_transactions")
-      .select("*, inventory_items(name), inventory_assets(serial_number)")
-      .eq("school_id", schoolId)
-      .order("created_at", { ascending: false })
-      .limit(10);
 
     // Recent low-stock alerts (unread count)
     const { count: unreadAlerts } = await supabase
@@ -99,6 +132,7 @@ export async function GET(_req: NextRequest) {
       },
       low_stock_items: lowStock,
       recent_transactions: recentTransactions || [],
+      categories: distinctCategories,
     });
   } catch (error: any) {
     return errorResponse(error.message || "Failed to load inventory dashboard", 500);

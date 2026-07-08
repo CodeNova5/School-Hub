@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -65,6 +65,22 @@ interface Transaction {
   inventory_assets: { serial_number: string } | null;
 }
 
+import { CalendarIcon, RotateCcw } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { format } from "date-fns";
+
 export default function AdminInventoryDashboard() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -73,28 +89,77 @@ export default function AdminInventoryDashboard() {
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchDashboard();
-  }, []);
+  // Filter state
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
+  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
+  const [categoryFilter, setCategoryFilter] = useState<string>("");
+  const [categories, setCategories] = useState<string[]>([]);
+
+  // Date picker open state
+  const [dateFromOpen, setDateFromOpen] = useState(false);
+  const [dateToOpen, setDateToOpen] = useState(false);
+
+  // Guard against stale responses from rapid filter changes
+  const latestReq = useRef(0);
+
+  const hasActiveFilters = !!(dateFrom || dateTo || categoryFilter);
 
   async function fetchDashboard() {
+    const reqId = ++latestReq.current;
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch("/api/admin/inventory/dashboard");
+      const params = new URLSearchParams();
+      if (dateFrom) params.set("date_from", dateFrom.toISOString().split("T")[0]);
+      if (dateTo) params.set("date_to", dateTo.toISOString().split("T")[0]);
+      if (categoryFilter) params.set("category", categoryFilter);
+
+      const qs = params.toString();
+      const res = await fetch(`/api/admin/inventory/dashboard${qs ? `?${qs}` : ""}`);
+
+      // Discard stale responses from outdated filter changes
+      if (reqId !== latestReq.current) return;
+
       const result = await res.json();
       if (!res.ok || !result.success) {
         throw new Error(result.error || "Failed to load dashboard");
       }
+
+      // Check staleness again after JSON parse
+      if (reqId !== latestReq.current) return;
+
       setStats(result.data.stats);
       setLowStockItems(result.data.low_stock_items || []);
       setRecentTransactions(result.data.recent_transactions || []);
+      setCategories(result.data.categories || []);
     } catch (err: any) {
+      if (reqId !== latestReq.current) return;
       setError(err.message);
     } finally {
-      setLoading(false);
+      if (reqId === latestReq.current) {
+        setLoading(false);
+      }
     }
   }
+
+  function clearFilters() {
+    setDateFrom(undefined);
+    setDateTo(undefined);
+    setCategoryFilter("");
+  }
+
+  useEffect(() => {
+    fetchDashboard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Re-fetch when filters change (debounced)
+  useEffect(() => {
+    if (!loading) {
+      fetchDashboard();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateFrom, dateTo, categoryFilter]);
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
@@ -126,6 +191,17 @@ export default function AdminInventoryDashboard() {
               <Skeleton className="h-10 w-24 rounded-lg" />
               <Skeleton className="h-10 w-32 rounded-lg" />
             </div>
+          </div>
+
+          {/* Filter Bar skeleton */}
+          <div className="flex flex-wrap items-center gap-3 p-4 rounded-xl border bg-white shadow-sm">
+            <div className="flex items-center gap-1.5 mr-1">
+              <Skeleton className="h-4 w-4" />
+              <Skeleton className="h-4 w-12" />
+            </div>
+            <Skeleton className="h-9 w-44 rounded-md" />
+            <Skeleton className="h-9 w-44 rounded-md" />
+            <Skeleton className="h-9 w-48 rounded-md" />
           </div>
 
           {/* Stats Grid */}
@@ -263,6 +339,90 @@ export default function AdminInventoryDashboard() {
               Manage Items
             </Button>
           </div>
+        </div>
+
+        {/* Filter Bar */}
+        <div className="flex flex-wrap items-center gap-3 p-4 rounded-xl border bg-white shadow-sm">
+          <div className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mr-1">
+            <Layers className="h-4 w-4" />
+            Filters
+          </div>
+
+          {/* Date From */}
+          <Popover open={dateFromOpen} onOpenChange={setDateFromOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className={`justify-start text-left font-normal w-44 ${!dateFrom ? "text-muted-foreground" : ""}`}
+              >
+                <CalendarIcon className="h-4 w-4 mr-2" />
+                {dateFrom ? format(dateFrom, "MMM d, yyyy") : "From date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={dateFrom}
+                onSelect={(d) => {
+                  setDateFrom(d);
+                  setDateFromOpen(false);
+                }}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+
+          {/* Date To */}
+          <Popover open={dateToOpen} onOpenChange={setDateToOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className={`justify-start text-left font-normal w-44 ${!dateTo ? "text-muted-foreground" : ""}`}
+              >
+                <CalendarIcon className="h-4 w-4 mr-2" />
+                {dateTo ? format(dateTo, "MMM d, yyyy") : "To date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={dateTo}
+                onSelect={(d) => {
+                  setDateTo(d);
+                  setDateToOpen(false);
+                }}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+
+          {/* Category Filter */}
+          <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v === "all" ? "" : v)}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="All categories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              {categories.map((cat) => (
+                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Clear Filters */}
+          {hasActiveFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearFilters}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <RotateCcw className="h-4 w-4 mr-1" />
+              Clear
+            </Button>
+          )}
         </div>
 
         {error && (

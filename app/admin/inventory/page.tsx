@@ -21,6 +21,7 @@ import {
   Wrench,
   XCircle,
   PieChart as PieChartIcon,
+  FolderTree,
 } from "lucide-react";
 import {
   BarChart,
@@ -690,6 +691,19 @@ export default function AdminInventoryDashboard() {
                 <div className="text-left">
                   <p className="font-medium">Restock</p>
                   <p className="text-xs text-gray-500">Add stock to consumables</p>
+                </div>
+                <ArrowRight className="h-4 w-4 ml-auto text-gray-400" />
+              </Button>
+
+              <Button
+                variant="outline"
+                className="w-full justify-start h-auto py-4"
+                onClick={() => router.push("/admin/inventory/items?tab=categories")}
+              >
+                <FolderTree className="h-5 w-5 mr-3 text-indigo-600" />
+                <div className="text-left">
+                  <p className="font-medium">Categories</p>
+                  <p className="text-xs text-gray-500">Organize and manage item categories</p>
                 </div>
                 <ArrowRight className="h-4 w-4 ml-auto text-gray-400" />
               </Button>

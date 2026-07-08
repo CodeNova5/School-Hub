@@ -52,6 +52,7 @@ import {
   FolderTree,
   Pencil,
   Trash2,
+  Bell,
 } from "lucide-react";
 
 interface InventoryItem {
@@ -99,6 +100,7 @@ export default function InventoryItemsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
 
   // Add item modal
   const [showAddItem, setShowAddItem] = useState(false);
@@ -186,11 +188,57 @@ export default function InventoryItemsPage() {
   // Track whether user is typing a new category in Add Item
   const [isNewCategory, setIsNewCategory] = useState(false);
 
+  // Edit item
+  const [showEditItem, setShowEditItem] = useState(false);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editItemForm, setEditItemForm] = useState({
+    name: "",
+    category: "",
+    item_type: "consumable" as "asset" | "consumable" | "saleable",
+    stock_count: 0,
+    low_stock_threshold: 5,
+    description: "",
+    unit_price: 0,
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [isNewCategoryEdit, setIsNewCategoryEdit] = useState(false);
+
+  // Deactivate item
+  const [showDeactivateItem, setShowDeactivateItem] = useState(false);
+  const [deactivateItemId, setDeactivateItemId] = useState<string | null>(null);
+  const [deactivatingItem, setDeactivatingItem] = useState(false);
+
+  // Item detail drill-down
+  const [showItemDetail, setShowItemDetail] = useState(false);
+  const [detailItem, setDetailItem] = useState<InventoryItem | null>(null);
+  const [detailTransactions, setDetailTransactions] = useState<Transaction[]>([]);
+  const [detailAssets, setDetailAssets] = useState<InventoryAsset[]>([]);
+  const [loadingDetailTx, setLoadingDetailTx] = useState(false);
+  const [loadingDetailAssets, setLoadingDetailAssets] = useState(false);
+
+  // ── Alerts ──
+  interface AdminAlert {
+    id: string;
+    alert_type: string;
+    title: string;
+    message: string;
+    reference_type: string;
+    reference_id: string | null;
+    is_read: boolean;
+    is_dismissed: boolean;
+    created_at: string;
+  }
+  const [alerts, setAlerts] = useState<AdminAlert[]>([]);
+  const [loadingAlerts, setLoadingAlerts] = useState(false);
+  const [alertsUnreadCount, setAlertsUnreadCount] = useState(0);
+  const [scanningAlerts, setScanningAlerts] = useState(false);
+
   const fetchItems = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
       if (typeFilter) params.set("type", typeFilter);
+      if (categoryFilter) params.set("category", categoryFilter);
       if (search) params.set("search", search);
 
       const res = await fetch(`/api/admin/inventory/items?${params}`);
@@ -201,7 +249,7 @@ export default function InventoryItemsPage() {
     } finally {
       setLoading(false);
     }
-  }, [typeFilter, search]);
+  }, [typeFilter, categoryFilter, search]);
 
   const fetchTransactions = useCallback(async () => {
     try {
@@ -242,6 +290,22 @@ export default function InventoryItemsPage() {
     }
   }, []);
 
+  const fetchAlerts = useCallback(async () => {
+    try {
+      setLoadingAlerts(true);
+      const res = await fetch("/api/admin/inventory/alerts?limit=50");
+      const result = await res.json();
+      if (result.success) {
+        setAlerts(result.data.alerts || []);
+        setAlertsUnreadCount(result.data.unread_count || 0);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoadingAlerts(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchItems();
     fetchCategories(); // Eagerly load categories for the Add Item dialog dropdown
@@ -251,7 +315,8 @@ export default function InventoryItemsPage() {
     if (defaultTab === "transactions") fetchTransactions();
     if (defaultTab === "assets") fetchAssets();
     if (defaultTab === "categories") fetchCategories();
-  }, [defaultTab, fetchTransactions, fetchAssets, fetchCategories]);
+    if (defaultTab === "alerts") fetchAlerts();
+  }, [defaultTab, fetchTransactions, fetchAssets, fetchCategories, fetchAlerts]);
 
   const sortedItems = [...items].sort((a, b) => {
     const aVal = a[sortField] ?? "";
@@ -462,6 +527,107 @@ export default function InventoryItemsPage() {
     });
   }
 
+  // ── Edit & Deactivate Handlers ──
+
+  function handleOpenEdit(item: InventoryItem) {
+    setEditingItemId(item.id);
+    setEditItemForm({
+      name: item.name,
+      category: item.category || "",
+      item_type: item.item_type,
+      stock_count: item.stock_count,
+      low_stock_threshold: item.low_stock_threshold,
+      description: item.description || "",
+      unit_price: item.unit_price ?? 0,
+    });
+    setIsNewCategoryEdit(false);
+    setShowEditItem(true);
+  }
+
+  async function handleSaveEdit() {
+    if (!editItemForm.name) return toast.error("Item name is required");
+    if (!editingItemId) return toast.error("No item selected");
+
+    try {
+      setSavingEdit(true);
+      const res = await fetch("/api/admin/inventory/items", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: editingItemId, ...editItemForm }),
+      });
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error);
+
+      toast.success("Item updated");
+      setShowEditItem(false);
+      setEditingItemId(null);
+      setIsNewCategoryEdit(false);
+      fetchItems();
+      fetchCategories();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update item");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  async function handleDeactivateItem() {
+    if (!deactivateItemId) return toast.error("No item selected");
+
+    try {
+      setDeactivatingItem(true);
+      const res = await fetch(`/api/admin/inventory/items?id=${deactivateItemId}`, {
+        method: "DELETE",
+      });
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error);
+
+      toast.success("Item deactivated");
+      setShowDeactivateItem(false);
+      setDeactivateItemId(null);
+      fetchItems();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to deactivate item");
+    } finally {
+      setDeactivatingItem(false);
+    }
+  }
+
+  // ── Item Detail Handlers ──
+
+  async function handleOpenDetail(item: InventoryItem) {
+    setDetailItem(item);
+    setShowItemDetail(true);
+    setDetailTransactions([]);
+    setDetailAssets([]);
+
+    // Fetch transactions for this item
+    try {
+      setLoadingDetailTx(true);
+      const res = await fetch(`/api/admin/inventory/transactions?item_id=${item.id}&limit=50`);
+      const result = await res.json();
+      if (result.success) setDetailTransactions(result.data.transactions || []);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingDetailTx(false);
+    }
+
+    // Fetch assets for this item (only for asset-type)
+    if (item.item_type === "asset") {
+      try {
+        setLoadingDetailAssets(true);
+        const res = await fetch(`/api/admin/inventory/assets?item_id=${item.id}`);
+        const result = await res.json();
+        if (result.success) setDetailAssets(result.data.assets || []);
+      } catch {
+        // ignore
+      } finally {
+        setLoadingDetailAssets(false);
+      }
+    }
+  }
+
   const typeBadge = (type: string) => {
     switch (type) {
       case "asset": return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-200">Asset</Badge>;
@@ -508,9 +674,19 @@ export default function InventoryItemsPage() {
           window.history.replaceState(null, '', `/admin/inventory/items?tab=${v}`);
           if (v === "transactions") fetchTransactions();
           if (v === "assets") fetchAssets();
+          if (v === "alerts") fetchAlerts();
         }}>
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="all"><Package className="h-4 w-4 mr-2" />All Items</TabsTrigger>
+            <TabsTrigger value="alerts" className="relative">
+              <Bell className="h-4 w-4 mr-2" />
+              Alerts
+              {alertsUnreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                  {alertsUnreadCount > 9 ? "9+" : alertsUnreadCount}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="assets"><Box className="h-4 w-4 mr-2" />Assets</TabsTrigger>
             <TabsTrigger value="categories"><FolderTree className="h-4 w-4 mr-2" />Categories</TabsTrigger>
             <TabsTrigger value="transactions"><ClipboardList className="h-4 w-4 mr-2" />Transactions</TabsTrigger>
@@ -530,7 +706,7 @@ export default function InventoryItemsPage() {
                 />
               </div>
               <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger className="w-full sm:w-40">
+                <SelectTrigger className="w-full sm:w-36">
                   <SelectValue placeholder="All types" />
                 </SelectTrigger>
                 <SelectContent>
@@ -540,6 +716,22 @@ export default function InventoryItemsPage() {
                   <SelectItem value="saleable">Saleables</SelectItem>
                 </SelectContent>
               </Select>
+
+              {/* Category Filter */}
+              <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v === "all" ? "" : v)}>
+                <SelectTrigger className="w-full sm:w-44">
+                  <SelectValue placeholder="All categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat.name} value={cat.name}>
+                      {cat.name} ({cat.total})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
               <Button variant="outline" size="icon" onClick={fetchItems}>
                 <RefreshCw className="h-4 w-4" />
               </Button>
@@ -571,11 +763,11 @@ export default function InventoryItemsPage() {
                   </button>
                   <div className="col-span-2">Category</div>
                   <div className="col-span-2">Type</div>
-                  <button className="col-span-2 flex items-center gap-1" onClick={() => toggleSort("stock_count")}>
+                  <button className="col-span-1 flex items-center gap-1" onClick={() => toggleSort("stock_count")}>
                     <Hash className="h-3 w-3" /> Stock <ArrowUpDown className="h-3 w-3" />
                   </button>
                   <div className="col-span-2">Assets</div>
-                  <div className="col-span-1"></div>
+                  <div className="col-span-2">Actions</div>
                 </div>
 
                 {sortedItems.map((item) => (
@@ -590,7 +782,7 @@ export default function InventoryItemsPage() {
                           <span className="text-sm text-gray-600">{item.category || "-"}</span>
                         </div>
                         <div className="md:col-span-2">{typeBadge(item.item_type)}</div>
-                        <div className="md:col-span-2">
+                        <div className="md:col-span-1">
                           {item.item_type === "asset" ? (
                             <span className="text-sm text-gray-500">N/A</span>
                           ) : (
@@ -615,7 +807,16 @@ export default function InventoryItemsPage() {
                             <span className="text-xs text-gray-400">-</span>
                           )}
                         </div>
-                        <div className="md:col-span-1 flex gap-1">
+                        <div className="md:col-span-2 flex gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => handleOpenDetail(item)}>
+                            <Eye className="h-3 w-3" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleOpenEdit(item)}>
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                          <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => { setDeactivateItemId(item.id); setShowDeactivateItem(true); }}>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
                           {item.item_type === "asset" && (
                             <Button variant="ghost" size="sm" onClick={() => { setRegisterAssetItem(item.id); setShowRegisterAssets(true); }}>
                               <Plus className="h-3 w-3" />
@@ -800,6 +1001,193 @@ export default function InventoryItemsPage() {
                       <p className="text-xs text-gray-400">{formatDate(tx.created_at)}</p>
                     </div>
                   </div>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* ── Alerts Tab ── */}
+          <TabsContent value="alerts" className="space-y-4">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Card className="border-l-4 border-l-amber-500 shadow-sm">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600 font-medium">Low-Stock Alerts</p>
+                      <p className="text-3xl font-bold text-gray-900 mt-1">{alerts.filter((a) => a.alert_type === "low_stock").length}</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-amber-50 text-amber-600">
+                      <AlertTriangle className="h-6 w-6" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-l-4 border-l-blue-500 shadow-sm">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600 font-medium">Unread</p>
+                      <p className="text-3xl font-bold text-gray-900 mt-1">{alertsUnreadCount}</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-blue-50 text-blue-600">
+                      <Bell className="h-6 w-6" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-l-4 border-l-green-500 shadow-sm">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600 font-medium">Total</p>
+                      <p className="text-3xl font-bold text-gray-900 mt-1">{alerts.length}</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-green-50 text-green-600">
+                      <ClipboardList className="h-6 w-6" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Scan Button + Filters */}
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-sm text-gray-500">
+                {alertsUnreadCount > 0
+                  ? `${alertsUnreadCount} unread alert${alertsUnreadCount !== 1 ? "s" : ""} — automatic alerts are created when stock drops below threshold`
+                  : "All alerts are read"}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={fetchAlerts}
+                  disabled={loadingAlerts}
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${loadingAlerts ? "animate-spin" : ""}`} />
+                  Refresh
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    setScanningAlerts(true);
+                    try {
+                      const res = await fetch("/api/admin/inventory/scan-alerts", {
+                        method: "POST",
+                      });
+                      const result = await res.json();
+                      if (result.success) {
+                        toast.success(result.data.message || "Scan complete");
+                        fetchAlerts();
+                      } else {
+                        toast.error(result.error || "Scan failed");
+                      }
+                    } catch (err: any) {
+                      toast.error(err.message || "Failed to scan");
+                    } finally {
+                      setScanningAlerts(false);
+                    }
+                  }}
+                  disabled={scanningAlerts}
+                >
+                  <AlertTriangle className={`h-4 w-4 mr-2 ${scanningAlerts ? "animate-pulse" : ""}`} />
+                  {scanningAlerts ? "Scanning..." : "Scan Now"}
+                </Button>
+              </div>
+            </div>
+
+            {/* Alerts List */}
+            {loadingAlerts ? (
+              <div className="space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
+              </div>
+            ) : alerts.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <Bell className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                  <p className="text-gray-500 text-lg font-medium">No alerts</p>
+                  <p className="text-gray-400 text-sm mt-1">Alerts are generated automatically when stock falls below the threshold. Click "Scan Now" to check all items.</p>
+                  <Button className="mt-4" onClick={async () => {
+                    setScanningAlerts(true);
+                    try {
+                      const res = await fetch("/api/admin/inventory/scan-alerts", { method: "POST" });
+                      const result = await res.json();
+                      if (result.success) {
+                        toast.success(result.data.message || "Scan complete");
+                        fetchAlerts();
+                      }
+                    } catch {} finally { setScanningAlerts(false); }
+                  }} disabled={scanningAlerts}>
+                    <AlertTriangle className="h-4 w-4 mr-2" />
+                    Scan for Low Stock
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                {alerts.map((alert) => (
+                  <Card key={alert.id} className={`hover:shadow-md transition-shadow ${!alert.is_read ? "border-l-4 border-l-amber-500 bg-amber-50/30" : ""}`}>
+                    <CardContent className="py-3">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                          <div className={`p-2 rounded-lg mt-0.5 ${
+                            alert.alert_type === "low_stock" ? "bg-amber-50 text-amber-600" :
+                            alert.alert_type === "maintenance_needed" ? "bg-blue-50 text-blue-600" :
+                            "bg-red-50 text-red-600"
+                          }`}>
+                            {alert.alert_type === "low_stock" ? (
+                              <AlertTriangle className="h-4 w-4" />
+                            ) : (
+                              <XCircle className="h-4 w-4" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className={`text-sm font-medium ${!alert.is_read ? "text-gray-900" : "text-gray-600"}`}>
+                                {alert.title}
+                              </p>
+                              {!alert.is_read && (
+                                <span className="h-2 w-2 rounded-full bg-amber-500 flex-shrink-0" />
+                              )}
+                            </div>
+                            {alert.message && (
+                              <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{alert.message}</p>
+                            )}
+                            <p className="text-xs text-gray-400 mt-1">{formatDate(alert.created_at)}</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-1 flex-shrink-0">
+                          {!alert.is_read && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs h-8"
+                              onClick={async () => {
+                                try {
+                                  const res = await fetch("/api/admin/inventory/alerts", {
+                                    method: "PATCH",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ id: alert.id, is_read: true }),
+                                  });
+                                  const result = await res.json();
+                                  if (result.success) {
+                                    setAlerts((prev) =>
+                                      prev.map((a) => a.id === alert.id ? { ...a, is_read: true } : a)
+                                    );
+                                    setAlertsUnreadCount((c) => Math.max(0, c - 1));
+                                  }
+                                } catch {}
+                              }}
+                            >
+                              <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                              Dismiss
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 ))}
               </div>
             )}
@@ -1134,6 +1522,313 @@ export default function InventoryItemsPage() {
             <Button variant="outline" onClick={() => setShowRestock(false)}>Cancel</Button>
             <Button onClick={handleRestock} disabled={restocking}>
               {restocking ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Restocking...</> : "Restock"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Item Detail Dialog ── */}
+      <Dialog open={showItemDetail} onOpenChange={(open) => {
+        setShowItemDetail(open);
+        if (!open) { setDetailItem(null); setDetailTransactions([]); setDetailAssets([]); }
+      }}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh]">
+          <DialogHeader>
+            <DialogTitle className="text-xl flex items-center gap-2">
+              {detailItem && (
+                <>
+                  <Box className="h-5 w-5 text-gray-500" />
+                  {detailItem.name}
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {detailItem?.description || "No description provided"}
+            </DialogDescription>
+          </DialogHeader>
+
+          {detailItem && (
+            <div className="overflow-y-auto pr-1 space-y-5">
+              {/* Overview Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
+                  <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Type</p>
+                  <div className="mt-1">{typeBadge(detailItem.item_type)}</div>
+                </div>
+                <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
+                  <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Category</p>
+                  <p className="mt-1 text-sm font-semibold text-gray-900">{detailItem.category || "-"}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
+                  <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Created</p>
+                  <p className="mt-1 text-sm font-semibold text-gray-900">{formatDate(detailItem.created_at)}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
+                  <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Status</p>
+                  <Badge className={detailItem.is_active ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
+                    {detailItem.is_active ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Stock / Asset Summary */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {detailItem.item_type === "asset" ? (
+                  <>
+                    <div className="p-4 rounded-lg border border-green-200 bg-green-50">
+                      <p className="text-xs text-green-700 font-medium">Available</p>
+                      <p className="text-2xl font-bold text-green-800 mt-1">{detailItem.available_count ?? 0}</p>
+                    </div>
+                    <div className="p-4 rounded-lg border border-blue-200 bg-blue-50">
+                      <p className="text-xs text-blue-700 font-medium">Checked Out</p>
+                      <p className="text-2xl font-bold text-blue-800 mt-1">{detailItem.checked_out_count ?? 0}</p>
+                    </div>
+                    <div className="p-4 rounded-lg border border-gray-200 bg-gray-50">
+                      <p className="text-xs text-gray-700 font-medium">Total Assets</p>
+                      <p className="text-2xl font-bold text-gray-800 mt-1">{detailItem.asset_count ?? 0}</p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className={`p-4 rounded-lg border ${detailItem.stock_count < detailItem.low_stock_threshold ? "border-red-200 bg-red-50" : "border-green-200 bg-green-50"}`}>
+                      <p className="text-xs font-medium uppercase tracking-wider">Current Stock</p>
+                      <p className={`text-2xl font-bold mt-1 ${detailItem.stock_count < detailItem.low_stock_threshold ? "text-red-700" : "text-gray-800"}`}>{detailItem.stock_count}</p>
+                    </div>
+                    <div className="p-4 rounded-lg border border-amber-200 bg-amber-50">
+                      <p className="text-xs text-amber-700 font-medium">Low Stock Threshold</p>
+                      <p className="text-2xl font-bold text-amber-800 mt-1">{detailItem.low_stock_threshold}</p>
+                    </div>
+                    <div className="p-4 rounded-lg border border-gray-200 bg-gray-50">
+                      <p className="text-xs text-gray-700 font-medium">{detailItem.item_type === "saleable" ? "Unit Price" : "Item Type"}</p>
+                      <p className="text-2xl font-bold text-gray-800 mt-1">
+                        {detailItem.item_type === "saleable" && detailItem.unit_price ? `₦${detailItem.unit_price.toLocaleString()}` : detailItem.item_type === "consumable" ? "Consumable" : "Saleable"}
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Transactions */}
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <ClipboardList className="h-4 w-4 text-gray-500" />
+                  Recent Transactions
+                </h3>
+                {loadingDetailTx ? (
+                  <div className="space-y-2">
+                    {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12 rounded-lg" />)}
+                  </div>
+                ) : detailTransactions.length === 0 ? (
+                  <p className="text-sm text-gray-400 py-4 text-center">No transactions recorded for this item</p>
+                ) : (
+                  <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                    {detailTransactions.map((tx) => (
+                      <div key={tx.id} className="flex items-center justify-between p-2.5 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
+                        <div className="flex items-center gap-2">
+                          <Badge className={`capitalize text-xs ${
+                            tx.transaction_type === "checkout" ? "bg-blue-100 text-blue-800" :
+                            tx.transaction_type === "return" ? "bg-green-100 text-green-800" :
+                            tx.transaction_type === "purchase" ? "bg-purple-100 text-purple-800" :
+                            tx.transaction_type === "restock" ? "bg-amber-100 text-amber-800" :
+                            "bg-red-100 text-red-800"
+                          }`}>
+                            {tx.transaction_type.replace("_", " ")}
+                          </Badge>
+                          <span className="text-sm">
+                            {tx.inventory_assets?.serial_number && (
+                              <span className="font-mono text-gray-500 text-xs">{tx.inventory_assets.serial_number}</span>
+                            )}
+                            {tx.notes && <span className="text-xs text-gray-400 ml-1">— {tx.notes}</span>}
+                          </span>
+                        </div>
+                        <div className="text-right text-xs text-gray-400">
+                          {tx.quantity > 0 && <span className="mr-2">Qty: {tx.quantity}</span>}
+                          {formatDate(tx.created_at)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Assets (only for asset-type items) */}
+              {detailItem.item_type === "asset" && (
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <FileDigit className="h-4 w-4 text-gray-500" />
+                    Assets
+                  </h3>
+                  {loadingDetailAssets ? (
+                    <div className="space-y-2">
+                      {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12 rounded-lg" />)}
+                    </div>
+                  ) : detailAssets.length === 0 ? (
+                    <p className="text-sm text-gray-400 py-4 text-center">No assets registered for this item</p>
+                  ) : (
+                    <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                      {detailAssets.map((asset) => (
+                        <div key={asset.id} className="flex items-center justify-between p-2.5 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <FileDigit className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm font-mono text-gray-700">{asset.serial_number}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge className={
+                              asset.status === "available" ? "bg-green-100 text-green-800 text-xs" :
+                              asset.status === "checked_out" ? "bg-blue-100 text-blue-800 text-xs" :
+                              asset.status === "maintenance" ? "bg-amber-100 text-amber-800 text-xs" :
+                              "bg-red-100 text-red-800 text-xs"
+                            }>
+                              {asset.status.replace("_", " ")}
+                            </Badge>
+                            {asset.assigned_user_id && (
+                              <span className="text-xs text-gray-400">
+                                {asset.assigned_user_id.slice(0, 8)}...
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Edit Item Dialog ── */}
+      <Dialog open={showEditItem} onOpenChange={setShowEditItem}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Inventory Item</DialogTitle>
+            <DialogDescription>Update the details of this item</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Name *</Label>
+              <Input value={editItemForm.name} onChange={(e) => setEditItemForm({ ...editItemForm, name: e.target.value })} placeholder="e.g. Laptop, Whiteboard Marker" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Category</Label>
+                {isNewCategoryEdit ? (
+                  <div className="flex gap-2">
+                    <Input
+                      value={editItemForm.category}
+                      onChange={(e) => setEditItemForm({ ...editItemForm, category: e.target.value })}
+                      placeholder="New category name"
+                      className="flex-1"
+                      autoFocus
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setIsNewCategoryEdit(false);
+                        setEditItemForm({ ...editItemForm, category: "" });
+                      }}
+                    >
+                      <XCircle className="h-4 w-4 text-gray-400" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Select
+                    value={editItemForm.category}
+                    onValueChange={(v) => {
+                      if (v === "__new__") {
+                        setIsNewCategoryEdit(true);
+                        setEditItemForm({ ...editItemForm, category: "" });
+                      } else {
+                        setEditItemForm({ ...editItemForm, category: v });
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat.name} value={cat.name}>
+                          {cat.name} ({cat.total})
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="__new__" className="text-blue-600 font-medium">
+                        + Add new category...
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+              <div>
+                <Label>Type</Label>
+                <Select
+                  value={editItemForm.item_type}
+                  onValueChange={(v: any) => setEditItemForm({ ...editItemForm, item_type: v })}
+                  disabled
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="asset">Asset (trackable)</SelectItem>
+                    <SelectItem value="consumable">Consumable (uses stock)</SelectItem>
+                    <SelectItem value="saleable">Saleable (uses stock)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-400 mt-1">Type cannot be changed after creation</p>
+              </div>
+            </div>
+            {editItemForm.item_type !== "asset" && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Stock Count</Label>
+                  <Input type="number" min={0} value={editItemForm.stock_count} onChange={(e) => setEditItemForm({ ...editItemForm, stock_count: parseInt(e.target.value) || 0 })} />
+                </div>
+                <div>
+                  <Label>Low Stock Threshold</Label>
+                  <Input type="number" min={0} value={editItemForm.low_stock_threshold} onChange={(e) => setEditItemForm({ ...editItemForm, low_stock_threshold: parseInt(e.target.value) || 0 })} />
+                </div>
+              </div>
+            )}
+            <div>
+              <Label>Description</Label>
+              <Input value={editItemForm.description} onChange={(e) => setEditItemForm({ ...editItemForm, description: e.target.value })} placeholder="Optional description" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowEditItem(false); setEditingItemId(null); }}>Cancel</Button>
+            <Button onClick={handleSaveEdit} disabled={savingEdit}>
+              {savingEdit ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</> : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Deactivate Item Dialog ── */}
+      <Dialog open={showDeactivateItem} onOpenChange={setShowDeactivateItem}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Deactivate Item</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to deactivate this item? It will be hidden from active inventory lists.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <AlertTriangle className="h-4 w-4 inline mr-1" />
+              This will soft-delete the item. You can reactivate it later if needed.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowDeactivateItem(false); setDeactivateItemId(null); }}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeactivateItem}
+              disabled={deactivatingItem}
+            >
+              {deactivatingItem ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Deactivating...</> : "Deactivate"}
             </Button>
           </DialogFooter>
         </DialogContent>

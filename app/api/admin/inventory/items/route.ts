@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url);
     const type = url.searchParams.get("type");
     const search = url.searchParams.get("search")?.trim();
+    const category = url.searchParams.get("category")?.trim();
 
     let query = supabase
       .from("inventory_items")
@@ -26,6 +27,10 @@ export async function GET(req: NextRequest) {
 
     if (type && type !== "all") {
       query = query.eq("item_type", type);
+    }
+
+    if (category) {
+      query = query.eq("category", category);
     }
 
     if (search) {

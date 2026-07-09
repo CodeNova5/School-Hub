@@ -64,6 +64,7 @@ interface StudentsTabProps {
   terms: Term[];
   availableStudents: Student[];
   allClasses: ClassData[];
+  schoolId: string | null;
   onAddStudents: (studentIds: string[]) => void;
   onRemoveStudent: (studentId: string) => void;
   onBulkRemove: (studentIds: string[]) => void;
@@ -77,6 +78,7 @@ export function StudentsTab({
   terms,
   availableStudents,
   allClasses,
+  schoolId,
   onAddStudents,
   onRemoveStudent,
   onBulkRemove,
@@ -140,6 +142,7 @@ export function StudentsTab({
       const { data: attendance, error } = await supabase
         .from("attendance")
         .select("*")
+        .eq("school_id", schoolId)
         .eq("student_id", student.id);
 
       if (error) throw error;

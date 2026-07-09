@@ -658,6 +658,7 @@ export default function ClassPage() {
               terms={terms}
               availableStudents={availableStudents}
               allClasses={allClasses}
+              schoolId={schoolId}
               onAddStudents={handleAddStudentsToClass}
               onRemoveStudent={handleRemoveStudent}
               onBulkRemove={handleBulkRemove}
@@ -677,7 +678,7 @@ export default function ClassPage() {
 
           {/* ================= RESULTS TAB ================= */}
           <TabsContent value="results">
-            <ResultsTab classId={classId} className={classData?.name} students={students} />
+            <ResultsTab classId={classId} className={classData?.name} students={students} schoolId={schoolId} />
           </TabsContent>
             </div>
           </Tabs>

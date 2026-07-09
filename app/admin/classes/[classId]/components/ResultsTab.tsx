@@ -79,9 +79,10 @@ interface ResultsTabProps {
     classId: string;
     className: string;
     students: Student[];
+    schoolId: string | null;
 }
 
-export function ResultsTab({ classId, className, students }: ResultsTabProps) {
+export function ResultsTab({ classId, className, students, schoolId }: ResultsTabProps) {
 
     const [sessions, setSessions] = useState<Session[]>([]);
     const [terms, setTerms] = useState<Term[]>([]);
@@ -141,17 +142,21 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
     }, [selectedSessionId, terms]);
 
     async function fetchSessionsAndTerms() {
+        if (!schoolId) return;
+
         try {
             // Fetch sessions
             const { data: sessionsData, error: sessionsError } = await supabase
                 .from("sessions")
-                .select("*");
+                .select("*")
+                .eq("school_id", schoolId);
             if (sessionsError) throw sessionsError;
 
             // Fetch terms
             const { data: termsData, error: termsError } = await supabase
                 .from("terms")
-                .select("*");
+                .select("*")
+                .eq("school_id", schoolId);
             if (termsError) throw termsError;
 
             setSessions(sessionsData || []);
@@ -169,6 +174,18 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
         }
     }
 
+    /** Fetch subject_class IDs for this class — shared across multiple functions */
+    async function getSubjectClassIds(): Promise<string[]> {
+        const { data, error } = await supabase
+            .from("subject_classes")
+            .select("id")
+            .eq("school_id", schoolId)
+            .eq("class_id", classId);
+
+        if (error) throw error;
+        return data?.map((sc: any) => sc.id) || [];
+    }
+
     async function fetchStudentResults() {
         setLoading(true);
 
@@ -183,14 +200,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
             }
 
             // Get subject_class_ids for this class to filter results correctly
-            const { data: subjectClasses, error: scError } = await supabase
-                .from("subject_classes")
-                .select("id")
-                .eq("class_id", classId);
-
-            if (scError) throw scError;
-
-            const subjectClassIds = subjectClasses?.map((sc: any) => sc.id) || [];
+            const subjectClassIds = await getSubjectClassIds();
 
             if (subjectClassIds.length === 0) {
                 setStudentResults([]);
@@ -202,6 +212,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
             const { data: resultsData, error: resultsError } = await supabase
                 .from("results")
                 .select("*")
+                .eq("school_id", schoolId)
                 .eq("term_id", selectedTermId)
                 .eq("session_id", selectedSessionId)
                 .in("student_id", currentStudentIds)
@@ -308,15 +319,8 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                 return;
             }
 
-            // Get subject_classes for this class to filter results
-            const { data: subjectClasses, error: scError } = await supabase
-                .from("subject_classes")
-                .select("id")
-                .eq("class_id", classId);
-
-            if (scError) throw scError;
-
-            const subjectClassIds = subjectClasses?.map((sc: any) => sc.id) || [];
+            // Get subject_class_ids for this class to filter results
+            const subjectClassIds = await getSubjectClassIds();
 
             if (subjectClassIds.length === 0) {
                 setCumulativeResults([]);
@@ -327,6 +331,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
             const { data: allSessionResults, error } = await supabase
                 .from("results")
                 .select("*")
+                .eq("school_id", schoolId)
                 .eq("session_id", selectedSessionId)
                 .in("student_id", currentStudentIds)
                 .in("subject_class_id", subjectClassIds);
@@ -621,14 +626,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
             }
 
             // Get subject_class_ids for this class to update positions for this class only
-            const { data: classSubjectClasses, error: classScError } = await supabase
-                .from("subject_classes")
-                .select("id")
-                .eq("class_id", classId);
-
-            if (classScError) throw classScError;
-
-            const classSubjectClassIds = classSubjectClasses?.map((sc: any) => sc.id) || [];
+            const classSubjectClassIds = await getSubjectClassIds();
 
             if (classSubjectClassIds.length === 0) {
                 toast.error("No subject classes found for this class");
@@ -646,6 +644,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                         total_students: studentsWithResults.length,
                         class_average: studentsWithResults.reduce((sum, r) => sum + r.average_score, 0) / studentsWithResults.length
                     })
+                    .eq("school_id", schoolId)
                     .eq("student_id", studentId)
                     .eq("term_id", selectedTermId)
                     .eq("session_id", selectedSessionId)
@@ -1163,6 +1162,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                                                                         const { data: attendance, error } = await supabase
                                                                             .from("attendance")
                                                                             .select("*")
+                                                                            .eq("school_id", schoolId)
                                                                             .eq("student_id", result.student_id);
 
                                                                         if (error) throw error;
@@ -1236,6 +1236,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                 className={className}
                 sessionId={selectedSessionId}
                 termId={selectedTermId}
+                schoolId={schoolId}
                 onPublish={fetchStudentResults}
             />
         </Card>

@@ -32,6 +32,7 @@ import {
 import { toast } from "sonner";
 import { Student, Session, Term } from "@/lib/types";
 import * as XLSX from "xlsx-js-style";
+
 import { StudentDetailsModal } from "@/components/student-details-modal";
 import { ResultsPublicationDialog } from "@/components/ResultsPublicationDialog";
 import { supabase } from "@/lib/supabase";

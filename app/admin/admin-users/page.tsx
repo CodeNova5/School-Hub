@@ -46,6 +46,7 @@ import {
 import type { AdminRole, AdminRoleAssignment } from "@/lib/types";
 import { PERMISSION_GROUPS, ROLE_TEMPLATES } from "@/lib/admin-permissions";
 import type { PermissionGroup } from "@/lib/admin-permissions";
+import { AdminPermissionMatrix } from "@/components/admin-permission-matrix";
 
 /* ────────────────────────────────────────────
    Permission checkboxes group component
@@ -766,10 +767,14 @@ export default function AdminUsersPage() {
         </div>
 
         <Tabs value={tabValue} onValueChange={setTabValue}>
-          <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsList className="grid w-full grid-cols-3 max-w-lg">
             <TabsTrigger value="roles" className="gap-2">
               <Shield className="h-4 w-4" />
               Role Templates
+            </TabsTrigger>
+            <TabsTrigger value="matrix" className="gap-2">
+              <Check className="h-4 w-4" />
+              Permission Matrix
             </TabsTrigger>
             <TabsTrigger value="admins" className="gap-2">
               <Users className="h-4 w-4" />
@@ -779,6 +784,15 @@ export default function AdminUsersPage() {
 
           <TabsContent value="roles" className="mt-4">
             <RoleTemplatesTab schoolId={schoolId} />
+          </TabsContent>
+
+          <TabsContent value="matrix" className="mt-4">
+            <AdminPermissionMatrix
+              schoolId={schoolId}
+              onRefresh={() => {
+                // Triggers refetch in role templates and admin accounts tabs
+              }}
+            />
           </TabsContent>
 
           <TabsContent value="admins" className="mt-4">

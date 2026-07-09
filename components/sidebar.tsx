@@ -69,6 +69,7 @@ export function Sidebar({
   const [hasAssignedClasses, setHasAssignedClasses] = useState(false);
   const [hasJambAccess, setHasJambAccess] = useState(false);
   const [adminPermissions, setAdminPermissions] = useState<Set<AdminPermission>>(new Set());
+  const [isPermissionsLoaded, setIsPermissionsLoaded] = useState(false);
 
   useEffect(() => {
     if (role === "teacher") {
@@ -88,14 +89,18 @@ export function Sidebar({
       if (!user) return;
       if (user?.user_metadata?.role === "super_admin") {
         // Super admins have access to everything
+        setIsPermissionsLoaded(true);
         return;
       }
       const { data } = await supabase.rpc("get_my_admin_permissions");
       if (Array.isArray(data)) {
         setAdminPermissions(new Set(data as AdminPermission[]));
       }
+      setIsPermissionsLoaded(true);
     } catch (error) {
       console.error("Error fetching admin permissions:", error);
+    } finally {
+      setIsPermissionsLoaded(true);
     }
   }
 
@@ -249,7 +254,9 @@ export function Sidebar({
       ? adminNav.filter((item) => {
           // Dashboard is always visible; items without a permission requirement are always visible
           if (item.href === "/admin" || !item.permission) return true;
-          // For super admins (permissions not yet loaded, empty set), show all items
+          // Don't show permission-gated items until permissions have loaded
+          // (prevents flash of all items before RPC response returns)
+          if (!isPermissionsLoaded) return false;
           return hasAdminPermission(item.permission);
         })
       : role === "teacher"

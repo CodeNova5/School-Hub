@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import { Student, Class as ClassType, Session, Term } from "@/lib/types";
 import { toast } from "sonner";
@@ -183,6 +183,15 @@ export default function ResultEntry({
     if (grade.startsWith("D") || grade.startsWith("E")) return "#e67e22";
     if (grade.startsWith("F")) return "#c0392b";
     return "#2c3e50";
+  }
+
+  /** Returns true if all active component scores are > 0 for this subject */
+  function isSubjectComplete(score: SubjectScore): boolean {
+    const activeComponents = getActiveComponentTemplates();
+    if (activeComponents.length === 0) return false;
+    return activeComponents.every(
+      (component) => Number(score.component_scores[component.component_key] || 0) > 0
+    );
   }
 
   async function loadData() {
@@ -796,6 +805,15 @@ export default function ResultEntry({
     }));
   }
 
+  // Completion summary
+  const completionSummary = useMemo(() => {
+    const total = scores.length;
+    const complete = scores.filter(isSubjectComplete).length;
+    const incomplete = total - complete;
+    const percentage = total > 0 ? Math.round((complete / total) * 100) : 0;
+    return { total, complete, incomplete, percentage };
+  }, [scores, resultComponents]);
+
   useEffect(() => {
     if (scores.length > 0) {
       const updatedScores = scores.map(score => {
@@ -945,9 +963,53 @@ export default function ResultEntry({
         };
       });
 
-      // Save each subject's result separately using Supabase upsert
       const effectiveSchoolId = schoolId || student.school_id || null;
-      const saveDataArray = normalizedScores.map(score => ({
+
+      // Only save subjects with complete scores — skip incomplete ones
+      const completeScores = normalizedScores.filter((score) => {
+        const complete = isSubjectComplete(score);
+        if (!complete) {
+          console.warn(`Skipping incomplete subject: ${score.subject_name}`);
+        }
+        return complete;
+      });
+
+      const skippedCount = normalizedScores.length - completeScores.length;
+
+      // Even if no subjects are complete, still save remarks/domains using the first subject's ID
+      // (remarks and domain_ratings are stored per-row but apply to all subjects)
+      if (completeScores.length === 0) {
+        // Save just remarks/domains against the existing results if any
+        let remarkUpdateQuery = supabase
+          .from("results")
+          .update({
+            class_teacher_remark: classTeacherRemark,
+            principal_remark: principalRemark,
+            domain_ratings: domainRatings,
+            next_term_begins: nextTermDate,
+          })
+          .eq("student_id", student.id)
+          .eq("session_id", session.id)
+          .eq("term_id", term.id);
+
+        if (effectiveSchoolId) {
+          remarkUpdateQuery = remarkUpdateQuery.eq("school_id", effectiveSchoolId);
+        }
+
+        const { error: remarkOnlyError } = await remarkUpdateQuery;
+
+        if (remarkOnlyError) {
+          console.error("Error saving remarks/domains:", remarkOnlyError);
+          toast.error(remarkOnlyError.message || "Failed to save remarks");
+        } else {
+          toast.success("Remarks and domain ratings saved (no complete subjects to score)");
+        }
+        setIsSaving(false);
+        return;
+      }
+
+      // Save each subject's result separately using Supabase upsert
+      const saveDataArray = completeScores.map(score => ({
         student_id: student.id,
         session_id: session.id,
         term_id: term.id,
@@ -1013,7 +1075,7 @@ export default function ResultEntry({
             resultIdBySubjectClass[row.subject_class_id] = row.id;
           }
 
-          const componentRows = normalizedScores.flatMap((score) => {
+          const componentRows = completeScores.flatMap((score) => {
             const resultId = resultIdBySubjectClass[score.subject_class_id];
             if (!resultId) return [];
 
@@ -1041,7 +1103,10 @@ export default function ResultEntry({
 
         setScores(normalizedScores);
 
-        toast.success("Results saved successfully");
+        const successMsg = skippedCount > 0
+          ? `Results saved — ${skippedCount} subject(s) skipped (incomplete scores)`
+          : "Results saved successfully";
+        toast.success(successMsg);
       }
     } catch (err) {
       console.error("Error saving results:", err);
@@ -1281,6 +1346,70 @@ export default function ResultEntry({
           </tbody>
         </table>
 
+        {/* ── COMPLETION SUMMARY BAR ── */}
+        {!isReadOnly && canEdit && (() => {
+          const remarkFilled = classTeacherRemark.trim().length > 0 || principalRemark.trim().length > 0;
+          const hasDomainChanges = Object.values(domainRatings.affective).some(v => v !== 5)
+            || Object.values(domainRatings.psychomotor).some(v => v !== 5);
+          const allComplete = completionSummary.percentage === 100;
+          return (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "6px",
+              padding: "8px 12px",
+              marginBottom: "10px",
+              borderRadius: "6px",
+              border: `1px solid ${allComplete ? "#27ae60" : "#e67e22"}`,
+              background: allComplete ? "#eafaf1" : "#fef9e7",
+              fontSize: "12px",
+            }}
+          >
+            {/* Row 1: Subject Scores */}
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span style={{ fontWeight: "bold", color: "#2c3e50", minWidth: "120px" }}>
+                📊 Scores:
+              </span>
+              <div style={{ flex: 1, maxWidth: "160px", height: "8px", background: "#e0e0e0", borderRadius: "4px", overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${completionSummary.percentage}%`, background: allComplete ? "#27ae60" : completionSummary.percentage >= 50 ? "#f39c12" : "#e74c3c", borderRadius: "4px", transition: "width 0.3s ease" }} />
+              </div>
+              <span style={{ fontWeight: "bold", fontSize: "11px", color: allComplete ? "#27ae60" : "#e67e22", minWidth: "40px" }}>
+                {completionSummary.percentage}%
+              </span>
+              <span style={{ fontSize: "11px", color: "#7f8c8d" }}>
+                {completionSummary.complete}/{completionSummary.total}
+              </span>
+              {completionSummary.incomplete > 0 && (
+                <span style={{ color: "#e67e22", fontSize: "11px", fontStyle: "italic" }}>
+                  {completionSummary.incomplete} need{completionSummary.incomplete === 1 ? "s" : ""} scores
+                </span>
+              )}
+            </div>
+            {/* Row 2: Remarks & Domains */}
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span style={{ fontWeight: "bold", color: "#2c3e50", minWidth: "120px" }}>
+                📝 Remarks:
+              </span>
+              <span style={{ fontSize: "11px", padding: "1px 6px", borderRadius: "8px", fontWeight: "bold", color: remarkFilled ? "#fff" : "#7f8c8d", background: remarkFilled ? "#27ae60" : "#e0e0e0" }}>
+                {remarkFilled ? "Filled" : "Empty"}
+              </span>
+              <span style={{ fontWeight: "bold", color: "#2c3e50", minWidth: "120px", marginLeft: "10px" }}>
+                🎯 Domains:
+              </span>
+              <span style={{ fontSize: "11px", padding: "1px 6px", borderRadius: "8px", fontWeight: "bold", color: hasDomainChanges ? "#fff" : "#7f8c8d", background: hasDomainChanges ? "#27ae60" : "#e0e0e0" }}>
+                {hasDomainChanges ? "Customized" : "Defaults"}
+              </span>
+              {allComplete && remarkFilled && hasDomainChanges && (
+                <span style={{ color: "#27ae60", fontWeight: "bold", fontSize: "11px", marginLeft: "auto" }}>
+                  ✓ Ready
+                </span>
+              )}
+            </div>
+          </div>
+          );
+        })()}
+
         {/* ── DATA TABLE ── */}
         <table
           style={{
@@ -1416,8 +1545,19 @@ export default function ResultEntry({
             </tr>
           </thead>
           <tbody>
-            {scores.map((score, index) => (
-              <tr key={score.subject_class_id}>
+            {scores.map((score, index) => {
+              const complete = isSubjectComplete(score);
+              const rowBg = !isReadOnly && canEdit
+                ? complete
+                  ? "#eafaf1"
+                  : index % 2 === 0
+                    ? "#fef9e7"
+                    : "#fdf2e9"
+                : index % 2 === 0
+                  ? "#f9f9f9"
+                  : "#ffffff";
+              return (
+              <tr key={score.subject_class_id} style={{ background: rowBg }}>
                 <td
                   className="subject-name"
                   style={{
@@ -1429,7 +1569,25 @@ export default function ResultEntry({
                     fontSize: "12px",
                   }}
                 >
-                  {score.subject_name}
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    {score.subject_name}
+                    {!isReadOnly && canEdit && (
+                      <span
+                        style={{
+                          display: "inline-block",
+                          fontSize: "9px",
+                          fontWeight: "bold",
+                          padding: "1px 6px",
+                          borderRadius: "8px",
+                          color: complete ? "#fff" : "#7f8c8d",
+                          background: complete ? "#27ae60" : "#e0e0e0",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {complete ? "Complete" : "Pending"}
+                      </span>
+                    )}
+                  </div>
                 </td>
                 {getVisibleComponentTemplates().map((component) => (
                   <td
@@ -1526,7 +1684,8 @@ export default function ResultEntry({
                   {score.remark}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
 

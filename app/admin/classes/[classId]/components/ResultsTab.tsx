@@ -61,6 +61,12 @@ interface StudentResult {
     average_grade: string;
     class_position: number | null;
     has_results: boolean;
+    /** Number of subjects that have all component scores filled */
+    subjects_complete: number;
+    /** True if all this student's subjects have complete scores */
+    is_complete: boolean;
+    /** Percentage of subjects (with results) that have complete scores */
+    completion_percentage: number;
 }
 
 interface CumulativeResult {
@@ -224,6 +230,45 @@ export function ResultsTab({ classId, className, students, schoolId }: ResultsTa
                 throw resultsError;
             }
 
+            // ── Fetch component templates to determine completion ──
+            const { data: componentTemplates } = await supabase
+                .from("result_component_templates")
+                .select("component_key, is_active")
+                .eq("school_id", schoolId)
+                .eq("is_active", true);
+
+            const activeComponentKeys: string[] = (componentTemplates || []).map((c: any) => c.component_key);
+
+            // ── Fetch component scores for all results ──
+            const resultIds = (resultsData || []).map((r: any) => r.id).filter(Boolean);
+            let componentScoresByResultId = new Map<string, Set<string>>();
+
+            if (resultIds.length > 0) {
+                const { data: compScores } = await supabase
+                    .from("result_component_scores")
+                    .select("result_id, component_key, score")
+                    .eq("school_id", schoolId)
+                    .in("result_id", resultIds);
+
+                // For each result, track which components have scores > 0
+                (compScores || []).forEach((cs: any) => {
+                    if (!componentScoresByResultId.has(cs.result_id)) {
+                        componentScoresByResultId.set(cs.result_id, new Set());
+                    }
+                    if (Number(cs.score) > 0) {
+                        componentScoresByResultId.get(cs.result_id)!.add(cs.component_key);
+                    }
+                });
+            }
+
+            // Helper: check if a result has complete scores for all active components
+            function isResultComplete(resultId: string): boolean {
+                if (activeComponentKeys.length === 0) return false;
+                const filledComponents = componentScoresByResultId.get(resultId);
+                if (!filledComponents) return false;
+                return activeComponentKeys.every(key => filledComponents.has(key));
+            }
+
             // Group results by student
             const studentResultsMap = new Map<string, StudentResult>();
 
@@ -243,6 +288,9 @@ export function ResultsTab({ classId, className, students, schoolId }: ResultsTa
                     average_grade: "",
                     class_position: null,
                     has_results: false,
+                    subjects_complete: 0,
+                    is_complete: false,
+                    completion_percentage: 0,
                 });
             });
 
@@ -275,16 +323,33 @@ export function ResultsTab({ classId, className, students, schoolId }: ResultsTa
                 if (result.class_position && !studentResult.class_position) {
                     studentResult.class_position = result.class_position;
                 }
+
+                // Track completion: check if this subject's component scores are all filled
+                if (isResultComplete(result.id)) {
+                    studentResult.subjects_complete += 1;
+                }
             });
 
-            // Calculate averages
+            // Calculate averages and completion
             const results = Array.from(studentResultsMap.values()).map((result) => {
                 if (result.total_subjects > 0) {
                     result.average_score = result.total_score / result.total_subjects;
                     result.average_grade = calculateAverageGrade(result.average_score);
+
+                    // Calculate completion: of the subjects this student has results for,
+                    // how many have all component scores filled?
+                    result.completion_percentage = result.total_subjects > 0
+                        ? Math.round((result.subjects_complete / result.total_subjects) * 100)
+                        : 0;
+                    result.is_complete = result.total_subjects > 0
+                        && result.subjects_complete === result.total_subjects;
                 }
                 if (!result.has_results) {
                     result.lowest_score = 0;
+                    // No results means nothing is complete
+                    result.subjects_complete = 0;
+                    result.is_complete = false;
+                    result.completion_percentage = 0;
                 }
                 return result;
             });
@@ -849,20 +914,20 @@ export function ResultsTab({ classId, className, students, schoolId }: ResultsTa
 
                 {/* Summary Stats */}
                 {!loading && filteredResults.length > 0 && (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="p-4 bg-blue-50 rounded-lg">
-                            <p className="text-sm text-blue-600 font-medium">Total Students</p>
-                            <p className="text-2xl font-bold text-blue-900">{filteredResults.length}</p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                        <div className="p-3 bg-blue-50 rounded-lg">
+                            <p className="text-xs text-blue-600 font-medium">Total Students</p>
+                            <p className="text-xl font-bold text-blue-900">{filteredResults.length}</p>
                         </div>
-                        <div className="p-4 bg-green-50 rounded-lg">
-                            <p className="text-sm text-green-600 font-medium">With Results</p>
-                            <p className="text-2xl font-bold text-green-900">
+                        <div className="p-3 bg-green-50 rounded-lg">
+                            <p className="text-xs text-green-600 font-medium">With Results</p>
+                            <p className="text-xl font-bold text-green-900">
                                 {filteredResults.filter((r) => r.has_results).length}
                             </p>
                         </div>
-                        <div className="p-4 bg-yellow-50 rounded-lg">
-                            <p className="text-sm text-yellow-600 font-medium">Class Average</p>
-                            <p className="text-2xl font-bold text-yellow-900">
+                        <div className="p-3 bg-yellow-50 rounded-lg">
+                            <p className="text-xs text-yellow-600 font-medium">Class Average</p>
+                            <p className="text-xl font-bold text-yellow-900">
                                 {(
                                     filteredResults.reduce((sum, r) => sum + r.average_score, 0) /
                                     filteredResults.filter((r) => r.has_results).length || 0
@@ -870,10 +935,22 @@ export function ResultsTab({ classId, className, students, schoolId }: ResultsTa
                                 %
                             </p>
                         </div>
-                        <div className="p-4 bg-purple-50 rounded-lg">
-                            <p className="text-sm text-purple-600 font-medium">Highest Average</p>
-                            <p className="text-2xl font-bold text-purple-900">
+                        <div className="p-3 bg-purple-50 rounded-lg">
+                            <p className="text-xs text-purple-600 font-medium">Highest Avg</p>
+                            <p className="text-xl font-bold text-purple-900">
                                 {Math.max(...filteredResults.map((r) => r.average_score), 0).toFixed(1)}%
+                            </p>
+                        </div>
+                        <div className="p-3 bg-emerald-50 rounded-lg">
+                            <p className="text-xs text-emerald-600 font-medium">✅ Complete</p>
+                            <p className="text-xl font-bold text-emerald-900">
+                                {filteredResults.filter((r) => r.is_complete).length}
+                            </p>
+                        </div>
+                        <div className="p-3 bg-amber-50 rounded-lg">
+                            <p className="text-xs text-amber-600 font-medium">⚠️ Incomplete</p>
+                            <p className="text-xl font-bold text-amber-900">
+                                {filteredResults.filter((r) => r.has_results && !r.is_complete).length}
                             </p>
                         </div>
                     </div>
@@ -1054,6 +1131,7 @@ export function ResultsTab({ classId, className, students, schoolId }: ResultsTa
                                     <th className="p-3 text-center">Performance</th>
                                     <th className="p-3 text-center">Average Grade</th>
                                     <th className="p-3 text-center">Position</th>
+                                    <th className="p-3 text-center">Completion</th>
                                     <th className="p-3 text-right w-12"></th>
                                 </tr>
                             </thead>
@@ -1136,6 +1214,36 @@ export function ResultsTab({ classId, className, students, schoolId }: ResultsTa
                                                     getPositionDisplay(result.class_position)
                                                 ) : (
                                                     <span className="text-muted-foreground">—</span>
+                                                )}
+                                            </td>
+                                            <td className="p-3 text-center">
+                                                {result.has_results ? (
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        {result.is_complete ? (
+                                                            <Badge className="bg-green-100 text-green-800 border-green-300 text-xs">
+                                                                Complete
+                                                            </Badge>
+                                                        ) : (
+                                                            <Badge className="bg-amber-100 text-amber-800 border-amber-300 text-xs">
+                                                                {result.completion_percentage}%
+                                                            </Badge>
+                                                        )}
+                                                        <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                                            <div
+                                                                className={`h-full rounded-full ${
+                                                                    result.is_complete ? "bg-green-500" : "bg-amber-400"
+                                                                }`}
+                                                                style={{ width: `${result.completion_percentage}%` }}
+                                                            />
+                                                        </div>
+                                                        <span className="text-[10px] text-muted-foreground">
+                                                            {result.subjects_complete}/{result.total_subjects} subjects
+                                                        </span>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-muted-foreground text-xs">
+                                                        No data
+                                                    </span>
                                                 )}
                                             </td>
                                             <td className="p-3 text-right">

@@ -116,9 +116,82 @@ const ADMIN_ROUTE_PERMISSIONS: RoutePermissionEntry[] = [
   // Admissions API
   { pattern: "/api/admin/admissions", permission: "admissions:read" },
 
+  // Alumni API
+  { pattern: "/api/admin/alumni", permission: "alumni:read" },
+  { pattern: "/api/admin/alumni/applications", permission: "alumni:write" },
+  { pattern: "/api/admin/alumni/profiles", permission: "alumni:read" },
+
+  // Website Builder API
+  { pattern: "/api/admin/website", permission: "website:read" },
+
+  // Notifications & Communications API
+  { pattern: "/api/admin/notifications", permission: "notifications:write" },
+  { pattern: "/api/admin/emails", permission: "notifications:write" },
+  { pattern: "/api/admin/whatsapp", permission: "notifications:write" },
+  { pattern: "/api/admin/send-email", permission: "notifications:write" },
+  { pattern: "/api/admin/send-notification", permission: "notifications:write" },
+  { pattern: "/api/admin/send-whatsapp", permission: "notifications:write" },
+
+  // Payroll API (finance sub-feature)
+  { pattern: "/api/admin/payroll", permission: "finance:read" },
+
+  // JAMB/CBT Access API (question bank sub-feature)
+  { pattern: "/api/admin/jamb-access", permission: "question_bank:read" },
+
+  // Question Bank API
+  { pattern: "/api/admin/question-bank", permission: "question_bank:read" },
+
+  // Audit Logs API
+  { pattern: "/api/admin/audit-logs", permission: "audit:read" },
+
+  // History (class history) API
+  { pattern: "/api/admin/history", permission: "classes:read" },
+
+  // Promotions API
+  { pattern: "/api/admin/promotions", permission: "classes:write" },
+
+  // Guardians, Parents, Families (student-related)
+  { pattern: "/api/admin/guardians", permission: "students:read" },
+  { pattern: "/api/admin/parents", permission: "students:read" },
+  { pattern: "/api/admin/families", permission: "students:read" },
+
+  // Student email verification & updates (student write actions)
+  { pattern: "/api/admin/student-email-verification", permission: "students:write" },
+  { pattern: "/api/admin/parent-email-verification", permission: "students:write" },
+  { pattern: "/api/admin/update-student", permission: "students:write" },
+
+  // Subscription API (settings sub-feature)
+  { pattern: "/api/admin/subscription", permission: "settings:read" },
+
   // Admin management API
   { pattern: "/api/admin/admin-users", permission: "user_management:write" },
   { pattern: "/api/admin/admin-roles", permission: "user_management:write" },
+
+  // ── Additional page routes not covered above ──
+
+  // Payroll pages
+  { pattern: "/admin/payroll", permission: "finance:read" },
+
+  // Audit pages (not matched by /admin/audit since path uses hyphen)
+  { pattern: "/admin/audit-logs", permission: "audit:read" },
+
+  // Promotions pages
+  { pattern: "/admin/promotions", permission: "classes:write" },
+
+  // Guardians/Parents/Families pages
+  { pattern: "/admin/guardians", permission: "students:read" },
+  { pattern: "/admin/parents", permission: "students:read" },
+  { pattern: "/admin/families", permission: "students:read" },
+
+  // History pages
+  { pattern: "/admin/history", permission: "classes:read" },
+
+  // Email verification pages
+  { pattern: "/admin/student-email-verification", permission: "students:write" },
+  { pattern: "/admin/parent-email-verification", permission: "students:write" },
+
+  // Subscription pages
+  { pattern: "/admin/subscription", permission: "settings:read" },
 ];
 
 // ── Public paths that don't require any permission check ──

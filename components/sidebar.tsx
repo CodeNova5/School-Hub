@@ -40,11 +40,14 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import type { AdminPermission } from "@/lib/types";
 
 interface NavItem {
   href: string;
   label: string;
   icon: React.ReactNode;
+  /** Required admin permission to show this item. Dashboard is always visible. */
+  permission?: AdminPermission;
 }
 
 interface SidebarProps {
@@ -65,6 +68,7 @@ export function Sidebar({
   const pathname = usePathname();
   const [hasAssignedClasses, setHasAssignedClasses] = useState(false);
   const [hasJambAccess, setHasJambAccess] = useState(false);
+  const [adminPermissions, setAdminPermissions] = useState<Set<AdminPermission>>(new Set());
 
   useEffect(() => {
     if (role === "teacher") {
@@ -73,7 +77,33 @@ export function Sidebar({
     if (role === "student") {
       checkStudentJambAccess();
     }
+    if (role === "admin") {
+      fetchAdminPermissions();
+    }
   }, [role]);
+
+  async function fetchAdminPermissions() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      if (user?.user_metadata?.role === "super_admin") {
+        // Super admins have access to everything
+        return;
+      }
+      const { data } = await supabase.rpc("get_my_admin_permissions");
+      if (Array.isArray(data)) {
+        setAdminPermissions(new Set(data as AdminPermission[]));
+      }
+    } catch (error) {
+      console.error("Error fetching admin permissions:", error);
+    }
+  }
+
+  function hasAdminPermission(permission: AdminPermission): boolean {
+    // Super admins bypass permission checks
+    // For regular admins, check if they have the permission or a wildcard
+    return adminPermissions.size === 0 || adminPermissions.has("*" as AdminPermission) || adminPermissions.has(permission);
+  }
 
   async function checkTeacherClasses() {
     try {
@@ -135,34 +165,34 @@ export function Sidebar({
     { href: "/admin", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
     { href: "/admin/ai-assistant", label: "AI Assistant", icon: <Sparkles className="h-5 w-5" /> },
     { href: "/admin/sessions", label: "Sessions & Terms", icon: <Calendar className="h-5 w-5" /> },
-    { href: "/admin/classes", label: "Classes", icon: <School className="h-5 w-5" /> },
+    { href: "/admin/classes", label: "Classes", icon: <School className="h-5 w-5" />, permission: "classes:read" },
     { href: "/admin/attendance", label: "Attendance", icon: <ClipboardList className="h-5 w-5" /> },
     { href: "/admin/attendance/qr-scanner", label: "QR Attendance Scanner", icon: <QrCode className="h-5 w-5" /> },
-    { href: "/admin/subjects", label: "Subjects", icon: <BookOpen className="h-5 w-5" /> },
+    { href: "/admin/subjects", label: "Subjects", icon: <BookOpen className="h-5 w-5" />, permission: "subjects:read" },
     { href: "/admin/periods", label: "Periods", icon: <Clock className="h-5 w-5" /> },
-    { href: "/admin/timetable", label: "Timetable", icon: <FileText className="h-5 w-5" /> },
-    { href: "/admin/students", label: "Students", icon: <Users className="h-5 w-5" /> },
-    { href: "/admin/families", label: "Families", icon: <Users className="h-5 w-5" /> },
-    { href: "/admin/parents", label: "Parents & Guardians", icon: <UserCheck className="h-5 w-5" /> },
-    { href: "/admin/students/id-cards", label: "ID Card Generator", icon: <IdCard className="h-5 w-5" /> },
-    { href: "/admin/teachers", label: "Teachers", icon: <GraduationCap className="h-5 w-5" /> },
-    { href: "/admin/teachers/id-cards", label: "Teacher ID Cards", icon: <IdCard className="h-5 w-5" /> },
-    { href: "/admin/finance", label: "Finance", icon: <Wallet className="h-5 w-5" /> },
-    { href: "/admin/payroll", label: "Payroll", icon: <Banknote className="h-5 w-5" /> },
-    { href: "/admin/history", label: "History", icon: <History className="h-5 w-5" /> },
-    { href: "/admin/inventory", label: "Inventory", icon: <Package className="h-5 w-5" /> },
-    { href: "/admin/promotions", label: "Promotions", icon: <TrendingUp className="h-5 w-5" /> },
-    { href: "/admin/audit-logs", label: "Audit Trail", icon: <ScrollText className="h-5 w-5" /> },
-    { href: "/admin/admissions", label: "Admissions", icon: <ClipboardList className="h-5 w-5" /> },
-    { href: "/admin/alumni", label: "Alumni", icon: <UserCheck className="h-5 w-5" /> },
-    { href: "/admin/jamb", label: "JAMB CBT Access", icon: <Target className="h-5 w-5" /> },
-    { href: "/admin/website-builder", label: "Website Builder", icon: <Globe className="h-5 w-5" /> },
-    { href: "/admin/school-config", label: "School Structure", icon: <Layers className="h-5 w-5" /> },
-    { href: "/admin/admin-users", label: "Admin Management", icon: <Shield className="h-5 w-5" /> },
-    { href: "/admin/notifications", label: "Notifications", icon: <Bell className="h-5 w-5" /> },
+    { href: "/admin/timetable", label: "Timetable", icon: <FileText className="h-5 w-5" />, permission: "timetable:read" },
+    { href: "/admin/students", label: "Students", icon: <Users className="h-5 w-5" />, permission: "students:read" },
+    { href: "/admin/families", label: "Families", icon: <Users className="h-5 w-5" />, permission: "students:read" },
+    { href: "/admin/parents", label: "Parents & Guardians", icon: <UserCheck className="h-5 w-5" />, permission: "students:read" },
+    { href: "/admin/students/id-cards", label: "ID Card Generator", icon: <IdCard className="h-5 w-5" />, permission: "students:read" },
+    { href: "/admin/teachers", label: "Teachers", icon: <GraduationCap className="h-5 w-5" />, permission: "teachers:read" },
+    { href: "/admin/teachers/id-cards", label: "Teacher ID Cards", icon: <IdCard className="h-5 w-5" />, permission: "teachers:read" },
+    { href: "/admin/finance", label: "Finance", icon: <Wallet className="h-5 w-5" />, permission: "finance:read" },
+    { href: "/admin/payroll", label: "Payroll", icon: <Banknote className="h-5 w-5" />, permission: "finance:read" },
+    { href: "/admin/history", label: "History", icon: <History className="h-5 w-5" />, permission: "classes:read" },
+    { href: "/admin/inventory", label: "Inventory", icon: <Package className="h-5 w-5" />, permission: "inventory:read" },
+    { href: "/admin/promotions", label: "Promotions", icon: <TrendingUp className="h-5 w-5" />, permission: "classes:write" },
+    { href: "/admin/audit-logs", label: "Audit Trail", icon: <ScrollText className="h-5 w-5" />, permission: "audit:read" },
+    { href: "/admin/admissions", label: "Admissions", icon: <ClipboardList className="h-5 w-5" />, permission: "admissions:read" },
+    { href: "/admin/alumni", label: "Alumni", icon: <UserCheck className="h-5 w-5" />, permission: "alumni:read" },
+    { href: "/admin/jamb", label: "JAMB CBT Access", icon: <Target className="h-5 w-5" />, permission: "question_bank:read" },
+    { href: "/admin/website-builder", label: "Website Builder", icon: <Globe className="h-5 w-5" />, permission: "website:read" },
+    { href: "/admin/school-config", label: "School Structure", icon: <Layers className="h-5 w-5" />, permission: "structure:read" },
+    { href: "/admin/admin-users", label: "Admin Management", icon: <Shield className="h-5 w-5" />, permission: "user_management:write" },
+    { href: "/admin/notifications", label: "Notifications", icon: <Bell className="h-5 w-5" />, permission: "notifications:write" },
     { href: "/admin/calendar", label: "Calendar", icon: <Calendar className="h-5 w-5" /> },
-    { href: "/admin/subscription", label: "Subscription", icon: <CreditCard className="h-5 w-5" /> },
-    { href: "/admin/settings", label: "Settings", icon: <Settings className="h-5 w-5" /> },
+    { href: "/admin/subscription", label: "Subscription", icon: <CreditCard className="h-5 w-5" />, permission: "settings:read" },
+    { href: "/admin/settings", label: "Settings", icon: <Settings className="h-5 w-5" />, permission: "settings:read" },
   ];
 
   const teacherNav: NavItem[] = [
@@ -216,7 +246,12 @@ export function Sidebar({
 
   const navItems =
     role === "admin"
-      ? adminNav
+      ? adminNav.filter((item) => {
+          // Dashboard is always visible; items without a permission requirement are always visible
+          if (item.href === "/admin" || !item.permission) return true;
+          // For super admins (permissions not yet loaded, empty set), show all items
+          return hasAdminPermission(item.permission);
+        })
       : role === "teacher"
         ? teacherNav
         : role === "parent"

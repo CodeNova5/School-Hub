@@ -589,18 +589,18 @@ export default function TeachersPage() {
             <div className="flex flex-wrap items-center gap-3">
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button
-                    onClick={() => {
-                      setEditingTeacher(null);
-                      setImagePreview(null);
-                      setImageUrl('');
-                    }}
-                    className="h-11 rounded-xl bg-white px-5 text-sm font-semibold text-slate-950 shadow-lg shadow-black/10 transition-all duration-200 hover:bg-slate-100 active:scale-[0.97]"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Teacher
-                  </Button>
-                </DialogTrigger>
+                    <Button
+                      onClick={() => {
+                        setEditingTeacher(null);
+                        setImagePreview(null);
+                        setImageUrl('');
+                      }}
+                      className="h-11 rounded-xl bg-white px-5 text-sm font-semibold text-slate-950 shadow-lg shadow-black/10 transition-all duration-200 hover:bg-slate-100 active:scale-[0.97]"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Teacher
+                    </Button>
+                  </DialogTrigger>
                 <DialogContent className="max-h-[92vh] overflow-hidden border-0 bg-transparent p-0 shadow-none sm:max-w-5xl [&>button]:hidden">
                   <div className="flex max-h-[92vh] flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl shadow-slate-900/20 ring-1 ring-slate-900/10">
                     <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 py-4 sm:px-7">

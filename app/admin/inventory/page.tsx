@@ -374,9 +374,9 @@ export default function AdminInventoryDashboard() {
               Refresh
             </Button>
             <Button onClick={() => router.push("/admin/inventory/items")}>
-              <Plus className="h-4 w-4 mr-2" />
-              Manage Items
-            </Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Manage Items
+              </Button>
           </div>
         </div>
 
@@ -656,7 +656,7 @@ export default function AdminInventoryDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6 space-y-3">
-              <Button
+            <Button
                 variant="outline"
                 className="w-full justify-start h-auto py-4"
                 onClick={() => router.push("/admin/inventory/items")}

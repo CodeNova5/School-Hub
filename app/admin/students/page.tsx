@@ -178,13 +178,13 @@ export default function AdminStudentsPage() {
           </div>
           <div className="flex items-center gap-3">
             <button
-              type="button"
-              onClick={() => router.push('/admin/students/new')}
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition-all hover:bg-slate-800 hover:shadow-xl hover:shadow-slate-900/25 active:scale-95"
-            >
-              <Plus className="h-4 w-4" />
-              Add Student
-            </button>
+                type="button"
+                onClick={() => router.push('/admin/students/new')}
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition-all hover:bg-slate-800 hover:shadow-xl hover:shadow-slate-900/25 active:scale-95"
+              >
+                <Plus className="h-4 w-4" />
+                Add Student
+              </button>
 
             <Button variant="outline" onClick={handleExport} className="rounded-xl">
               <Download className="mr-2 h-4 w-4" />

@@ -349,14 +349,14 @@ export async function middleware(req: NextRequest) {
         });
         if (!hasPermission) {
           const redirectUrl = req.nextUrl.clone();
-          redirectUrl.pathname = config.dashboard;
-          redirectUrl.searchParams.set("error", "insufficient_permissions");
+          redirectUrl.pathname = "/admin/no-access";
+          redirectUrl.searchParams.set("permission", requiredPermission);
           return NextResponse.redirect(redirectUrl);
         }
       } catch {
-        // Deny on error (most restrictive) — redirect to dashboard
+        // Deny on error (most restrictive) — redirect to no-access page
         const redirectUrl = req.nextUrl.clone();
-        redirectUrl.pathname = config.dashboard;
+        redirectUrl.pathname = "/admin/no-access";
         return NextResponse.redirect(redirectUrl);
       }
     }

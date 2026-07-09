@@ -120,6 +120,9 @@ export default function ResultEntry({
   // Class Teacher signature URL
   const [teacherSignature, setTeacherSignature] = useState<string | null>(null);
 
+  // Whether to show position in report card (from school settings)
+  const [showPosition, setShowPosition] = useState(true);
+
   // Publication settings
   const [publicationSettings, setPublicationSettings] = useState<any>(null);
   const [isPublished, setIsPublished] = useState(false);
@@ -277,6 +280,10 @@ export default function ResultEntry({
             .eq("school_id", schoolId)
             .order("display_order", { ascending: true }),
         ]);
+
+        if (settingsData) {
+          setShowPosition(settingsData.show_position !== false);
+        }
 
         if (settingsData?.is_configured && componentRows && componentRows.length > 0) {
           setConfiguredPassPercentage(Number(settingsData.pass_percentage) || 40);

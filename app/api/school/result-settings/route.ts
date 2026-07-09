@@ -99,6 +99,7 @@ export async function PUT(request: Request) {
         {
           school_id: schoolId,
           pass_percentage: passPercentage,
+          show_position: body.show_position !== false,
           is_configured: false,
           configured_at: null,
         },

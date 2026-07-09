@@ -119,6 +119,7 @@ export default function ResultSettingsPage() {
   const { data, isLoading, isSaving, save } = useResultSettings(Boolean(schoolId));
 
   const [passPercentage, setPassPercentage] = useState(40);
+  const [showPosition, setShowPosition] = useState(true);
   const [components, setComponents] = useState<EditableComponent[]>(DEFAULT_COMPONENTS);
   const [grades, setGrades] = useState<EditableGrade[]>(DEFAULT_GRADES);
   const [selectedPresetKey, setSelectedPresetKey] = useState<string>("welcome_mid_vetting_exam");
@@ -139,6 +140,7 @@ export default function ResultSettingsPage() {
 
     if (data.settings) {
       setPassPercentage(Number(data.settings.pass_percentage) || 40);
+      setShowPosition(data.settings.show_position !== false);
     }
 
     if (data.components.length > 0) {
@@ -173,6 +175,7 @@ export default function ResultSettingsPage() {
   const onSave = async (activate: boolean) => {
     const payload = {
       pass_percentage: Number(passPercentage),
+      show_position: showPosition,
       components: components.map((item, index) => ({
         component_key: toKey(item.component_key || item.component_name),
         component_name: item.component_name,
@@ -370,6 +373,21 @@ export default function ResultSettingsPage() {
                   value={passPercentage}
                   onChange={(e) => setPassPercentage(Number(e.target.value) || 0)}
                 />
+              </div>
+              <div className="mt-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="show-position" className="cursor-pointer">Show Position</Label>
+                  <input
+                    id="show-position"
+                    type="checkbox"
+                    checked={showPosition}
+                    onChange={(e) => setShowPosition(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Display student positions (rank) on report cards and results tables
+                </p>
               </div>
             </div>
           </div>

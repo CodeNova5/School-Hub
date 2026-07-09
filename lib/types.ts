@@ -169,6 +169,7 @@ export interface ResultSchoolSettings {
   id: string;
   school_id: string;
   pass_percentage: number;
+  show_position: boolean;
   is_configured: boolean;
   configured_at?: string | null;
   created_at: string;

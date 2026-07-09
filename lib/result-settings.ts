@@ -6,6 +6,7 @@ import {
 
 export interface ResultSettingsPayload {
   pass_percentage: number;
+  show_position: boolean;
   components: Array<{
     component_key: string;
     component_name: string;
@@ -142,9 +143,10 @@ export function validateResultSettingsPayload(payload: any): ResultSettingsValid
   return {
     ok: true,
     normalized: {
-      passPercentage,
-      components: normalizedComponents,
-      gradeScales: normalizedGradeScales,
+    passPercentage,
+    show_position: payload.show_position !== false,
+    components: normalizedComponents,
+    gradeScales: normalizedGradeScales,
     },
   };
 }

@@ -60,6 +60,7 @@ export interface ReportCardPreviewProps {
   session: { name: string; end_date?: string } | null;
   term: { name: string } | null;
   scores: SubjectScore[];
+  showPosition?: boolean;
 
   totalScore: number;
   maxTotalScore: number;
@@ -118,6 +119,7 @@ const ReportCardPreview = forwardRef<HTMLDivElement, ReportCardPreviewProps>(fun
     domainRatings,
     gradeScale,
     configuredPassPercentage,
+    showPosition = true,
     visibleComponentTemplates,
     getGradeColor,
     getPositionDisplay,
@@ -333,8 +335,8 @@ const ReportCardPreview = forwardRef<HTMLDivElement, ReportCardPreviewProps>(fun
             <col key={Math.random()} style={{ width: "9%" }} />
           ))}
           <col style={{ width: "9%" }} />
-          <col style={{ width: "10%" }} />
-          <col style={{ width: "7%" }} />
+          {showPosition && <col style={{ width: "10%" }} />}
+          {showPosition && <col style={{ width: "7%" }} />}
           <col style={{ width: "7%" }} />
           <col style={{ width: "auto" }} />
         </colgroup>
@@ -379,19 +381,21 @@ const ReportCardPreview = forwardRef<HTMLDivElement, ReportCardPreviewProps>(fun
             >
               Total
             </th>
-            <th
-              rowSpan={2}
-              style={{
-                border: "1px solid #a6acaf",
-                padding: "6px 4px",
-                textAlign: "center",
-                background: "#0b5345",
-                color: "white",
-                fontWeight: 600,
-              }}
-            >
-              Class<br />Avg
-            </th>
+            {showPosition && (
+              <th
+                rowSpan={2}
+                style={{
+                  border: "1px solid #a6acaf",
+                  padding: "6px 4px",
+                  textAlign: "center",
+                  background: "#0b5345",
+                  color: "white",
+                  fontWeight: 600,
+                }}
+              >
+                Class<br />Avg
+              </th>
+            )}
             <th
               rowSpan={2}
               style={{
@@ -492,17 +496,19 @@ const ReportCardPreview = forwardRef<HTMLDivElement, ReportCardPreviewProps>(fun
               >
                 {score.total}
               </td>
-              <td
-                style={{
-                  border: "1px solid #a6acaf",
-                  padding: "6px 4px",
-                  textAlign: "center",
-                  fontSize: "11px",
-                  color: "#566573",
-                }}
-              >
-                {classAverage?.toFixed(1) || "\u2014"}
-              </td>
+              {showPosition && (
+                <td
+                  style={{
+                    border: "1px solid #a6acaf",
+                    padding: "6px 4px",
+                    textAlign: "center",
+                    fontSize: "11px",
+                    color: "#566573",
+                  }}
+                >
+                  {classAverage?.toFixed(1) || "\u2014"}
+                </td>
+              )}
               <td
                 style={{
                   border: "1px solid #a6acaf",
@@ -512,7 +518,7 @@ const ReportCardPreview = forwardRef<HTMLDivElement, ReportCardPreviewProps>(fun
                   fontWeight: 600,
                 }}
               >
-                {getPositionDisplay(classPosition)}
+                {showPosition ? getPositionDisplay(classPosition) : "\u2014"}
               </td>
               <td
                 style={{
@@ -754,7 +760,7 @@ const ReportCardPreview = forwardRef<HTMLDivElement, ReportCardPreviewProps>(fun
                 style={{
                   padding: "2px",
                   borderLeft: "1px solid #a6acaf",
-                  width: "25%",
+                  width: showPosition ? "25%" : "33%",
                 }}
               >
                 <strong style={{ color: "#0b5345" }}>CLASS AVG:</strong>{" "}
@@ -764,11 +770,11 @@ const ReportCardPreview = forwardRef<HTMLDivElement, ReportCardPreviewProps>(fun
                 style={{
                   padding: "2px",
                   borderLeft: "1px solid #a6acaf",
-                  width: "25%",
+                  width: showPosition ? "25%" : "33%",
                 }}
               >
-                <strong style={{ color: "#0b5345" }}>POSITION:</strong>{" "}
-                <strong>{getPositionOrdinal(classPosition, totalStudents)}</strong>
+                <strong style={{ color: "#0b5345" }}>{showPosition ? "POSITION:" : "CLASS AVG:"}</strong>{" "}
+                <strong>{showPosition ? getPositionOrdinal(classPosition, totalStudents) : (classAverage?.toFixed(2) || "\u2014") + "%"}</strong>
               </td>
             </tr>
           </tbody>

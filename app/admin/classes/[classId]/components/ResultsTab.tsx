@@ -101,11 +101,17 @@ export function ResultsTab({ classId, className, students, schoolId }: ResultsTa
     const [showCumulative, setShowCumulative] = useState(false);
     const [isLastTerm, setIsLastTerm] = useState(false);
 
+    // Whether to show position column (from school settings)
+    const [showPositionSetting, setShowPositionSetting] = useState(true);
+
     // Filters
     const [search, setSearch] = useState("");
     const [genderFilter, setGenderFilter] = useState<"all" | "male" | "female">("all");
     const [performanceFilter, setPerformanceFilter] = useState<
         "all" | "excellent" | "good" | "average" | "poor"
+    >("all");
+    const [completionFilter, setCompletionFilter] = useState<
+        "all" | "complete" | "incomplete" | "no_results"
     >("all");
 
     // Modal state
@@ -330,6 +336,14 @@ export function ResultsTab({ classId, className, students, schoolId }: ResultsTa
                 }
             });
 
+            // ── Load show_position setting ──
+            const { data: settingsRow } = await supabase
+                .from("result_school_settings")
+                .select("show_position")
+                .eq("school_id", schoolId)
+                .maybeSingle();
+            setShowPositionSetting(settingsRow?.show_position !== false);
+
             // Calculate averages and completion
             const results = Array.from(studentResultsMap.values()).map((result) => {
                 if (result.total_subjects > 0) {
@@ -516,9 +530,15 @@ export function ResultsTab({ classId, className, students, schoolId }: ResultsTa
                 if (performanceFilter === "poor" && avg >= 50) return false;
             }
 
+            if (completionFilter !== "all") {
+                if (completionFilter === "complete" && !result.is_complete) return false;
+                if (completionFilter === "incomplete" && (result.is_complete || !result.has_results)) return false;
+                if (completionFilter === "no_results" && result.has_results) return false;
+            }
+
             return true;
         });
-    }, [studentResults, search, genderFilter, performanceFilter]);
+    }, [studentResults, search, genderFilter, performanceFilter, completionFilter]);
 
     const filteredCumulativeResults = useMemo(() => {
         return cumulativeResults.filter((result) => {
@@ -542,9 +562,15 @@ export function ResultsTab({ classId, className, students, schoolId }: ResultsTa
                 if (performanceFilter === "poor" && avg >= 50) return false;
             }
 
+            if (completionFilter !== "all") {
+                if (completionFilter === "complete" && !result.is_complete) return false;
+                if (completionFilter === "incomplete" && result.is_complete) return false;
+                if (completionFilter === "no_results") return false;
+            }
+
             return true;
         });
-    }, [cumulativeResults, search, genderFilter, performanceFilter]);
+    }, [cumulativeResults, search, genderFilter, performanceFilter, completionFilter]);
 
     function calculateAverageGrade(averageScore: number): string {
         if (averageScore >= 75) return "A1";
@@ -781,15 +807,17 @@ export function ResultsTab({ classId, className, students, schoolId }: ResultsTa
                                 {showCumulative ? "Single Term View" : "Cumulative Results"}
                             </Button>
                         )}
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={handleCalculatePositions}
-                            disabled={loading || !selectedSessionId || !selectedTermId || filteredResults.filter(r => r.has_results).length === 0}
-                        >
-                            <Calculator className="h-4 w-4 mr-1" />
-                            Calculate Positions
-                        </Button>
+                        {showPositionSetting && (
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={handleCalculatePositions}
+                                disabled={loading || !selectedSessionId || !selectedTermId || filteredResults.filter(r => r.has_results).length === 0}
+                            >
+                                <Calculator className="h-4 w-4 mr-1" />
+                                Calculate Positions
+                            </Button>
+                        )}
                         <Button
                             size="sm"
                             onClick={() => setIsPublicationDialogOpen(true)}
@@ -881,6 +909,17 @@ export function ResultsTab({ classId, className, students, schoolId }: ResultsTa
                         <option value="good">Good (60-69%)</option>
                         <option value="average">Average (50-59%)</option>
                         <option value="poor">Needs Improvement (&lt;50%)</option>
+                    </select>
+
+                    <select
+                        className="border rounded-md p-2"
+                        value={completionFilter}
+                        onChange={(e) => setCompletionFilter(e.target.value as any)}
+                    >
+                        <option value="all">All Completion</option>
+                        <option value="complete">✅ Complete</option>
+                        <option value="incomplete">⚠️ Incomplete</option>
+                        <option value="no_results">No Results</option>
                     </select>
                 </div>
 
@@ -1018,7 +1057,7 @@ export function ResultsTab({ classId, className, students, schoolId }: ResultsTa
                             <table className="w-full text-sm">
                                 <thead className="bg-gradient-to-r from-purple-100 to-blue-100">
                                     <tr>
-                                        <th className="p-3 text-left">Rank</th>
+                                        {showPositionSetting && <th className="p-3 text-left">Rank</th>}
                                         <th className="p-3 text-left">Student</th>
                                         <th className="p-3 text-center">Terms</th>
                                         <th className="p-3 text-center">1st Term</th>
@@ -1032,11 +1071,13 @@ export function ResultsTab({ classId, className, students, schoolId }: ResultsTa
                                 <tbody>
                                     {filteredCumulativeResults.map((result) => (
                                         <tr key={result.student_id} className="border-t transition-colors">
-                                            <td className="p-3">
-                                                <div className="flex items-center justify-center">
-                                                    {getPositionDisplay(result.cumulative_position)}
-                                                </div>
-                                            </td>
+                                            {showPositionSetting && (
+                                                <td className="p-3">
+                                                    <div className="flex items-center justify-center">
+                                                        {getPositionDisplay(result.cumulative_position)}
+                                                    </div>
+                                                </td>
+                                            )}
                                             <td className="p-3">
                                                 <div>
                                                     <p className="font-medium">{result.student_name}</p>
@@ -1130,7 +1171,7 @@ export function ResultsTab({ classId, className, students, schoolId }: ResultsTa
                                     <th className="p-3 text-center">Lowest</th>
                                     <th className="p-3 text-center">Performance</th>
                                     <th className="p-3 text-center">Average Grade</th>
-                                    <th className="p-3 text-center">Position</th>
+                                    {showPositionSetting && <th className="p-3 text-center">Position</th>}
                                     <th className="p-3 text-center">Completion</th>
                                     <th className="p-3 text-right w-12"></th>
                                 </tr>
@@ -1209,13 +1250,15 @@ export function ResultsTab({ classId, className, students, schoolId }: ResultsTa
                                                     <span className="text-muted-foreground">—</span>
                                                 )}
                                             </td>
-                                            <td className="p-3 text-center">
-                                                {result.class_position ? (
-                                                    getPositionDisplay(result.class_position)
-                                                ) : (
-                                                    <span className="text-muted-foreground">—</span>
-                                                )}
-                                            </td>
+                                            {showPositionSetting && (
+                                                <td className="p-3 text-center">
+                                                    {result.class_position ? (
+                                                        getPositionDisplay(result.class_position)
+                                                    ) : (
+                                                        <span className="text-muted-foreground">—</span>
+                                                    )}
+                                                </td>
+                                            )}
                                             <td className="p-3 text-center">
                                                 {result.has_results ? (
                                                     <div className="flex flex-col items-center gap-1">

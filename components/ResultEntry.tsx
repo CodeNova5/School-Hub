@@ -265,7 +265,7 @@ export default function ResultEntry({
         const [{ data: settingsData }, { data: componentRows }, { data: gradeRows }] = await Promise.all([
           supabase
             .from("result_school_settings")
-            .select("pass_percentage, is_configured")
+            .select("pass_percentage, is_configured, show_position")
             .eq("school_id", schoolId)
             .maybeSingle(),
           supabase
@@ -1431,6 +1431,7 @@ export default function ResultEntry({
             gradeScale={gradeScale}
             configuredPassPercentage={configuredPassPercentage}
             visibleComponentTemplates={getVisibleComponentTemplates()}
+            showPosition={showPosition}
             getGradeColor={getGradeColor}
             getPositionDisplay={getPositionDisplay}
             getPositionOrdinal={getPositionOrdinal}

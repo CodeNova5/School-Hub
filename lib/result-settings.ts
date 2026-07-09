@@ -24,6 +24,7 @@ export interface ResultSettingsPayload {
 
 export interface NormalizedResultSettingsPayload {
   passPercentage: number;
+  show_position: boolean;
   components: ResultComponentTemplate[];
   gradeScales: ResultGradeScale[];
 }

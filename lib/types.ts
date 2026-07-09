@@ -472,6 +472,57 @@ export interface PromotionSettings {
   updated_at: string;
 }
 
+// ── Admin Roles & Permissions Types ───────────────────────────────────────
+
+export interface AdminRole {
+  id: string;
+  school_id: string;
+  name: string;
+  description: string;
+  permissions: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminRoleAssignment {
+  id: string;
+  school_id: string;
+  admin_id: string;
+  role_id: string;
+  created_by?: string | null;
+  created_at: string;
+  // Denormalized for UI display
+  role?: AdminRole;
+  admin_name?: string;
+  admin_email?: string;
+  is_primary_admin?: boolean;
+  is_active?: boolean;
+}
+
+export type AdminPermissionNamespace =
+  | 'inventory'
+  | 'finance'
+  | 'website'
+  | 'students'
+  | 'teachers'
+  | 'classes'
+  | 'subjects'
+  | 'structure'
+  | 'notifications'
+  | 'results'
+  | 'timetable'
+  | 'audit'
+  | 'settings'
+  | 'question_bank'
+  | 'admissions'
+  | 'alumni'
+  | 'live_classes'
+  | 'lesson_notes'
+  | 'user_management';
+
+export type AdminPermission = `${AdminPermissionNamespace}:${'read' | 'write'}`;
+
 // ── Inventory Management Types ───────────────────────────────────────────
 
 export type InventoryItemType = 'asset' | 'consumable' | 'saleable';

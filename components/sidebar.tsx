@@ -32,7 +32,8 @@ import {
   Target,
   ScrollText,
   CreditCard,
-  Package
+  Package,
+  Shield
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -157,6 +158,7 @@ export function Sidebar({
     { href: "/admin/jamb", label: "JAMB CBT Access", icon: <Target className="h-5 w-5" /> },
     { href: "/admin/website-builder", label: "Website Builder", icon: <Globe className="h-5 w-5" /> },
     { href: "/admin/school-config", label: "School Structure", icon: <Layers className="h-5 w-5" /> },
+    { href: "/admin/admin-users", label: "Admin Management", icon: <Shield className="h-5 w-5" /> },
     { href: "/admin/notifications", label: "Notifications", icon: <Bell className="h-5 w-5" /> },
     { href: "/admin/calendar", label: "Calendar", icon: <Calendar className="h-5 w-5" /> },
     { href: "/admin/subscription", label: "Subscription", icon: <CreditCard className="h-5 w-5" /> },

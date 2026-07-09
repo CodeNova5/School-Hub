@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
 import { getRoutes, isApiPathExcluded, getApiFeatureForPath, getFeatureForPath } from "@/lib/route-enforcer";
+import { getRequiredPermission } from "@/lib/route-permissions";
 
 // Portal configuration
 const PORTAL_CONFIG = {
@@ -113,6 +114,43 @@ export async function middleware(req: NextRequest) {
     // Skip excluded routes (webhooks, public auth endpoints, super admin, etc.)
     if (isApiPathExcluded(pathname, routes)) {
       return res;
+    }
+
+    // ── Admin API Permission Check ──
+    // For sub-admins, verify they have the required permission for this API endpoint.
+    // Super admins bypass this check entirely.
+    if (pathname.startsWith("/api/admin")) {
+      const requiredPermission = getRequiredPermission(pathname, req.method);
+      if (requiredPermission) {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session) {
+          return NextResponse.json(
+            { error: "Authentication required" },
+            { status: 401 }
+          );
+        }
+        // Super admins bypass admin permission checks
+        if (session?.user?.user_metadata?.role !== "super_admin") {
+          try {
+            const { data: hasPermission } = await supabase.rpc("check_my_admin_permission", {
+              p_permission: requiredPermission,
+            });
+            if (!hasPermission) {
+              return NextResponse.json(
+                { error: "You don't have permission to access this resource" },
+                { status: 403 }
+              );
+            }
+          } catch {
+            return NextResponse.json(
+              { error: "Permission check failed" },
+              { status: 500 }
+            );
+          }
+        }
+      }
     }
 
     // Check if this API path is a gated feature
@@ -297,6 +335,31 @@ export async function middleware(req: NextRequest) {
     redirectUrl.searchParams.set("error", "unauthorized");
     redirectUrl.searchParams.set("redirectedFrom", pathname);
     return NextResponse.redirect(redirectUrl);
+  }
+
+  // ── Admin Permission Check (page routes) ──
+  // For sub-admins, verify they have the required permission for this page.
+  // Super admins bypass this check entirely.
+  if (config.prefix === "/admin" && session?.user?.user_metadata?.role !== "super_admin") {
+    const requiredPermission = getRequiredPermission(pathname);
+    if (requiredPermission) {
+      try {
+        const { data: hasPermission } = await supabase.rpc("check_my_admin_permission", {
+          p_permission: requiredPermission,
+        });
+        if (!hasPermission) {
+          const redirectUrl = req.nextUrl.clone();
+          redirectUrl.pathname = config.dashboard;
+          redirectUrl.searchParams.set("error", "insufficient_permissions");
+          return NextResponse.redirect(redirectUrl);
+        }
+      } catch {
+        // Deny on error (most restrictive) — redirect to dashboard
+        const redirectUrl = req.nextUrl.clone();
+        redirectUrl.pathname = config.dashboard;
+        return NextResponse.redirect(redirectUrl);
+      }
+    }
   }
 
   // ── Plan Enforcement ──

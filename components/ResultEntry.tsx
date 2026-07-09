@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { useEffect, useState, useRef, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import { Student, Class as ClassType, Session, Term } from "@/lib/types";
 import { toast } from "sonner";
+import ReportCardPreview from "@/components/ReportCardPreview";
 import { Save, Printer, Loader2, FileDown } from "lucide-react";
 
 interface SubjectScore {
@@ -826,17 +827,6 @@ export default function ResultEntry({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [publicationSettings, role, resultComponents, gradeScale, configuredPassPercentage]);
 
-  // Calculate visible columns count for table alignment (columns before Grade column)
-  const visibleColumnsCount = (() => {
-    let count = 1; // Subject name column
-    for (const component of resultComponents) {
-      if (component.is_active && isComponentVisible(component.component_key)) {
-        count++;
-      }
-    }
-    return count;
-  })();
-
   const totalScore = scores.reduce((sum, s) => sum + s.total, 0);
   const maxTotalScore = scores.reduce((sum) => sum + getSubjectMaxPossibleScore(), 0);
   const averagePercentage = maxTotalScore > 0 ? (totalScore / maxTotalScore) * 100 : 0;
@@ -1134,1133 +1124,310 @@ export default function ResultEntry({
     );
   }
 
+  /* ── Completion summary bar (shown in edit mode) ── */
+  const showCompletionBar = !isReadOnly && canEdit;
+  const remarkFilled = classTeacherRemark.trim().length > 0 || principalRemark.trim().length > 0;
+  const hasDomainChanges = Object.values(domainRatings.affective).some(v => v !== 5)
+    || Object.values(domainRatings.psychomotor).some(v => v !== 5);
+  const allComplete = completionSummary.percentage === 100 && remarkFilled && hasDomainChanges;
+
   return (
-    <div className="space-y-6 mb-12">
-      {/* Action Buttons */}
-      <div className="flex items-center justify-between print:hidden">
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handlePrint}>
-            <Printer className="h-4 w-4 mr-2" />
-            Print
-          </Button>
-          <Button variant="outline" onClick={handleExportPDF}>
-            <FileDown className="h-4 w-4 mr-2" />
-            Export as PDF
-          </Button>
-          {canEdit && !isReadOnly && (
-            <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  Save Results
-                </>
-              )}
-            </Button>
+    <div className="space-y-4 mb-12 print:space-y-0 print:mb-0">
+      {/* ── COMPLETION SUMMARY BAR (top, edit mode only) ── */}
+      {showCompletionBar && (
+        <div
+          className="print:hidden flex flex-wrap items-center gap-3 px-4 py-3 rounded-lg border text-sm transition-colors"
+          style={{
+            background: allComplete ? "#eafaf1" : "#fef9e7",
+            borderColor: allComplete ? "#27ae60" : "#e67e22",
+          }}
+        >
+          {/* Scores progress */}
+          <span className="font-semibold text-gray-700 whitespace-nowrap">
+            📊 Scores:
+          </span>
+          <div className="flex-1 min-w-[100px] max-w-[160px] h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-300"
+              style={{
+                width: `${completionSummary.percentage}%`,
+                background: completionSummary.percentage === 100
+                  ? "#27ae60"
+                  : completionSummary.percentage >= 50
+                    ? "#f39c12"
+                    : "#e74c3c",
+              }}
+            />
+          </div>
+          <span className="font-bold text-xs" style={{ color: completionSummary.percentage === 100 ? "#27ae60" : "#e67e22" }}>
+            {completionSummary.percentage}%
+          </span>
+          <span className="text-xs text-gray-500 whitespace-nowrap">
+            {completionSummary.complete}/{completionSummary.total}
+          </span>
+          {completionSummary.incomplete > 0 && (
+            <span className="text-xs text-amber-600 italic whitespace-nowrap">
+              {completionSummary.incomplete} need{completionSummary.incomplete === 1 ? "s" : ""} scores
+            </span>
+          )}
+
+          <span className="w-px h-5 bg-gray-300 mx-1" />
+
+          {/* Remarks status */}
+          <span className="font-semibold text-gray-700 whitespace-nowrap">📝 Remarks:</span>
+          <span
+            className="text-xs font-bold px-2 py-0.5 rounded-full"
+            style={{
+              color: remarkFilled ? "#fff" : "#7f8c8d",
+              background: remarkFilled ? "#27ae60" : "#e0e0e0",
+            }}
+          >
+            {remarkFilled ? "Filled" : "Empty"}
+          </span>
+
+          {/* Domains status */}
+          <span className="font-semibold text-gray-700 whitespace-nowrap">🎯 Domains:</span>
+          <span
+            className="text-xs font-bold px-2 py-0.5 rounded-full"
+            style={{
+              color: hasDomainChanges ? "#fff" : "#7f8c8d",
+              background: hasDomainChanges ? "#27ae60" : "#e0e0e0",
+            }}
+          >
+            {hasDomainChanges ? "Customized" : "Defaults"}
+          </span>
+
+          {allComplete && (
+            <span className="text-green-700 font-bold text-xs ml-auto">✓ Ready</span>
           )}
         </div>
+      )}
+
+      {/* ── ACTION BUTTONS (always visible) ── */}
+      <div className="print:hidden flex flex-wrap items-center gap-2 bg-white p-3 rounded-lg border shadow-sm">
+        <Button variant="outline" onClick={handlePrint} size="sm">
+          <Printer className="h-4 w-4 mr-1.5" />
+          Print
+        </Button>
+        <Button variant="outline" onClick={handleExportPDF} size="sm">
+          <FileDown className="h-4 w-4 mr-1.5" />
+          Export PDF
+        </Button>
+        {canEdit && !isReadOnly && (
+          <Button onClick={handleSave} disabled={isSaving} size="sm" className="ml-auto">
+            {isSaving ? (
+              <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Saving...</>
+            ) : (
+              <><Save className="h-4 w-4 mr-1.5" /> Save</>
+            )}
+          </Button>
+        )}
       </div>
 
-      {/* Report Card */}
-      <div
-        ref={printRef}
-        id="printable-content"
-        style={{
-          maxWidth: "820px",
-          margin: "0 auto",
-          background: "#ffffff",
-          padding: "30px",
-          border: "2px solid #0b5345",
-          boxShadow: "0 4px 15px rgba(0,0,0,0.1)",
-          fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-          color: "#2c3e50",
-          fontSize: "13px",
-        }}
-      >
-        {/* ── HEADER ── */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            borderBottom: "4px double #0b5345",
-            paddingBottom: "10px",
-            marginBottom: "15px",
-          }}
-        >
-          {/* Logo */}
-          <div
-            style={{
-              width: "85px",
-              height: "85px",
-              flexShrink: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              overflow: "hidden",
-            }}
-          >
-            {school?.logo_url ? (
-              <img
-                src={school.logo_url}
-                alt="School Logo"
-                style={{ height: "100%", width: "100%", objectFit: "contain" }}
-              />
-            ) : (
-              <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style={{ width: "75px", height: "75px" }}>
-                <circle cx="50" cy="50" r="45" fill="#0b5345" />
-                <polygon points="50,18 78,40 68,75 32,75 22,40" fill="#d4ac0d" />
-                <path d="M35,45 Q50,35 65,45 L65,58 Q50,48 35,58 Z" fill="#ffffff" />
-                <rect x="47" y="42" width="6" height="25" fill="#0b5345" />
-                <circle cx="50" cy="33" r="4" fill="#ffffff" />
-              </svg>
-            )}
-          </div>
+      {/* ── MAIN CONTENT: Two columns on desktop ── */}
+      <div className="flex flex-col lg:flex-row gap-6 print:block">
+        
+        {/* ── LEFT: CONFIGURATION PANEL (edit mode only) ── */}
+        {canEdit && !isReadOnly && (
+          <div className="w-full lg:w-[380px] xl:w-[420px] flex-shrink-0 space-y-4 print:hidden">
 
-          {/* School Details */}
-          <div style={{ textAlign: "center", flexGrow: 1, padding: "0 15px" }}>
-            <h1 style={{ color: "#0b5345", margin: "0 0 3px 0", fontSize: "22px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-              {school?.name || "SCHOOL NAME"}
-            </h1>
-            <p style={{ margin: "2px 0", fontSize: "13px" }}>
-              {school?.address || "School Address, City, State"}
-            </p>
-            <p style={{ margin: "2px 0", fontSize: "13px" }}>
-              {school?.phone ? `Tel: ${school.phone}` : ""}
-            </p>
-            {school?.motto && (
-              <p style={{ fontWeight: "bold", marginTop: "5px", color: "#0b5345", fontSize: "12px" }}>
-                MOTTO: {school.motto}
-              </p>
-            )}
-          </div>
+            {/* Subject Scores Input Card */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <span>📊</span> Subject Scores
+                  <span className="ml-auto text-xs font-normal text-muted-foreground">
+                    {completionSummary.complete}/{completionSummary.total} done
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/50">
+                      <th className="text-left p-2.5 font-medium text-xs">Subject</th>
+                      {getActiveComponentTemplates().map(c => (
+                        <th key={c.component_key} className="text-center p-2.5 font-medium text-xs w-16">
+                          {c.component_name}
+                        </th>
+                      ))}
+                      <th className="text-center p-2.5 font-medium text-xs w-14">Grade</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scores.map((score, index) => {
+                      const complete = isSubjectComplete(score);
+                      return (
+                        <tr
+                          key={score.subject_class_id}
+                          className={`border-t transition-colors ${
+                            complete ? "bg-green-50/60" : "bg-amber-50/60"
+                          }`}
+                        >
+                          <td className="p-2 font-medium text-sm">
+                            <div className="flex items-center gap-1.5">
+                              <span className="truncate">{score.subject_name}</span>
+                              <span
+                                className={`inline-flex items-center justify-center text-[10px] font-bold w-4 h-4 rounded-full flex-shrink-0 ${
+                                  complete
+                                    ? "bg-green-200 text-green-800"
+                                    : "bg-amber-200 text-amber-800"
+                                }`}
+                                title={complete ? "Complete" : "Pending"}
+                              >
+                                {complete ? "✓" : "!"}
+                              </span>
+                            </div>
+                          </td>
+                          {getActiveComponentTemplates().map((component) => (
+                            <td key={component.component_key} className="p-1 text-center">
+                              <input
+                                type="number"
+                                min="0"
+                                max={getComponentLimit(component.component_key)}
+                                value={getComponentScore(score, component.component_key) || ""}
+                                onChange={(e) => updateScore(index, component.component_key, e.target.value)}
+                                className="w-12 text-center border border-gray-200 rounded-md px-1 py-1 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-shadow"
+                              />
+                            </td>
+                          ))}
+                          <td className="p-2 text-center font-bold text-sm" style={{ color: getGradeColor(score.grade) }}>
+                            {score.grade}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </CardContent>
+            </Card>
 
-          {/* Passport Photo */}
-          <div
-            style={{
-              width: "85px",
-              height: "85px",
-              border: "1px solid #a6acaf",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              overflow: "hidden",
-              flexShrink: 0,
-              background: "#f8f9fa",
-            }}
-          >
-            {student?.photo_url || student?.image_url ? (
-              <img
-                src={student.photo_url || student.image_url}
-                alt="Student Passport"
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
-              />
-            ) : (
-              <span style={{ fontSize: "10px", color: "#7f8c8d" }}>Passport</span>
-            )}
-          </div>
-        </div>
-
-        {/* ── TITLE BAR ── */}
-        <div
-          style={{
-            textAlign: "center",
-            background: "#0b5345",
-            color: "white",
-            padding: "6px",
-            fontWeight: "bold",
-            fontSize: "14px",
-            letterSpacing: "1px",
-            marginBottom: "15px",
-            borderRadius: "4px",
-          }}
-        >
-          TERMINAL STUDENT PROGRESS REPORT
-        </div>
-
-        {/* ── PROFILE TABLE ── */}
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "15px" }}>
-          <tbody>
-            <tr>
-              <td style={{ padding: "4px 8px", fontSize: "13px", width: "50%" }}>
-                <span style={{ fontWeight: "bold", color: "#566573" }}>Student Name:</span>{" "}
-                <span style={{ borderBottom: "1px dashed #a6acaf", display: "inline-block", width: "70%", fontWeight: 600, paddingLeft: "5px" }}>
-                  {student.first_name} {student.last_name}
-                </span>
-              </td>
-              <td style={{ padding: "4px 8px", fontSize: "13px", width: "50%" }}>
-                <span style={{ fontWeight: "bold", color: "#566573" }}>Student ID:</span>{" "}
-                <span style={{ borderBottom: "1px dashed #a6acaf", display: "inline-block", width: "70%", fontWeight: 600, paddingLeft: "5px" }}>
-                  {student.student_id}
-                </span>
-              </td>
-            </tr>
-            <tr>
-              <td style={{ padding: "4px 8px", fontSize: "13px" }}>
-                <span style={{ fontWeight: "bold", color: "#566573" }}>Class:</span>{" "}
-                <span style={{ borderBottom: "1px dashed #a6acaf", display: "inline-block", width: "70%", fontWeight: 600, paddingLeft: "5px" }}>
-                  {studentClass?.name}
-                </span>
-              </td>
-              <td style={{ padding: "4px 8px", fontSize: "13px" }}>
-                <span style={{ fontWeight: "bold", color: "#566573" }}>Term / Year:</span>{" "}
-                <span style={{ borderBottom: "1px dashed #a6acaf", display: "inline-block", width: "70%", fontWeight: 600, paddingLeft: "5px" }}>
-                  {term?.name} / {session?.name}
-                </span>
-              </td>
-            </tr>
-            <tr>
-              <td style={{ padding: "4px 8px", fontSize: "13px" }}>
-                <span style={{ fontWeight: "bold", color: "#566573" }}>Gender:</span>{" "}
-                <span style={{ borderBottom: "1px dashed #a6acaf", display: "inline-block", width: "70%", fontWeight: 600, paddingLeft: "5px" }}>
-                  {student.gender ? student.gender.charAt(0).toUpperCase() + student.gender.slice(1) : "—"}
-                </span>
-              </td>
-              <td style={{ padding: "4px 8px", fontSize: "13px" }}>
-                <span style={{ fontWeight: "bold", color: "#566573" }}>No. in Class:</span>{" "}
-                <span style={{ borderBottom: "1px dashed #a6acaf", display: "inline-block", width: "70%", fontWeight: 600, paddingLeft: "5px" }}>
-                  {totalStudents || "—"}
-                </span>
-              </td>
-            </tr>
-            <tr>
-              <td style={{ padding: "4px 8px", fontSize: "13px" }}>
-                <span style={{ fontWeight: "bold", color: "#566573" }}>Attendance:</span>{" "}
-                <span style={{ borderBottom: "1px dashed #a6acaf", display: "inline-block", width: "70%", fontWeight: 600, paddingLeft: "5px" }}>
-                  {attendance} Day{attendance !== 1 ? "s" : ""}
-                </span>
-              </td>
-              <td style={{ padding: "4px 8px", fontSize: "13px" }}>
-                <span style={{ fontWeight: "bold", color: "#566573" }}>Next Term Begins:</span>{" "}
-                <span style={{ borderBottom: "1px dashed #a6acaf", display: "inline-block", width: "70%", fontWeight: 600, paddingLeft: "5px" }}>
-                  {nextTermDate && !isNaN(new Date(nextTermDate).getTime())
-                    ? new Date(nextTermDate).toLocaleDateString("en-GB")
-                    : "—"}
-                </span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* ── COMPLETION SUMMARY BAR ── */}
-        {!isReadOnly && canEdit && (() => {
-          const remarkFilled = classTeacherRemark.trim().length > 0 || principalRemark.trim().length > 0;
-          const hasDomainChanges = Object.values(domainRatings.affective).some(v => v !== 5)
-            || Object.values(domainRatings.psychomotor).some(v => v !== 5);
-          const allComplete = completionSummary.percentage === 100;
-          return (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "6px",
-              padding: "8px 12px",
-              marginBottom: "10px",
-              borderRadius: "6px",
-              border: `1px solid ${allComplete ? "#27ae60" : "#e67e22"}`,
-              background: allComplete ? "#eafaf1" : "#fef9e7",
-              fontSize: "12px",
-            }}
-          >
-            {/* Row 1: Subject Scores */}
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <span style={{ fontWeight: "bold", color: "#2c3e50", minWidth: "120px" }}>
-                📊 Scores:
-              </span>
-              <div style={{ flex: 1, maxWidth: "160px", height: "8px", background: "#e0e0e0", borderRadius: "4px", overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${completionSummary.percentage}%`, background: allComplete ? "#27ae60" : completionSummary.percentage >= 50 ? "#f39c12" : "#e74c3c", borderRadius: "4px", transition: "width 0.3s ease" }} />
-              </div>
-              <span style={{ fontWeight: "bold", fontSize: "11px", color: allComplete ? "#27ae60" : "#e67e22", minWidth: "40px" }}>
-                {completionSummary.percentage}%
-              </span>
-              <span style={{ fontSize: "11px", color: "#7f8c8d" }}>
-                {completionSummary.complete}/{completionSummary.total}
-              </span>
-              {completionSummary.incomplete > 0 && (
-                <span style={{ color: "#e67e22", fontSize: "11px", fontStyle: "italic" }}>
-                  {completionSummary.incomplete} need{completionSummary.incomplete === 1 ? "s" : ""} scores
-                </span>
-              )}
-            </div>
-            {/* Row 2: Remarks & Domains */}
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <span style={{ fontWeight: "bold", color: "#2c3e50", minWidth: "120px" }}>
-                📝 Remarks:
-              </span>
-              <span style={{ fontSize: "11px", padding: "1px 6px", borderRadius: "8px", fontWeight: "bold", color: remarkFilled ? "#fff" : "#7f8c8d", background: remarkFilled ? "#27ae60" : "#e0e0e0" }}>
-                {remarkFilled ? "Filled" : "Empty"}
-              </span>
-              <span style={{ fontWeight: "bold", color: "#2c3e50", minWidth: "120px", marginLeft: "10px" }}>
-                🎯 Domains:
-              </span>
-              <span style={{ fontSize: "11px", padding: "1px 6px", borderRadius: "8px", fontWeight: "bold", color: hasDomainChanges ? "#fff" : "#7f8c8d", background: hasDomainChanges ? "#27ae60" : "#e0e0e0" }}>
-                {hasDomainChanges ? "Customized" : "Defaults"}
-              </span>
-              {allComplete && remarkFilled && hasDomainChanges && (
-                <span style={{ color: "#27ae60", fontWeight: "bold", fontSize: "11px", marginLeft: "auto" }}>
-                  ✓ Ready
-                </span>
-              )}
-            </div>
-          </div>
-          );
-        })()}
-
-        {/* ── DATA TABLE ── */}
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            marginBottom: "15px",
-            fontSize: "12px",
-            tableLayout: "fixed",
-          }}
-        >
-          <colgroup>
-            <col style={{ width: "24%" }} />
-            {getVisibleComponentTemplates().map(() => (
-              <col key={Math.random()} style={{ width: "9%" }} />
-            ))}
-            <col style={{ width: "9%" }} />
-            <col style={{ width: "10%" }} />
-            <col style={{ width: "7%" }} />
-            <col style={{ width: "7%" }} />
-            <col style={{ width: "auto" }} />
-          </colgroup>
-          <thead>
-            <tr>
-              <th
-                rowSpan={2}
-                style={{
-                  border: "1px solid #a6acaf",
-                  padding: "6px 4px",
-                  textAlign: "center",
-                  background: "#0b5345",
-                  color: "white",
-                  fontWeight: 600,
-                }}
-              >
-                Subjects
-              </th>
-              <th
-                colSpan={getVisibleComponentTemplates().length}
-                style={{
-                  border: "1px solid #a6acaf",
-                  padding: "6px 4px",
-                  textAlign: "center",
-                  background: "#0b5345",
-                  color: "white",
-                  fontWeight: 600,
-                }}
-              >
-                Scores
-              </th>
-              <th
-                rowSpan={2}
-                style={{
-                  border: "1px solid #a6acaf",
-                  padding: "6px 4px",
-                  textAlign: "center",
-                  background: "#0b5345",
-                  color: "white",
-                  fontWeight: 600,
-                }}
-              >
-                Total
-              </th>
-              <th
-                rowSpan={2}
-                style={{
-                  border: "1px solid #a6acaf",
-                  padding: "6px 4px",
-                  textAlign: "center",
-                  background: "#0b5345",
-                  color: "white",
-                  fontWeight: 600,
-                }}
-              >
-                Class<br />Avg
-              </th>
-              <th
-                rowSpan={2}
-                style={{
-                  border: "1px solid #a6acaf",
-                  padding: "6px 4px",
-                  textAlign: "center",
-                  background: "#0b5345",
-                  color: "white",
-                  fontWeight: 600,
-                }}
-              >
-                Pos
-              </th>
-              <th
-                rowSpan={2}
-                style={{
-                  border: "1px solid #a6acaf",
-                  padding: "6px 4px",
-                  textAlign: "center",
-                  background: "#0b5345",
-                  color: "white",
-                  fontWeight: 600,
-                }}
-              >
-                Grade
-              </th>
-              <th
-                rowSpan={2}
-                style={{
-                  border: "1px solid #a6acaf",
-                  padding: "6px 4px",
-                  textAlign: "center",
-                  background: "#0b5345",
-                  color: "white",
-                  fontWeight: 600,
-                }}
-              >
-                Remarks
-              </th>
-            </tr>
-            <tr>
-              {getVisibleComponentTemplates().map((component) => (
-                <th
-                  key={component.component_key}
-                  style={{
-                    border: "1px solid #a6acaf",
-                    padding: "6px 4px",
-                    textAlign: "center",
-                    background: "#0b5345",
-                    color: "white",
-                    fontWeight: 600,
-                    fontSize: "11px",
-                  }}
-                >
-                  {component.component_name}<br />({component.max_score})
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {scores.map((score, index) => {
-              const complete = isSubjectComplete(score);
-              const rowBg = !isReadOnly && canEdit
-                ? complete
-                  ? "#eafaf1"
-                  : index % 2 === 0
-                    ? "#fef9e7"
-                    : "#fdf2e9"
-                : index % 2 === 0
-                  ? "#f9f9f9"
-                  : "#ffffff";
-              return (
-              <tr key={score.subject_class_id} style={{ background: rowBg }}>
-                <td
-                  className="subject-name"
-                  style={{
-                    border: "1px solid #a6acaf",
-                    padding: "6px 4px",
-                    textAlign: "left",
-                    paddingLeft: "8px",
-                    fontWeight: 600,
-                    fontSize: "12px",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    {score.subject_name}
-                    {!isReadOnly && canEdit && (
-                      <span
-                        style={{
-                          display: "inline-block",
-                          fontSize: "9px",
-                          fontWeight: "bold",
-                          padding: "1px 6px",
-                          borderRadius: "8px",
-                          color: complete ? "#fff" : "#7f8c8d",
-                          background: complete ? "#27ae60" : "#e0e0e0",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {complete ? "Complete" : "Pending"}
-                      </span>
-                    )}
+            {/* Domain Ratings Card */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <span>🎯</span> Domain Ratings
+                  <span className="ml-auto text-xs font-normal text-muted-foreground">Rate 1–5</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Affective */}
+                  <div>
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Affective</h4>
+                    <div className="space-y-1.5">
+                      {DEFAULT_AFFECTIVE_TRAITS.map((trait) => (
+                        <div key={trait} className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-gray-700 truncate">{trait}</span>
+                          <input
+                            type="number"
+                            min="1"
+                            max="5"
+                            value={domainRatings.affective[trait] || 5}
+                            onChange={(e) =>
+                              updateDomainRating("affective", trait, parseInt(e.target.value) || 5)
+                            }
+                            className="w-12 text-center border border-gray-200 rounded-md px-1 py-1 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 transition-shadow"
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </td>
-                {getVisibleComponentTemplates().map((component) => (
-                  <td
-                    key={component.component_key}
-                    style={{
-                      border: "1px solid #a6acaf",
-                      padding: "6px 4px",
-                      textAlign: "center",
-                      fontWeight: 600,
-                      fontSize: "12px",
-                    }}
-                  >
-                    {canEdit && !isReadOnly ? (
-                      <input
-                        type="number"
-                        min="0"
-                        max={getComponentLimit(component.component_key)}
-                        value={getComponentScore(score, component.component_key) || ""}
-                        onChange={(e) => updateScore(index, component.component_key, e.target.value)}
-                        style={{
-                          width: "100%",
-                          textAlign: "center",
-                          border: "none",
-                          background: "transparent",
-                          fontWeight: 600,
-                          fontSize: "12px",
-                          padding: 0,
-                          margin: 0,
-                          outline: "none",
-                        }}
-                        disabled={isReadOnly || !canEdit}
-                      />
-                    ) : (
-                      getComponentScore(score, component.component_key)
-                    )}
-                  </td>
-                ))}
-                <td
-                  style={{
-                    border: "1px solid #a6acaf",
-                    padding: "6px 4px",
-                    textAlign: "center",
-                    fontWeight: 700,
-                    fontSize: "12px",
-                    color: "#0b5345",
-                  }}
-                >
-                  {score.total}
-                </td>
-                <td
-                  style={{
-                    border: "1px solid #a6acaf",
-                    padding: "6px 4px",
-                    textAlign: "center",
-                    fontSize: "11px",
-                    color: "#566573",
-                  }}
-                >
-                  {classAverage?.toFixed(1) || "—"}
-                </td>
-                <td
-                  style={{
-                    border: "1px solid #a6acaf",
-                    padding: "6px 4px",
-                    textAlign: "center",
-                    fontSize: "11px",
-                    fontWeight: 600,
-                  }}
-                >
-                  {getPositionDisplay(classPosition)}
-                </td>
-                <td
-                  style={{
-                    border: "1px solid #a6acaf",
-                    padding: "6px 4px",
-                    textAlign: "center",
-                    fontWeight: 700,
-                    fontSize: "12px",
-                    color: getGradeColor(score.grade),
-                  }}
-                >
-                  {score.grade}
-                </td>
-                <td
-                  style={{
-                    border: "1px solid #a6acaf",
-                    padding: "6px 4px",
-                    textAlign: "center",
-                    fontSize: "11px",
-                    fontStyle: "italic",
-                    color: "#566573",
-                  }}
-                >
-                  {score.remark}
-                </td>
-              </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                  {/* Psychomotor */}
+                  <div>
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Psychomotor</h4>
+                    <div className="space-y-1.5">
+                      {DEFAULT_PSYCHOMOTOR_TRAITS.map((trait) => (
+                        <div key={trait} className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-gray-700 truncate">{trait}</span>
+                          <input
+                            type="number"
+                            min="1"
+                            max="5"
+                            value={domainRatings.psychomotor[trait] || 5}
+                            onChange={(e) =>
+                              updateDomainRating("psychomotor", trait, parseInt(e.target.value) || 5)
+                            }
+                            className="w-12 text-center border border-gray-200 rounded-md px-1 py-1 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 transition-shadow"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-        {/* ── DOMAINS (Affective + Psychomotor) ── */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: "15px",
-            marginBottom: "15px",
-          }}
-        >
-          {/* Affective Domain */}
-          <div style={{ flex: 1, width: "50%" }}>
-            <h3
-              style={{
-                color: "#0b5345",
-                fontSize: "13px",
-                borderBottom: "2px solid #0b5345",
-                marginTop: 0,
-                paddingBottom: "3px",
-                marginBottom: "8px",
-              }}
-            >
-              AFFECTIVE DOMAIN
-            </h3>
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                fontSize: "12px",
-                tableLayout: "fixed",
-              }}
-            >
-              <colgroup>
-                <col style={{ width: "75%" }} />
-                <col style={{ width: "25%" }} />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th
-                    style={{
-                      border: "1px solid #a6acaf",
-                      padding: "6px 4px",
-                      textAlign: "left",
-                      paddingLeft: "8px",
-                      background: "#0b5345",
-                      color: "white",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Trait Evaluation
-                  </th>
-                  <th
-                    style={{
-                      border: "1px solid #a6acaf",
-                      padding: "6px 4px",
-                      textAlign: "center",
-                      background: "#0b5345",
-                      color: "white",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Rating
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {DEFAULT_AFFECTIVE_TRAITS.map((trait) => (
-                  <tr key={trait}>
-                    <td
-                      style={{
-                        border: "1px solid #a6acaf",
-                        padding: "5px 4px",
-                        textAlign: "left",
-                        paddingLeft: "8px",
-                        fontSize: "12px",
-                      }}
-                    >
-                      {trait}
-                    </td>
-                    <td
-                      style={{
-                        border: "1px solid #a6acaf",
-                        padding: "5px 4px",
-                        textAlign: "center",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {canEdit && !isReadOnly ? (
-                        <input
-                          type="number"
-                          min="1"
-                          max="5"
-                          value={domainRatings.affective[trait] || 5}
-                          onChange={(e) =>
-                            updateDomainRating("affective", trait, parseInt(e.target.value) || 5)
-                          }
-                          style={{
-                            width: "40px",
-                            textAlign: "center",
-                            border: "1px solid #d1d5db",
-                            borderRadius: "3px",
-                            padding: "2px",
-                            fontSize: "12px",
-                            fontWeight: 600,
-                          }}
-                          disabled={isReadOnly || !canEdit}
-                        />
-                      ) : (
-                        domainRatings.affective[trait] || 5
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Psychomotor Domain */}
-          <div style={{ flex: 1, width: "50%" }}>
-            <h3
-              style={{
-                color: "#0b5345",
-                fontSize: "13px",
-                borderBottom: "2px solid #0b5345",
-                marginTop: 0,
-                paddingBottom: "3px",
-                marginBottom: "8px",
-              }}
-            >
-              PSYCHOMOTOR DOMAIN
-            </h3>
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                fontSize: "12px",
-                tableLayout: "fixed",
-              }}
-            >
-              <colgroup>
-                <col style={{ width: "75%" }} />
-                <col style={{ width: "25%" }} />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th
-                    style={{
-                      border: "1px solid #a6acaf",
-                      padding: "6px 4px",
-                      textAlign: "left",
-                      paddingLeft: "8px",
-                      background: "#0b5345",
-                      color: "white",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Skill Evaluation
-                  </th>
-                  <th
-                    style={{
-                      border: "1px solid #a6acaf",
-                      padding: "6px 4px",
-                      textAlign: "center",
-                      background: "#0b5345",
-                      color: "white",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Rating
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {DEFAULT_PSYCHOMOTOR_TRAITS.map((trait) => (
-                  <tr key={trait}>
-                    <td
-                      style={{
-                        border: "1px solid #a6acaf",
-                        padding: "5px 4px",
-                        textAlign: "left",
-                        paddingLeft: "8px",
-                        fontSize: "12px",
-                      }}
-                    >
-                      {trait}
-                    </td>
-                    <td
-                      style={{
-                        border: "1px solid #a6acaf",
-                        padding: "5px 4px",
-                        textAlign: "center",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {canEdit && !isReadOnly ? (
-                        <input
-                          type="number"
-                          min="1"
-                          max="5"
-                          value={domainRatings.psychomotor[trait] || 5}
-                          onChange={(e) =>
-                            updateDomainRating("psychomotor", trait, parseInt(e.target.value) || 5)
-                          }
-                          style={{
-                            width: "40px",
-                            textAlign: "center",
-                            border: "1px solid #d1d5db",
-                            borderRadius: "3px",
-                            padding: "2px",
-                            fontSize: "12px",
-                            fontWeight: 600,
-                          }}
-                          disabled={isReadOnly || !canEdit}
-                        />
-                      ) : (
-                        domainRatings.psychomotor[trait] || 5
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* ── SUMMARY BAR ── */}
-        <div
-          style={{
-            border: "1px solid #0b5345",
-            borderRadius: "4px",
-            padding: "8px",
-            marginBottom: "15px",
-            background: "#fcfcfc",
-          }}
-        >
-          <table style={{ width: "100%", textAlign: "center", borderCollapse: "collapse", fontSize: "13px" }}>
-            <tbody>
-              <tr>
-                <td style={{ padding: "2px", width: "25%" }}>
-                  <strong style={{ color: "#0b5345" }}>TOTAL:</strong>{" "}
-                  <strong>{totalScore} / {maxTotalScore}</strong>
-                </td>
-                <td
-                  style={{
-                    padding: "2px",
-                    borderLeft: "1px solid #a6acaf",
-                    width: "25%",
-                  }}
-                >
-                  <strong style={{ color: "#0b5345" }}>PERCENT:</strong>{" "}
-                  <strong>{averagePercentage.toFixed(2)}%</strong>
-                </td>
-                <td
-                  style={{
-                    padding: "2px",
-                    borderLeft: "1px solid #a6acaf",
-                    width: "25%",
-                  }}
-                >
-                  <strong style={{ color: "#0b5345" }}>CLASS AVG:</strong>{" "}
-                  <strong>{classAverage?.toFixed(2) || "—"}%</strong>
-                </td>
-                <td
-                  style={{
-                    padding: "2px",
-                    borderLeft: "1px solid #a6acaf",
-                    width: "25%",
-                  }}
-                >
-                  <strong style={{ color: "#0b5345" }}>POSITION:</strong>{" "}
-                  <strong>{getPositionOrdinal(classPosition, totalStudents)}</strong>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        {/* ── FOOTER SECTION ── */}
-        <div style={{ marginTop: "15px", fontSize: "13px", pageBreakInside: "avoid" }}>
-          {/* Class Teacher Remark */}
-          <div style={{ marginBottom: "10px", display: "flex", alignItems: "baseline" }}>
-            <span style={{ fontWeight: "bold", width: "150px", flexShrink: 0 }}>
-              Form Teacher's Remark:
-            </span>
-            <span
-              style={{
-                flexGrow: 1,
-                borderBottom: "1px dashed #a6acaf",
-                fontStyle: "italic",
-                paddingLeft: "5px",
-              }}
-            >
-              {canEdit && !isReadOnly ? (
-                <input
-                  type="text"
-                  value={classTeacherRemark}
-                  onChange={(e) => setClassTeacherRemark(e.target.value)}
-                  style={{
-                    width: "100%",
-                    border: "none",
-                    background: "transparent",
-                    fontStyle: "italic",
-                    fontSize: "13px",
-                    padding: "2px 0",
-                    outline: "none",
-                  }}
-                  placeholder="Enter remark..."
-                  disabled={isReadOnly || !canEdit}
-                />
-              ) : (
-                classTeacherRemark || "\u00A0"
-              )}
-            </span>
-          </div>
-
-          {/* Principal Remark */}
-          <div style={{ marginBottom: "10px", display: "flex", alignItems: "baseline" }}>
-            <span style={{ fontWeight: "bold", width: "150px", flexShrink: 0 }}>
-              Principal's Remark:
-            </span>
-            <span
-              style={{
-                flexGrow: 1,
-                borderBottom: "1px dashed #a6acaf",
-                fontStyle: "italic",
-                paddingLeft: "5px",
-              }}
-            >
-              {canEditPrincipalComment && !isReadOnly ? (
-                <input
-                  type="text"
-                  value={principalRemark}
-                  onChange={(e) => setPrincipalRemark(e.target.value)}
-                  style={{
-                    width: "100%",
-                    border: "none",
-                    background: "transparent",
-                    fontStyle: "italic",
-                    fontSize: "13px",
-                    padding: "2px 0",
-                    outline: "none",
-                  }}
-                  placeholder="Enter remark..."
-                  disabled={isReadOnly || !canEditPrincipalComment}
-                />
-              ) : (
-                principalRemark || "\u00A0"
-              )}
-            </span>
-          </div>
-
-          {/* Vacation / Resumption Dates */}
-          <div
-            style={{
-              marginBottom: "10px",
-              display: "flex",
-              alignItems: "baseline",
-              marginTop: "15px",
-            }}
-          >
-            <span style={{ fontWeight: "bold", width: "150px", flexShrink: 0, color: "#c0392b" }}>
-              Vacation Date:
-            </span>
-            <span
-              style={{
-                flexGrow: 1,
-                borderBottom: "1px dashed #a6acaf",
-                fontWeight: "bold",
-                paddingLeft: "5px",
-              }}
-            >
-              {session?.end_date
-                ? new Date(session.end_date).toLocaleDateString("en-GB", {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })
-                : "—"}
-            </span>
-            <span
-              style={{
-                fontWeight: "bold",
-                width: "140px",
-                textAlign: "right",
-                paddingRight: "10px",
-                flexShrink: 0,
-                color: "#27ae60",
-              }}
-            >
-              Resumption Date:
-            </span>
-            <span
-              style={{
-                flexGrow: 1,
-                borderBottom: "1px dashed #a6acaf",
-                fontWeight: "bold",
-                paddingLeft: "5px",
-              }}
-            >
-              {nextTermDate && !isNaN(new Date(nextTermDate).getTime())
-                ? new Date(nextTermDate).toLocaleDateString("en-GB", {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })
-                : "—"}
-            </span>
-          </div>
-
-          {/* Signatures / Stamps */}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-end",
-              marginTop: "25px",
-              padding: "0 10px",
-            }}
-          >
-            {/* Teacher Signature */}
-            <div style={{ textAlign: "center", width: "180px" }}>
-              <div
-                style={{
-                  height: "25px",
-                  fontFamily: "'Courier New', monospace",
-                  fontSize: "14px",
-                  fontStyle: "italic",
-                  color: "#1a5276",
-                }}
-              >
-                {teacherSignature ? (
-                  <img
-                    src={teacherSignature}
-                    alt="Teacher's Signature"
-                    style={{ height: "30px", objectFit: "contain", display: "inline-block" }}
+            {/* Remarks Card */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <span>📝</span> Remarks
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                    Form Teacher's Remark
+                  </label>
+                  <Textarea
+                    value={classTeacherRemark}
+                    onChange={(e) => setClassTeacherRemark(e.target.value)}
+                    placeholder="Enter class teacher's remark..."
+                    className="min-h-[60px] resize-none text-sm"
                   />
-                ) : (
-                  teacherName || "\u00A0"
+                </div>
+                {canEditPrincipalComment && (
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground block mb-1">
+                      Principal's Remark
+                    </label>
+                    <Textarea
+                      value={principalRemark}
+                      onChange={(e) => setPrincipalRemark(e.target.value)}
+                      placeholder="Enter principal's remark..."
+                      className="min-h-[60px] resize-none text-sm"
+                    />
+                  </div>
                 )}
-              </div>
-              <div
-                style={{
-                  borderTop: "1px dashed #2c3e50",
-                  marginTop: "35px",
-                  paddingTop: "5px",
-                  fontWeight: "bold",
-                  fontSize: "12px",
-                }}
-              >
-                {teacherName ? `${teacherName}` : "Form Teacher's Signature"}
-              </div>
-            </div>
+              </CardContent>
+            </Card>
 
-            {/* Official Stamp */}
-            <div style={{ position: "relative", height: "65px", width: "100px" }}>
-              <svg
-                viewBox="0 0 100 100"
-                xmlns="http://www.w3.org/2000/svg"
-                style={{
-                  position: "absolute",
-                  top: "-15px",
-                  left: "12px",
-                  width: "75px",
-                  height: "75px",
-                  opacity: 0.75,
-                }}
-              >
-                <circle cx="50" cy="50" r="42" fill="none" stroke="#1f618d" strokeWidth="1.5" strokeDasharray="3,2" />
-                <circle cx="50" cy="50" r="38" fill="none" stroke="#1f618d" strokeWidth="0.75" />
-                <text x="50" y="32" fontSize="6" fontWeight="bold" fill="#1f618d" textAnchor="middle">
-                  {school?.name ? school.name.substring(0, 18).toUpperCase() : "SCHOOL"}
-                </text>
-                <rect x="22" y="44" width="56" height="12" fill="none" stroke="#1f618d" strokeWidth="0.75" />
-                <text x="50" y="52" fontSize="5" fontWeight="bold" fill="#c0392b" textAnchor="middle">
-                  APPROVED STAMP
-                </text>
-                <text x="50" y="74" fontSize="6" fontWeight="bold" fill="#1f618d" textAnchor="middle">
-                  NIGERIA
-                </text>
-              </svg>
-            </div>
+          </div>
+        )}
 
-            {/* Principal Signature */}
-            <div style={{ textAlign: "center", width: "180px" }}>
-              <div
-                style={{
-                  height: "25px",
-                  fontFamily: "'Courier New', monospace",
-                  fontSize: "14px",
-                  fontStyle: "italic",
-                  color: "#1a5276",
-                }}
-              >
-                {principalSignature ? (
-                  <img
-                    src={principalSignature}
-                    alt="Principal's Signature"
-                    style={{ height: "30px", objectFit: "contain", display: "inline-block" }}
-                  />
-                ) : (
-                  "\u00A0"
-                )}
-              </div>
-              <div
-                style={{
-                  borderTop: "1px dashed #2c3e50",
-                  marginTop: "35px",
-                  paddingTop: "5px",
-                  fontWeight: "bold",
-                  fontSize: "12px",
-                }}
-              >
-                Principal's Signature & Date
-              </div>
-              <div style={{ fontSize: "11px", color: "#566573", marginTop: "2px" }}>
-                {new Date().toLocaleDateString("en-GB")}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ── GRADING LEGEND ── */}
-        <div
-          style={{
-            border: "1px solid #a6acaf",
-            padding: "8px",
-            borderRadius: "4px",
-            background: "#fafafa",
-            marginTop: "15px",
-            display: "flex",
-            justifyContent: "space-around",
-            fontSize: "10px",
-            pageBreakInside: "avoid",
-          }}
-        >
-          <div>
-            <div
-              style={{
-                fontWeight: "bold",
-                color: "#0b5345",
-                marginBottom: "2px",
-                fontSize: "11px",
-              }}
-            >
-              COGNITIVE GRADING KEY (WAEC Standard)
-            </div>
-            <span>75 - 100 = A1 (Excellent)</span> &nbsp;&nbsp;
-            <span>70 - 74 = B2 (Very Good)</span> &nbsp;&nbsp;
-            <span>65 - 69 = B3 (Good)</span><br />
-            <span>60 - 64 = C4 (Credit)</span> &nbsp;&nbsp;
-            <span>55 - 59 = C5 (Credit)</span> &nbsp;&nbsp;
-            <span>50 - 54 = C6 (Credit)</span><br />
-            <span>45 - 49 = D7 (Pass)</span> &nbsp;&nbsp;
-            <span>40 - 44 = E8 (Pass)</span> &nbsp;&nbsp;
-            <span>0 - 39 = F9 (Fail)</span>
-          </div>
-          <div style={{ borderLeft: "1px solid #a6acaf", paddingLeft: "15px" }}>
-            <div
-              style={{
-                fontWeight: "bold",
-                color: "#0b5345",
-                marginBottom: "2px",
-                fontSize: "11px",
-              }}
-            >
-              BEHAVIORAL RATING
-            </div>
-            <span>5 = Excellent</span><br />
-            <span>4 = Commendable</span><br />
-            <span>3 = Average</span><br />
-            <span>2 = Needs Improvement</span><br />
-            <span>1 = Unsatisfactory</span>
-          </div>
+        {/* ── RIGHT: PREVIEW ── */}
+        <div className="flex-1 min-w-0 overflow-x-auto print:overflow-visible">
+          <ReportCardPreview
+            ref={printRef}
+            school={school}
+            student={student}
+            studentClass={studentClass}
+            session={session}
+            term={term}
+            scores={scores}
+            totalScore={totalScore}
+            maxTotalScore={maxTotalScore}
+            averagePercentage={averagePercentage}
+            overallGrade={overallGrade}
+            attendance={attendance}
+            nextTermDate={nextTermDate}
+            classPosition={classPosition}
+            totalStudents={totalStudents}
+            classAverage={classAverage}
+            teacherName={teacherName}
+            teacherSignature={teacherSignature}
+            principalSignature={principalSignature}
+            classTeacherRemark={classTeacherRemark}
+            principalRemark={principalRemark}
+            domainRatings={domainRatings}
+            gradeScale={gradeScale}
+            configuredPassPercentage={configuredPassPercentage}
+            visibleComponentTemplates={getVisibleComponentTemplates()}
+            getGradeColor={getGradeColor}
+            getPositionDisplay={getPositionDisplay}
+            getPositionOrdinal={getPositionOrdinal}
+          />
         </div>
       </div>
 
@@ -2296,36 +1463,11 @@ export default function ResultEntry({
           .print\\\\:hidden {
             display: none !important;
           }
-          input[type="number"],
-          input[type="text"] {
-            border: none !important;
-            background: transparent !important;
-            text-align: center !important;
-            -webkit-appearance: none;
-            -moz-appearance: textfield;
-            padding: 0 !important;
-            margin: 0 auto !important;
-            display: block !important;
-            outline: none !important;
-          }
-          input[type="text"] {
-            text-align: left !important;
-          }
-          input[type="number"] {
-            text-align: center !important;
-            font-weight: bold !important;
-          }
           th {
             background-color: #0b5345 !important;
             color: #fff !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
-          }
-          .subject-name {
-            font-weight: 600 !important;
-          }
-          button.print-btn {
-            display: none;
           }
         }
       `}</style>

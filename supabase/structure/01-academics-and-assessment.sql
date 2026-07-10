@@ -173,6 +173,7 @@ CREATE TABLE IF NOT EXISTS results_publication (
 CREATE TABLE IF NOT EXISTS result_school_settings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   school_id uuid NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+  show_position boolean NOT NULL DEFAULT true,
   pass_percentage numeric NOT NULL DEFAULT 40 CHECK (pass_percentage >= 0 AND pass_percentage <= 100),
   is_configured boolean NOT NULL DEFAULT false,
   configured_at timestamptz,

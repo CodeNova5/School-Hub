@@ -224,13 +224,13 @@ export default function SubjectResultEntryPage() {
         .select('*')
         .eq('is_current', true)
         .eq('school_id', schoolId)
-        .single();
+        .maybeSingle();
       const { data: termData } = await supabase
         .from('terms')
         .select('*')
         .eq('is_current', true)
         .eq('school_id', schoolId)
-        .single();
+        .maybeSingle();
       let existingResults: any[] = [];
       if (sessionData && termData) {
         const { data: resultsData } = await supabase
@@ -380,13 +380,13 @@ export default function SubjectResultEntryPage() {
         .select('*')
         .eq('is_current', true)
         .eq('school_id', schoolId)
-        .single();
+        .maybeSingle();
       const { data: termData } = await supabase
         .from('terms')
         .select('*')
         .eq('is_current', true)
         .eq('school_id', schoolId)
-        .single();
+        .maybeSingle();
       if (!sessionData || !termData) {
         toast.error('No active session or term');
         setIsSaving(false);

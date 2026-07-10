@@ -9,6 +9,7 @@ import { SubscriptionTermBanner } from '@/components/subscription-term-banner';
 import { SubscriptionHolidayBanner } from '@/components/subscription-holiday-banner';
 import { SubscriptionYearlyTimeline } from '@/components/subscription-yearly-timeline';
 import { Bell, GraduationCap, Plus, AlertCircle, UserPlus, FileText, Calendar } from 'lucide-react';
+import { OnboardingChecklist } from '@/components/onboarding-checklist';
 import { useRouter } from 'next/navigation';
 import { useNotificationSetup } from '@/hooks/use-notification-setup';
 import { useSchoolContext } from '@/hooks/use-school-context';
@@ -181,9 +182,14 @@ export default function AdminDashboard() {
     );
   }
 
+  const isNewSchool =
+    (dashboardData?.stats?.totalStudents ?? 0) === 0 &&
+    (dashboardData?.stats?.totalTeachers ?? 0) === 0;
+
   return (
     <DashboardLayout role="admin">
       <div className="space-y-8">
+        <OnboardingChecklist isNewSchool={isNewSchool} />
         <SubscriptionGraceBanner />
         <SubscriptionTermBanner />
         <SubscriptionHolidayBanner />

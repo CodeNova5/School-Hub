@@ -478,16 +478,15 @@ function useUserProfile(role: AppHeaderProps["role"]): {
           if (data) {
             fullName = `${data.first_name} ${data.last_name}`;
             avatarUrl = data.photo_url || null;
-          }
-        } else if (role === "student") {
+          }          } else if (role === "student") {
           const { data } = await supabase
             .from("students")
-            .select("first_name, last_name, photo_url, image_url")
+            .select("first_name, last_name, image_url")
             .eq("user_id", user!.id)
             .maybeSingle();
           if (data) {
             fullName = `${data.first_name} ${data.last_name}`;
-            avatarUrl = data.photo_url || data.image_url || null;
+            avatarUrl = data.image_url || null;
           }
         } else if (role === "parent") {
           const { data } = await supabase

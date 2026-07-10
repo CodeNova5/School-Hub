@@ -85,6 +85,13 @@ export default function StudentAssignmentDetails() {
                 setQuizQuestions(questions.map((q: any) => {
                     const tq = questionMap.get(q.question_id) as any;
                     const rawOptions: string[] = tq?.options || [];
+                    const correctValue: string = tq?.correct_answer || "";
+                    const correctIdx = rawOptions.findIndex(
+                        (opt) => opt.toUpperCase() === correctValue.toUpperCase()
+                    );
+                    const correctLabel = correctIdx >= 0
+                        ? String.fromCharCode(65 + correctIdx)
+                        : correctValue;
                     return {
                         id: q.id,
                         question_id: q.question_id,
@@ -96,7 +103,7 @@ export default function StudentAssignmentDetails() {
                                 label: String.fromCharCode(65 + idx),
                                 value: opt,
                             })),
-                            correct_answer: tq?.correct_answer || null,
+                            correct_answer: correctLabel,
                             explanation: tq?.explanation || null,
                             topic: tq?.topic || "",
                         },

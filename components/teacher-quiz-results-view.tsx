@@ -110,6 +110,13 @@ export function TeacherQuizResultsView({
           questions.map((q: any) => {
             const tq = qMap.get(q.question_id);
             const rawOptions: string[] = tq?.options || [];
+            const correctValue: string = tq?.correct_answer || "";
+            const correctIdx = rawOptions.findIndex(
+              (opt) => opt.toUpperCase() === correctValue.toUpperCase()
+            );
+            const correctLabel = correctIdx >= 0
+              ? String.fromCharCode(65 + correctIdx)
+              : correctValue;
             return {
               question_id: q.question_id,
               question_text: tq?.question_text || "",
@@ -117,7 +124,7 @@ export function TeacherQuizResultsView({
                 label: String.fromCharCode(65 + idx),
                 value: opt,
               })),
-              correct_answer: tq?.correct_answer || "",
+              correct_answer: correctLabel,
               marks: q.marks,
               display_order: q.display_order,
               topic: tq?.topic || "",

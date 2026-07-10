@@ -122,7 +122,7 @@ export async function POST(
 
     const { data: teacherQuestions } = await supabaseAdmin
       .from("teacher_questions")
-      .select("id, correct_answer, explanation")
+      .select("id, correct_answer, options, explanation")
       .in("id", questionIds);
 
     if (!teacherQuestions || teacherQuestions.length === 0) {
@@ -132,10 +132,19 @@ export async function POST(
       );
     }
 
-    // Build a map of question_id -> correct_answer + marks
-    const correctAnswerMap = new Map<string, string>(
-      teacherQuestions.map((q: any) => [q.id, q.correct_answer || ""])
-    );
+    // Build a map of question_id -> correct_answer (converted from value to label)
+    const correctAnswerMap = new Map<string, string>();
+    teacherQuestions.forEach((tq: any) => {
+      const options: string[] = tq.options || [];
+      const correctValue: string = tq.correct_answer || "";
+      const correctIdx = options.findIndex(
+        (opt: string) => opt.toUpperCase() === correctValue.toUpperCase()
+      );
+      const correctLabel = correctIdx >= 0
+        ? String.fromCharCode(65 + correctIdx)
+        : correctValue;
+      correctAnswerMap.set(tq.id, correctLabel);
+    });
 
     const marksMap = new Map<string, number>(
       quizQuestions.map((q) => [q.question_id, q.marks])

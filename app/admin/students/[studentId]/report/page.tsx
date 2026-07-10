@@ -54,7 +54,7 @@ export default function StudentReportPage() {
         .select("first_name, last_name")
         .eq("school_id", schoolId)
         .eq("id", studentId)
-        .single();
+        .maybeSingle();
 
       if (studentError || !studentData) {
         toast.error("Student not found");

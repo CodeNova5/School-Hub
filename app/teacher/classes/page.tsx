@@ -71,7 +71,7 @@ export default function TeacherClassesPage() {
         .select('id')
         .eq('user_id', user.id)
         .eq('school_id', schoolId)
-        .single();
+        .maybeSingle();
 
       if (teacherError || !teacherData?.id) {
         toast.error("Teacher record not found");

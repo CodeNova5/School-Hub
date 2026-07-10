@@ -54,7 +54,7 @@ export default function ParentSettingsPage() {
         .from("parents")
         .select("*")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (error || !parentData) {
         toast.error("Parent account not found");

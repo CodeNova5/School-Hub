@@ -152,14 +152,14 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment, 
         .select('id')
         .eq('is_current', true)
         .eq('school_id', schoolId)
-        .single();
+        .maybeSingle();
 
       const { data: currentTerm } = await supabase
         .from('terms')
         .select('id')
         .eq('is_current', true)
         .eq('school_id', schoolId)
-        .single();
+        .maybeSingle();
 
       if (!currentSession || !currentTerm) {
         toast.error('No active session or term found');

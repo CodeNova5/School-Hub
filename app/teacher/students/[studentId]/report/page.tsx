@@ -104,7 +104,7 @@ export default function TeacherStudentReportPage() {
           .select("*")
           .eq("is_current", true)
           .eq("school_id", schoolId)
-          .single();
+          .maybeSingle();
 
         if (!sessionsData) {
           toast.error("No current session found");

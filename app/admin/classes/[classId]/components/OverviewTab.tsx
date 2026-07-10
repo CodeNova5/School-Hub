@@ -258,8 +258,8 @@ export function OverviewTab({
     try {
       // Get current session and term
       const [{ data: sessions }, { data: terms }] = await Promise.all([
-        supabase.from("sessions").select("id").eq("school_id", schoolId).eq("is_current", true).single(),
-        supabase.from("terms").select("id, name").eq("school_id", schoolId).eq("is_current", true).single(),
+        supabase.from("sessions").select("id").eq("school_id", schoolId).eq("is_current", true).maybeSingle(),
+        supabase.from("terms").select("id, name").eq("school_id", schoolId).eq("is_current", true).maybeSingle(),
       ]);
 
       if (!sessions?.id || !terms?.id) {

@@ -135,10 +135,10 @@ export default function TeacherClassManagement({ params }: PageProps) {
       }
 
       const [classResult, sessionsResult, termsResult, teacherResult] = await Promise.all([
-        supabase.from('classes').select('*, school_class_levels(id, name, code)').eq('id', classId).eq('school_id', schoolId).single(),
+        supabase.from('classes').select('*, school_class_levels(id, name, code)').eq('id', classId).eq('school_id', schoolId).maybeSingle(),
         supabase.from('sessions').select('*').eq('school_id', schoolId),
         supabase.from('terms').select('*').eq('school_id', schoolId),
-        supabase.from('teachers').select('id').eq('user_id', user.id).eq('school_id', schoolId).single()
+        supabase.from('teachers').select('id').eq('user_id', user.id).eq('school_id', schoolId).maybeSingle()
       ]);
 
       if (classResult.data) setClassData(classResult.data);

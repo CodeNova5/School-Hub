@@ -102,7 +102,7 @@ export default function TeacherIDCardGeneratorPage() {
         .from('schools')
         .select('id, name, address, logo_url')
         .eq('id', schoolId)
-        .single();
+        .maybeSingle();
 
       if (error) {
         toast.error('Failed to load school data');

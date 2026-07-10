@@ -93,7 +93,7 @@ export default function ParentStudentDetailPage() {
         .from("parents")
         .select("id, email")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (!parent) {
         toast.error("Parent account not found");

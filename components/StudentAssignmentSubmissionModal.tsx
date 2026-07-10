@@ -33,7 +33,7 @@ export default function StudentAssignmentSubmission() {
         .select("*")
         .eq("id", id)
         .eq("school_id", schoolId)
-        .single()
+        .maybeSingle()
         .then(({ data }: { data: any }) => setAssignment(data));
     }
   }, [id, schoolId, schoolLoading]);
@@ -61,7 +61,7 @@ export default function StudentAssignmentSubmission() {
         .select("id")
         .eq("user_id", session.user.id)
         .eq("school_id", schoolId)
-        .single();
+        .maybeSingle();
 
       if (!student) throw new Error("Student record not found");
 

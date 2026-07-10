@@ -246,7 +246,7 @@ export default function ResultEntry({
         studentQuery = studentQuery.eq("school_id", schoolId);
       }
 
-      const { data: studentData } = await studentQuery.single();
+      const { data: studentData } = await studentQuery.maybeSingle();
 
       if (!studentData) {
         toast.error("Student not found");
@@ -351,9 +351,9 @@ export default function ResultEntry({
       if (schoolId) termQuery = termQuery.eq("school_id", schoolId);
 
       const [{ data: classData }, { data: sessionData }, { data: termData }] = await Promise.all([
-        classQuery.single(),
-        sessionQuery.single(),
-        termQuery.single(),
+        classQuery.maybeSingle(),
+        sessionQuery.maybeSingle(),
+        termQuery.maybeSingle(),
       ]);
 
       if (classData) {
@@ -398,7 +398,7 @@ export default function ResultEntry({
           pubQuery = pubQuery.eq("school_id", schoolId);
         }
 
-        const { data: pubSettings } = await pubQuery.single();
+        const { data: pubSettings } = await pubQuery.maybeSingle();
 
         if (pubSettings) {
           setPublicationSettings(pubSettings);

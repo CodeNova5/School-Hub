@@ -141,8 +141,8 @@ export default function TeacherDashboard() {
             .select(`id, subject_id, class_id, subjects!subject_classes_subject_id_fkey(name), classes(name)`)
             .eq('teacher_id', teacher.id)
             .eq('school_id', schoolId),
-          supabase.from("sessions").select("id").eq("is_current", true).eq('school_id', schoolId).single(),
-          supabase.from("terms").select("id").eq("is_current", true).eq('school_id', schoolId).single()
+          supabase.from("sessions").select("id").eq("is_current", true).eq('school_id', schoolId).maybeSingle(),
+          supabase.from("terms").select("id").eq("is_current", true).eq('school_id', schoolId).maybeSingle()
         ]);
 
         if (subjectError) throw subjectError;

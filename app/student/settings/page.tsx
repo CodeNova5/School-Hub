@@ -53,7 +53,7 @@ export default function StudentSettingsPage() {
         .select('id, first_name, last_name, email, phone, student_id, class_id')
         .eq('user_id', user.id)
         .eq('school_id', schoolId)
-        .single();
+        .maybeSingle();
 
       if (error || !studentData) {
         toast.error('Failed to load profile');

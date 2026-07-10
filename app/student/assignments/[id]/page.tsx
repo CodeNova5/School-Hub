@@ -37,7 +37,7 @@ export default function StudentAssignmentDetails() {
                 .select("*, classes(name), subjects(name)")
                 .eq("id", id)
                 .eq("school_id", schoolId)
-                .single();
+                .maybeSingle();
 
             if (assignmentData && student) {
                 const { data: submissionData } = await supabase

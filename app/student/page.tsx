@@ -157,7 +157,7 @@ export default function StudentDashboardPage() {
         .select("id")
         .eq("is_current", true)
         .eq("school_id", schoolId)
-        .single();
+        .maybeSingle();
         
       if (termError || !termData) {
         console.error("Failed to load current term:", termError);
@@ -179,7 +179,7 @@ export default function StudentDashboardPage() {
         `)
         .eq("user_id", user.id)
         .eq("school_id", schoolId)
-        .single();
+        .maybeSingle();
 
       if (studentError || !studentData) {
         toast.error("Student profile not found");

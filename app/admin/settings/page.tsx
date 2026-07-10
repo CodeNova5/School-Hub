@@ -174,7 +174,7 @@ export default function AdminSettingsPage() {
         .from('admins')
         .select('id, name, email, school_id, is_active, status, signature_url')
         .eq('user_id', session.user.id)
-        .single();
+        .maybeSingle();
 
       if (adminError || !adminData) {
         toast.error('Failed to load admin profile');
@@ -189,7 +189,7 @@ export default function AdminSettingsPage() {
         .from('schools')
         .select('id, name, address, phone, email, logo_url, motto')
         .eq('id', schoolId)
-        .single();
+        .maybeSingle();
 
       if (schoolError || !schoolData) {
         toast.error('Failed to load school details');

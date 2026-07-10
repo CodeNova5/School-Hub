@@ -93,7 +93,7 @@ export default function ParentDashboardPage() {
         .from("parents")
         .select("*")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (parentError || !parent) {
         toast.error("Parent account not found");

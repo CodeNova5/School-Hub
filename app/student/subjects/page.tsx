@@ -80,7 +80,7 @@ export default function StudentSubjectsPage() {
 				)
 				.eq("user_id", user.id)
 				.eq("school_id", schoolId)
-				.single();
+				.maybeSingle();
 
 			if (studentError || !student) {
 				toast.error("Student profile not found");

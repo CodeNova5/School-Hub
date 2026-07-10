@@ -168,14 +168,14 @@ export default function AssignmentsPage() {
         .select("id")
         .eq("is_current", true)
         .eq("school_id", schoolId)
-        .single();
+        .maybeSingle();
 
       const { data: currentTerm } = await supabase
         .from("terms")
         .select("id")
         .eq("is_current", true)
         .eq("school_id", schoolId)
-        .single();
+        .maybeSingle();
 
       let query = supabase
         .from("assignments")

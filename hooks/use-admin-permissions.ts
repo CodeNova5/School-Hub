@@ -97,7 +97,7 @@ export function useAdminPermissions(): UseAdminPermissionsResult {
         .from("admins")
         .select("is_primary_admin")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (mountedRef.current) {
         setPermissions((perms ?? []) as AdminPermission[]);

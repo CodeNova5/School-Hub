@@ -68,7 +68,7 @@ export default function StudentAssignmentsPage() {
         .select("id, class_id")
         .eq("user_id", user.id)
         .eq("school_id", schoolId)
-        .single();
+        .maybeSingle();
         
       if (!student) {
           toast.error("Student profile not found");
@@ -81,14 +81,14 @@ export default function StudentAssignmentsPage() {
         .select("id")
         .eq("is_current", true)
         .eq("school_id", schoolId)
-        .single();
+        .maybeSingle();
 
       const { data: currentTerm } = await supabase
         .from("terms")
         .select("id")
         .eq("is_current", true)
         .eq("school_id", schoolId)
-        .single();
+        .maybeSingle();
 
       let query = supabase
         .from("assignments")

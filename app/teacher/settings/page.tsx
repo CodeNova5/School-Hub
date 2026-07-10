@@ -126,7 +126,7 @@ export default function TeacherSettingsPage() {
         .select('id, first_name, last_name, email, phone, paystack_subaccount_code, signature_url')
         .eq('user_id', user.id)
         .eq('school_id', schoolId)
-        .single();
+        .maybeSingle();
 
       if (error || !teacherData) {
         toast.error('Failed to load profile');

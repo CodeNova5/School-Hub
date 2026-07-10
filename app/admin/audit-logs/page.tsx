@@ -22,11 +22,23 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Clock,
   Search,
   Filter,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Eye,
   Plus,
   PencilLine,
@@ -37,17 +49,91 @@ import {
   Loader2,
   Sparkles,
   Bot,
+  Download,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/components/auth-provider";
+import { AuditActivityChart } from "@/components/audit-activity-chart";
 import {
   TABLE_LABELS,
   operationLabel,
   operationColor,
   getChangedFields,
   formatAuditTimestamp,
+  CONFIG_TABLES,
   type AdminAuditLogRecord,
   type AuditOperation,
 } from "@/lib/admin-audit";
+
+// ─── Time Ago Helper ──────────────────────────────────────────────────────
+
+function timeAgo(dateStr: string): string {
+  const now = Date.now();
+  const date = new Date(dateStr).getTime();
+  const diffMs = now - date;
+  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffSecs < 60) return "just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+  if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo ago`;
+  return `${Math.floor(diffDays / 365)}y ago`;
+}
+
+// ─── Export to CSV ────────────────────────────────────────────────────────
+
+function exportToCSV(logs: AdminAuditLogRecord[]) {
+  const headers = [
+    "Timestamp",
+    "Operation",
+    "Table",
+    "Record ID",
+    "Changed By",
+    "Details",
+  ];
+
+  const rows = logs.map((log) => {
+    const changes =
+      log.operation === "UPDATE" && log.old_data && log.new_data
+        ? getChangedFields(log.old_data, log.new_data)
+            .slice(0, 5)
+            .map((c) => `${c.field}: ${c.oldValue} → ${c.newValue}`)
+            .join("; ")
+        : log.operation === "INSERT"
+          ? "Record created"
+          : "Record deleted";
+
+    return [
+      formatAuditTimestamp(log.created_at),
+      operationLabel(log.operation),
+      TABLE_LABELS[log.table_name] || log.table_name,
+      log.record_id.slice(0, 8) + "…",
+      log.changed_by_name || "Unknown",
+      changes,
+    ];
+  });
+
+  const csvContent = [
+    headers.join(","),
+    ...rows.map((row) =>
+      row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")
+    ),
+  ].join("\n");
+
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `audit-logs-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 // ─── Detail Sheet ─────────────────────────────────────────────────────────
 
@@ -55,10 +141,12 @@ function AuditDetailSheet({
   log,
   open,
   onClose,
+  onFilterByAdmin,
 }: {
   log: AdminAuditLogRecord | null;
   open: boolean;
   onClose: () => void;
+  onFilterByAdmin?: (name: string) => void;
 }) {
   if (!log) return null;
   const logId = log.id;
@@ -125,15 +213,38 @@ function AuditDetailSheet({
               )}`}
             >
               {operationLabel(log.operation)}
-            </span>
-            <span className="text-base font-semibold text-slate-900">
-              {TABLE_LABELS[log.table_name] || log.table_name}
-            </span>
-          </SheetTitle>
+            </span>              <span className="text-base font-semibold text-slate-900">
+                {TABLE_LABELS[log.table_name] || log.table_name}
+              </span>
+              {log.undone_at && (
+                <Badge
+                  variant="outline"
+                  className="text-[10px] gap-1 bg-slate-100 text-slate-500 border-slate-200 font-normal"
+                >
+                  <RotateCcw className="w-2.5 h-2.5" />
+                  Undone
+                </Badge>
+              )}
+            </SheetTitle>
           <SheetDescription>
-            <span className="text-xs text-slate-500">
-              {formatAuditTimestamp(log.created_at)}
-              {log.changed_by_name && ` — by ${log.changed_by_name}`}
+            <span className="text-xs text-slate-500 flex items-center gap-2">
+              <span>{formatAuditTimestamp(log.created_at)}</span>
+              <span className="text-slate-300">·</span>
+              <span className="text-purple-500 font-medium">
+                {timeAgo(log.created_at)}
+              </span>
+              {log.changed_by_name && (
+                <>
+                  <span className="text-slate-300">·</span>
+                  <span>by </span>
+                  <button
+                    onClick={() => onFilterByAdmin?.(log.changed_by_name!)}
+                    className="text-blue-600 hover:text-blue-800 hover:underline font-medium transition-colors"
+                  >
+                    {log.changed_by_name}
+                  </button>
+                </>
+              )}
             </span>
           </SheetDescription>
         </SheetHeader>
@@ -141,7 +252,7 @@ function AuditDetailSheet({
         {/* AI Summary */}
         <div className="mb-6">
           {aiSummary ? (
-            <div className="bg-gradient-to-br from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-4">
+            <div className="bg-gradient-to-br from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-4 animate-in fade-in slide-in-from-top-2 duration-300">
               <div className="flex items-start gap-2">
                 <Bot className="w-4 h-4 text-purple-500 mt-0.5 shrink-0" />
                 <div>
@@ -212,14 +323,24 @@ function AuditDetailSheet({
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-slate-500 font-medium">Changed by</span>
-              <span className="text-slate-800">
-                {log.changed_by_name || "Unknown"}
-              </span>
+              {log.changed_by_name ? (
+                <button
+                  onClick={() => onFilterByAdmin?.(log.changed_by_name!)}
+                  className="text-blue-600 hover:text-blue-800 hover:underline font-medium transition-colors"
+                >
+                  {log.changed_by_name}
+                </button>
+              ) : (
+                <span className="text-slate-400 italic">Unknown</span>
+              )}
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-slate-500 font-medium">Timestamp</span>
-              <span className="text-slate-800 text-xs">
+              <span className="text-slate-800 text-xs flex items-center gap-1.5">
                 {formatAuditTimestamp(log.created_at)}
+                <span className="text-purple-500 font-medium">
+                  ({timeAgo(log.created_at)})
+                </span>
               </span>
             </div>
           </div>
@@ -288,12 +409,15 @@ function AuditDetailSheet({
 // ─── Main Component ───────────────────────────────────────────────────────
 
 export default function AuditLogsPage() {
-  const role = "admin"; // Moved role configuration inside the component
+  const { user } = useAuth();
+  const role = (user?.role || "admin") as "admin" | "teacher" | "student" | "parent";
+
   const [isLoading, setIsLoading] = useState(true);
   const [logs, setLogs] = useState<AdminAuditLogRecord[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [tableFilter, setTableFilter] = useState("all");
   const [operationFilter, setOperationFilter] = useState("all");
   const [fromDate, setFromDate] = useState("");
@@ -301,8 +425,24 @@ export default function AuditLogsPage() {
   const [selectedLog, setSelectedLog] = useState<AdminAuditLogRecord | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
+  const [purgeDialogOpen, setPurgeDialogOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [showConfigChanges, setShowConfigChanges] = useState(true);
+  const [undoingId, setUndoingId] = useState<string | null>(null);
+  const [undoConfirmId, setUndoConfirmId] = useState<string | null>(null);
 
   const LIMIT = 50;
+
+  // ── Debounce search input ──
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // ── Load logs ──
 
   const loadLogs = useCallback(async () => {
     setIsLoading(true);
@@ -312,9 +452,12 @@ export default function AuditLogsPage() {
       params.set("offset", String(currentPage * LIMIT));
       if (tableFilter !== "all") params.set("table_name", tableFilter);
       if (operationFilter !== "all") params.set("operation", operationFilter);
-      if (searchQuery.trim()) params.set("search", searchQuery.trim());
+      if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
       if (fromDate) params.set("from_date", fromDate);
       if (toDate) params.set("to_date", toDate);
+      if (!showConfigChanges) {
+        params.set("exclude_tables", Array.from(CONFIG_TABLES).join(","));
+      }
 
       const res = await fetch(`/api/admin/audit-logs?${params}`);
       if (!res.ok) {
@@ -333,12 +476,12 @@ export default function AuditLogsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentPage, tableFilter, operationFilter, searchQuery, fromDate, toDate]);
+  }, [currentPage, tableFilter, operationFilter, debouncedSearch, fromDate, toDate, showConfigChanges]);
 
   // Reload when filters change (reset to page 0)
   useEffect(() => {
     setCurrentPage(0);
-  }, [tableFilter, operationFilter, searchQuery, fromDate, toDate]);
+  }, [tableFilter, operationFilter, debouncedSearch, fromDate, toDate, showConfigChanges]);
 
   useEffect(() => {
     loadLogs();
@@ -347,7 +490,7 @@ export default function AuditLogsPage() {
   const totalPages = Math.max(1, Math.ceil(totalCount / LIMIT));
 
   async function handlePurge() {
-    if (!confirm('Delete all audit logs older than 90 days? This action cannot be undone.')) return;
+    setPurgeDialogOpen(false);
     setIsPurging(true);
     try {
       const res = await fetch('/api/admin/audit-logs/cleanup', { method: 'POST' });
@@ -369,6 +512,54 @@ export default function AuditLogsPage() {
   function openDetail(log: AdminAuditLogRecord) {
     setSelectedLog(log);
     setDetailOpen(true);
+  }
+
+  function filterByAdmin(name: string) {
+    setSearchQuery(name);
+    setDebouncedSearch(name);
+    setDetailOpen(false);
+    setSelectedLog(null);
+  }
+
+  // Validate date range
+  const dateRangeValid =
+    !fromDate || !toDate || new Date(fromDate) <= new Date(toDate);
+
+  // ── Undo handler ──
+
+  const FIVE_MINUTES = 5 * 60 * 1000;
+
+  function canUndo(log: AdminAuditLogRecord): boolean {
+    const createdAt = new Date(log.created_at).getTime();
+    return (
+      Date.now() - createdAt < FIVE_MINUTES &&
+      log.changed_by === user?.id &&
+      !log.undone_at
+    );
+  }
+
+  async function handleUndo(logId: string) {
+    setUndoingId(logId);
+    setUndoConfirmId(null);
+    try {
+      const res = await fetch('/api/admin/audit-logs/undo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ log_id: logId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to undo');
+        return;
+      }
+      toast.success(data.message || 'Undo successful!');
+      loadLogs();
+    } catch (err) {
+      console.error('Undo error:', err);
+      toast.error('Failed to undo. Check your connection.');
+    } finally {
+      setUndoingId(null);
+    }
   }
 
   // ── Operation icon ──
@@ -397,9 +588,85 @@ export default function AuditLogsPage() {
 
   return (
     <DashboardLayout role={role}>
+      {/* Undo Confirmation Dialog */}
+      <AlertDialog
+        open={!!undoConfirmId}
+        onOpenChange={(v) => !v && setUndoConfirmId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-amber-600">
+              <RotateCcw className="w-5 h-5" />
+              Undo Action
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                This will reverse the most recent change made by you.
+              </p>
+              <p className="text-xs text-slate-500">
+                {(() => {
+                  const log = logs.find((l) => l.id === undoConfirmId);
+                  if (!log) return '';
+                  const tableLabel = TABLE_LABELS[log.table_name] || log.table_name;
+                  switch (log.operation) {
+                    case 'INSERT':
+                      return `This will delete the ${tableLabel} record that was just created.`;
+                    case 'UPDATE':
+                      return `This will restore the ${tableLabel} record to its previous values.`;
+                    case 'DELETE':
+                      return `This will re-insert the ${tableLabel} record that was just deleted.`;
+                    default:
+                      return '';
+                  }
+                })()}
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => undoConfirmId && handleUndo(undoConfirmId)}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              Yes, Undo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Purge Confirmation Dialog */}
+      <AlertDialog open={purgeDialogOpen} onOpenChange={setPurgeDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash className="w-5 h-5" />
+              Purge Old Audit Logs
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                This will permanently delete all audit log entries older than{" "}
+                <strong>90 days</strong>.
+              </p>
+              <p className="font-medium text-amber-600">
+                This action cannot be undone.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handlePurge}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Yes, Purge Old Logs
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 pb-12">
         {/* Header */}
-        <div className="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm">
+        <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-slate-200 shadow-sm">
           <div className="container mx-auto px-4 py-4">
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
@@ -411,10 +678,22 @@ export default function AuditLogsPage() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
+                {logs.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => exportToCSV(logs)}
+                    className="text-xs gap-1.5 text-slate-500 hover:text-slate-700"
+                    title="Export visible logs to CSV"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Export</span>
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handlePurge}
+                  onClick={() => setPurgeDialogOpen(true)}
                   disabled={isPurging}
                   className="text-xs gap-1.5 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
                 >
@@ -423,9 +702,9 @@ export default function AuditLogsPage() {
                   ) : (
                     <Trash className="w-3.5 h-3.5" />
                   )}
-                  Purge Old Logs
+                  <span className="hidden sm:inline">Purge Old Logs</span>
                 </Button>
-                <Badge variant="outline" className="text-xs gap-1.5">
+                <Badge variant="outline" className="text-xs gap-1.5 whitespace-nowrap">
                   <Clock className="w-3.5 h-3.5" />
                   {totalCount} event{totalCount !== 1 ? "s" : ""}
                 </Badge>
@@ -434,94 +713,187 @@ export default function AuditLogsPage() {
           </div>
         </div>
 
-        <div className="container mx-auto px-4 py-8">
+        <div className="container mx-auto px-4 py-8 space-y-6">
+          {/* Activity Stats */}
+          <AuditActivityChart showConfigChanges={showConfigChanges} />
+
           {/* Filters */}
-          <Card className="mb-6 border-slate-200">
+          <Card className="border-slate-200">
             <CardContent className="pt-5">
-              <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
-                <div className="relative flex-1 w-full">
+              {/* Search row */}
+              <div className="flex items-center gap-3 mb-4">
+                <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <Input
                     placeholder="Search by admin name..."
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      if (currentPage !== 0) setCurrentPage(0);
+                    }}
                     className="pl-9 h-10 text-sm"
                   />
-                </div>
-
-                <div className="flex items-center gap-3 w-full md:w-auto">
-                  <div className="flex flex-col gap-1.5 w-full md:w-48">
-                    <Label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide">
-                      Table
-                    </Label>
-                    <Select value={tableFilter} onValueChange={setTableFilter}>
-                      <SelectTrigger className="h-10 text-sm">
-                        <SelectValue placeholder="All Tables" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Tables</SelectItem>
-                        {tableOptions.map(([key, label]) => (
-                          <SelectItem key={key} value={key}>
-                            {label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="flex flex-col gap-1.5 w-full md:w-36">
-                    <Label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide">
-                      Action
-                    </Label>
-                    <Select
-                      value={operationFilter}
-                      onValueChange={setOperationFilter}
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery("")}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                     >
-                      <SelectTrigger className="h-10 text-sm">
-                        <SelectValue placeholder="All Actions" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Actions</SelectItem>
-                        <SelectItem value="INSERT">Created</SelectItem>
-                        <SelectItem value="UPDATE">Updated</SelectItem>
-                        <SelectItem value="DELETE">Deleted</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                      ×
+                    </button>
+                  )}
                 </div>
 
-                <div className="flex items-center gap-3 w-full md:w-auto">
-                  <div className="flex flex-col gap-1.5 w-full md:w-40">
-                    <Label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide">
-                      From Date
-                    </Label>
-                    <Input
-                      type="date"
-                      value={fromDate}
-                      onChange={(e) => setFromDate(e.target.value)}
-                      className="h-10 text-sm"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5 w-full md:w-40">
-                    <Label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide">
-                      To Date
-                    </Label>
-                    <Input
-                      type="date"
-                      value={toDate}
-                      onChange={(e) => setToDate(e.target.value)}
-                      className="h-10 text-sm"
-                    />
-                  </div>
-                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setFiltersOpen(!filtersOpen)}
+                  className="text-xs gap-1.5 text-slate-500 hover:text-slate-700 shrink-0"
+                >
+                  <Filter className="w-3.5 h-3.5" />
+                  Filters
+                  {filtersOpen ? (
+                    <ChevronUp className="w-3 h-3" />
+                  ) : (
+                    <ChevronDown className="w-3 h-3" />
+                  )}
+                </Button>
               </div>
 
-              <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
-                <p className="text-xs text-slate-400 flex items-center gap-1.5">
-                  <Filter className="w-3 h-3" />
-                  Page {currentPage + 1} of {totalPages} ({totalCount} total)
-                </p>
-              </div>
+              {/* Collapsible filter panel */}
+              {filtersOpen && (
+                <div className="space-y-4 animate-in slide-in-from-top-1 duration-200">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
+                    <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
+                      <div className="flex flex-col gap-1.5 min-w-[140px] flex-1 sm:flex-initial">
+                        <Label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide">
+                          Table
+                        </Label>
+                        <Select value={tableFilter} onValueChange={setTableFilter}>
+                          <SelectTrigger className="h-10 text-sm">
+                            <SelectValue placeholder="All Tables" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Tables</SelectItem>
+                            {tableOptions.map(([key, label]) => (
+                              <SelectItem key={key} value={key}>
+                                {label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex flex-col gap-1.5 min-w-[120px] flex-1 sm:flex-initial">
+                        <Label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide">
+                          Action
+                        </Label>
+                        <Select
+                          value={operationFilter}
+                          onValueChange={setOperationFilter}
+                        >
+                          <SelectTrigger className="h-10 text-sm">
+                            <SelectValue placeholder="All Actions" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Actions</SelectItem>
+                            <SelectItem value="INSERT">Created</SelectItem>
+                            <SelectItem value="UPDATE">Updated</SelectItem>
+                            <SelectItem value="DELETE">Deleted</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
+                      <div className="flex flex-col gap-1.5 min-w-[130px] flex-1 sm:flex-initial">
+                        <Label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide">
+                          From Date
+                        </Label>
+                        <Input
+                          type="date"
+                          value={fromDate}
+                          onChange={(e) => setFromDate(e.target.value)}
+                          className={`h-10 text-sm ${!dateRangeValid && fromDate ? "border-red-400 focus-visible:ring-red-400" : ""}`}
+                          max={toDate || undefined}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5 min-w-[130px] flex-1 sm:flex-initial">
+                        <Label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide">
+                          To Date
+                        </Label>
+                        <Input
+                          type="date"
+                          value={toDate}
+                          onChange={(e) => setToDate(e.target.value)}
+                          className={`h-10 text-sm ${!dateRangeValid && toDate ? "border-red-400 focus-visible:ring-red-400" : ""}`}
+                          min={fromDate || undefined}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Date validation warning */}
+                  {!dateRangeValid && (
+                    <p className="text-xs text-red-500 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      From date must be before or equal to To date
+                    </p>
+                  )}
+
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 flex-wrap gap-2">
+                    <p className="text-xs text-slate-400 flex items-center gap-1.5">
+                      <Filter className="w-3 h-3" />
+                      Page {currentPage + 1} of {totalPages} ({totalCount} total)
+                    </p>
+
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {/* Config changes toggle */}
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={showConfigChanges}
+                          onClick={() => setShowConfigChanges(!showConfigChanges)}
+                          className={`relative inline-flex h-4 w-7 shrink-0 rounded-full border transition-colors ${
+                            showConfigChanges
+                              ? "bg-blue-500 border-blue-500"
+                              : "bg-slate-200 border-slate-300"
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-3 w-3 rounded-full bg-white shadow-sm transition-transform ${
+                              showConfigChanges ? "translate-x-[14px]" : "translate-x-[1px]"
+                            }`}
+                          />
+                        </button>
+                        <span className="text-[10px] text-slate-500 font-medium">
+                          Show config changes
+                        </span>
+                      </label>
+
+                      {/* Active filter badges */}
+                      {tableFilter !== "all" && (
+                        <Badge variant="secondary" className="text-[10px] gap-1">
+                          {TABLE_LABELS[tableFilter]}
+                          <button onClick={() => setTableFilter("all")}>×</button>
+                        </Badge>
+                      )}
+                      {operationFilter !== "all" && (
+                        <Badge variant="secondary" className="text-[10px] gap-1">
+                          {operationLabel(operationFilter as AuditOperation)}
+                          <button onClick={() => setOperationFilter("all")}>×</button>
+                        </Badge>
+                      )}
+                      {debouncedSearch && (
+                        <Badge variant="secondary" className="text-[10px] gap-1">
+                          Admin: {debouncedSearch}
+                          <button onClick={() => { setSearchQuery(""); setDebouncedSearch(""); }}>×</button>
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -546,7 +918,11 @@ export default function AuditLogsPage() {
                   No Results Found
                 </h3>
                 <p className="text-sm text-slate-500 max-w-md mx-auto">
-                  {tableFilter !== "all" || operationFilter !== "all" || searchQuery.trim() || fromDate || toDate
+                  {tableFilter !== "all" ||
+                  operationFilter !== "all" ||
+                  debouncedSearch.trim() ||
+                  fromDate ||
+                  toDate
                     ? "Try adjusting your filters or search query."
                     : "Admin actions like creating students, editing teachers, or updating classes will appear here automatically once the audit migration has been applied."}
                 </p>
@@ -556,16 +932,17 @@ export default function AuditLogsPage() {
 
           {/* Audit log entries */}
           {!isLoading && logs.length > 0 && (
-            <Card className="border-slate-200">
+            <Card className="border-slate-200 overflow-hidden">
               <CardContent className="p-0 divide-y divide-slate-100">
-                {logs.map((log) => (
+                {logs.map((log, index) => (
                   <div
                     key={log.id}
-                    className="flex items-start gap-4 px-6 py-4 hover:bg-slate-50/50 transition-colors"
+                    className="flex items-start gap-4 px-4 sm:px-6 py-4 hover:bg-slate-50 transition-colors group animate-in fade-in duration-200"
+                    style={{ animationDelay: `${index * 30}ms` }}
                   >
                     {/* Operation icon */}
                     <div
-                      className={`flex items-center justify-center w-9 h-9 rounded-xl border shrink-0 ${operationColor(
+                      className={`flex items-center justify-center w-9 h-9 rounded-xl border shrink-0 mt-0.5 ${operationColor(
                         log.operation
                       )}`}
                     >
@@ -583,12 +960,24 @@ export default function AuditLogsPage() {
                         >
                           {operationLabel(log.operation)}
                         </Badge>
-                        <span className="text-xs font-medium text-slate-600">
+                        {log.undone_at && (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] gap-1 bg-slate-100 text-slate-500 border-slate-200 font-normal"
+                          >
+                            <RotateCcw className="w-2.5 h-2.5" />
+                            Undone
+                          </Badge>
+                        )}
+                        <span className="text-xs font-medium text-slate-600 truncate">
                           {TABLE_LABELS[log.table_name] || log.table_name}
                         </span>
-                        <span className="text-xs text-slate-400">·</span>
-                        <span className="text-xs text-slate-400">
+                        <span className="text-xs text-slate-300 hidden sm:inline">·</span>
+                        <span className="text-xs text-slate-400 hidden sm:inline whitespace-nowrap">
                           {formatAuditTimestamp(log.created_at)}
+                        </span>
+                        <span className="text-xs text-purple-500 font-medium whitespace-nowrap">
+                          {timeAgo(log.created_at)}
                         </span>
                       </div>
 
@@ -596,7 +985,7 @@ export default function AuditLogsPage() {
                       {log.operation === "UPDATE" &&
                         log.old_data &&
                         log.new_data && (
-                          <p className="text-xs text-slate-500 mt-1">
+                          <p className="text-xs text-slate-500 mt-1 line-clamp-1">
                             {(() => {
                               const changes = getChangedFields(
                                 log.old_data,
@@ -631,19 +1020,42 @@ export default function AuditLogsPage() {
                       )}
                     </div>
 
-                    {/* Actor + View button */}
-                    <div className="shrink-0 flex items-center gap-3">
-                      <div className="text-right">
+                    {/* Actor + View + Undo buttons */}
+                    <div className="shrink-0 flex items-center gap-1">
+                      <div className="text-right hidden sm:block">
                         {log.changed_by_name && (
-                          <p className="text-xs font-medium text-slate-600">
+                          <button
+                            onClick={() => filterByAdmin(log.changed_by_name!)}
+                            className="text-xs font-medium text-slate-500 hover:text-blue-600 hover:underline transition-colors"
+                            title={`Filter by ${log.changed_by_name}`}
+                          >
                             {log.changed_by_name}
-                          </p>
+                          </button>
                         )}
                       </div>
+
+                      {/* Undo button — only on the most recent entry within 5 min */}
+                      {index === 0 && canUndo(log) && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setUndoConfirmId(log.id)}
+                          disabled={undoingId === log.id}
+                          className="h-8 w-8 text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                          title="Undo this action"
+                        >
+                          {undoingId === log.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <RotateCcw className="w-4 h-4" />
+                          )}
+                        </Button>
+                      )}
+
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-slate-400 hover:text-blue-600"
+                        className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                         title="View details"
                         onClick={() => openDetail(log)}
                       >
@@ -656,46 +1068,89 @@ export default function AuditLogsPage() {
             </Card>
           )}
 
+
+
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-6">
-              <p className="text-xs text-slate-500">
-                Page {currentPage + 1} of {totalPages}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6">
+              <p className="text-xs text-slate-500 order-2 sm:order-1">
+                Showing {(currentPage * LIMIT) + 1}–{Math.min((currentPage + 1) * LIMIT, totalCount)} of {totalCount} entries
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 order-1 sm:order-2">
                 <button
                   onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
                   disabled={currentPage === 0}
                   className="p-2 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  aria-label="Previous page"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
 
-                {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-                  let pageNum: number;
+                {(() => {
+                  // Show maximum page buttons based on screen size
+                  const maxVisible = totalPages <= 7 ? totalPages : 5;
+                  let startPage: number;
                   if (totalPages <= 7) {
-                    pageNum = i;
-                  } else if (currentPage < 3) {
-                    pageNum = i;
-                  } else if (currentPage > totalPages - 4) {
-                    pageNum = totalPages - 7 + i;
+                    startPage = 0;
+                  } else if (currentPage < 2) {
+                    startPage = 0;
+                  } else if (currentPage > totalPages - 3) {
+                    startPage = totalPages - maxVisible;
                   } else {
-                    pageNum = currentPage - 3 + i;
+                    startPage = currentPage - 2;
                   }
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
-                      className={`min-w-[32px] h-8 px-2 rounded-md text-sm font-semibold transition-colors ${
-                        currentPage === pageNum
-                          ? "bg-blue-600 text-white"
-                          : "border border-slate-200 text-slate-600 hover:bg-slate-100"
-                      }`}
-                    >
-                      {pageNum + 1}
-                    </button>
+
+                  const pages = Array.from(
+                    { length: Math.min(maxVisible, totalPages) },
+                    (_, i) => startPage + i
                   );
-                })}
+
+                  return (
+                    <>
+                      {startPage > 0 && (
+                        <>
+                          <button
+                            onClick={() => setCurrentPage(0)}
+                            className="min-w-[32px] h-8 px-1.5 rounded-md text-xs border border-slate-200 text-slate-500 hover:bg-slate-100 transition-colors"
+                          >
+                            1
+                          </button>
+                          {startPage > 1 && (
+                            <span className="px-1 text-slate-300 text-xs">…</span>
+                          )}
+                        </>
+                      )}
+
+                      {pages.map((pageNum) => (
+                        <button
+                          key={pageNum}
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={`min-w-[32px] h-8 px-2 rounded-md text-sm font-semibold transition-colors ${
+                            currentPage === pageNum
+                              ? "bg-blue-600 text-white shadow-sm"
+                              : "border border-slate-200 text-slate-600 hover:bg-slate-100"
+                          }`}
+                        >
+                          {pageNum + 1}
+                        </button>
+                      ))}
+
+                      {startPage + maxVisible < totalPages && (
+                        <>
+                          {startPage + maxVisible < totalPages - 1 && (
+                            <span className="px-1 text-slate-300 text-xs">…</span>
+                          )}
+                          <button
+                            onClick={() => setCurrentPage(totalPages - 1)}
+                            className="min-w-[32px] h-8 px-1.5 rounded-md text-xs border border-slate-200 text-slate-500 hover:bg-slate-100 transition-colors"
+                          >
+                            {totalPages}
+                          </button>
+                        </>
+                      )}
+                    </>
+                  );
+                })()}
 
                 <button
                   onClick={() =>
@@ -703,6 +1158,7 @@ export default function AuditLogsPage() {
                   }
                   disabled={currentPage >= totalPages - 1}
                   className="p-2 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  aria-label="Next page"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -720,6 +1176,7 @@ export default function AuditLogsPage() {
           setDetailOpen(false);
           setSelectedLog(null);
         }}
+        onFilterByAdmin={filterByAdmin}
       />
     </DashboardLayout>
   );

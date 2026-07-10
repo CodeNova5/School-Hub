@@ -13,6 +13,7 @@ export interface AdminAuditLogRecord {
   changed_by: string | null;
   changed_by_name: string | null;
   created_at: string;
+  undone_at: string | null;
 }
 
 export interface AuditLogsResponse {
@@ -98,6 +99,20 @@ export function getChangedFields(
 
   return changes;
 }
+
+/**
+ * Config tables — set-once school setup items with low audit value.
+ * Can be excluded from views to reduce noise.
+ */
+export const CONFIG_TABLES = new Set([
+  "school_education_levels",
+  "school_class_levels",
+  "school_streams",
+  "school_departments",
+  "school_religions",
+  "school_level_subject_presets",
+  "period_slots",
+]);
 
 /**
  * Format a timestamp to a human-readable date-time string.

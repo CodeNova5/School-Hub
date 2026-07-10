@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS admin_audit_logs (
   new_data     jsonb,
   changed_by   uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   changed_by_name text,
-  created_at   timestamptz NOT NULL DEFAULT now()
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  undone_at    timestamptz DEFAULT NULL
 );
 
 COMMENT ON TABLE  admin_audit_logs IS 'Trigger-based audit trail for all admin CRUD operations';

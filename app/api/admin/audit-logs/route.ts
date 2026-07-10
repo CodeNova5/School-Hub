@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
     const search = url.searchParams.get('search') || '';
     const fromDate = url.searchParams.get('from_date') || '';
     const toDate = url.searchParams.get('to_date') || '';
+    const excludeTablesRaw = url.searchParams.get('exclude_tables') || '';
 
     // Build query
     let query = supabase
@@ -49,6 +50,14 @@ export async function GET(request: NextRequest) {
 
     if (tableName) {
       query = query.eq('table_name', tableName);
+    }
+
+    // Exclude low-value config tables (e.g. school_education_levels, period_slots)
+    if (excludeTablesRaw) {
+      const tablesToExclude = excludeTablesRaw.split(',').map((t) => t.trim()).filter(Boolean);
+      if (tablesToExclude.length > 0) {
+        query = query.not('table_name', 'in', `(${tablesToExclude.map((t) => `"${t}"`).join(',')})`);
+      }
     }
 
     if (operation) {

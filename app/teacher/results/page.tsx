@@ -59,6 +59,7 @@ export default function SubjectResultEntryPage() {
   const [resultComponents, setResultComponents] = useState<ResultComponentTemplate[]>([]);
   const [gradeScale, setGradeScale] = useState<ResultGradeScale[]>([]);
   const [configuredPassPercentage, setConfiguredPassPercentage] = useState<number>(40);
+  const [resultSettingsLoaded, setResultSettingsLoaded] = useState(false);
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
@@ -93,6 +94,7 @@ export default function SubjectResultEntryPage() {
         setResultComponents(componentRows as ResultComponentTemplate[]);
         setGradeScale((gradeRows || []) as ResultGradeScale[]);
       } else {
+        setResultComponents((componentRows || []) as ResultComponentTemplate[]);
         setGradeScale([
           { grade_label: 'A1', min_percentage: 75, remark: 'Excellent', display_order: 1 },
           { grade_label: 'B2', min_percentage: 70, remark: 'Very Good', display_order: 2 },
@@ -105,18 +107,19 @@ export default function SubjectResultEntryPage() {
           { grade_label: 'F9', min_percentage: 0, remark: 'Fail', display_order: 9 },
         ]);
       }
+      setResultSettingsLoaded(true);
     } catch (err: any) {
       console.error('Failed to load result settings:', err);
     }
   }
 
   useEffect(() => {
-    if (selectedSubjectClassId) {
+    if (selectedSubjectClassId && resultSettingsLoaded) {
       loadStudentsForSubjectClass(selectedSubjectClassId);
-    } else {
+    } else if (!selectedSubjectClassId) {
       setStudents([]);
     }
-  }, [selectedSubjectClassId]);
+  }, [selectedSubjectClassId, resultSettingsLoaded]);
 
   useEffect(() => {
     if (selectedClassId && selectedSubjectId) {

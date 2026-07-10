@@ -109,10 +109,14 @@ export function TeacherQuizResultsView({
         setQuizQuestions(
           questions.map((q: any) => {
             const tq = qMap.get(q.question_id);
+            const rawOptions: string[] = tq?.options || [];
             return {
               question_id: q.question_id,
               question_text: tq?.question_text || "",
-              options: tq?.options || [],
+              options: rawOptions.map((opt: string, idx: number) => ({
+                label: String.fromCharCode(65 + idx),
+                value: opt,
+              })),
               correct_answer: tq?.correct_answer || "",
               marks: q.marks,
               display_order: q.display_order,

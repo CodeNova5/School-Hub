@@ -82,13 +82,26 @@ export default function StudentAssignmentDetails() {
                     .select("id, question_text, options, correct_answer, explanation, topic")
                     .in("id", questionIds);
                 const questionMap = new Map((teacherQuestions || []).map((q: any) => [q.id, q]));
-                setQuizQuestions(questions.map((q: any) => ({
-                    id: q.id,
-                    question_id: q.question_id,
-                    marks: q.marks,
-                    display_order: q.display_order,
-                    question: questionMap.get(q.question_id) || { question_text: "", options: [], correct_answer: null, explanation: null, topic: "" },
-                })));
+                setQuizQuestions(questions.map((q: any) => {
+                    const tq = questionMap.get(q.question_id) as any;
+                    const rawOptions: string[] = tq?.options || [];
+                    return {
+                        id: q.id,
+                        question_id: q.question_id,
+                        marks: q.marks,
+                        display_order: q.display_order,
+                        question: {
+                            question_text: tq?.question_text || "",
+                            options: rawOptions.map((opt: string, idx: number) => ({
+                                label: String.fromCharCode(65 + idx),
+                                value: opt,
+                            })),
+                            correct_answer: tq?.correct_answer || null,
+                            explanation: tq?.explanation || null,
+                            topic: tq?.topic || "",
+                        },
+                    };
+                }));
             }
         } catch { /* non-critical */ }
         finally { setLoadingQuiz(false); }

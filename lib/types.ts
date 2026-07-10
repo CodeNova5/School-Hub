@@ -393,6 +393,37 @@ export interface Submission {
   status: 'pending' | 'graded';
 }
 
+export interface AssignmentQuizConfig {
+  id: string;
+  assignment_id: string;
+  school_id: string;
+  shuffle_questions: boolean;
+  time_limit_minutes: number | null;
+  allow_retake: boolean;
+  show_results_immediately: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AssignmentQuizQuestion {
+  id: string;
+  assignment_id: string;
+  school_id: string;
+  question_id: string;
+  marks: number;
+  display_order: number;
+  created_at: string;
+}
+
+export interface SelectedQuizQuestion {
+  question_id: string;
+  marks: number;
+  display_order: number;
+  question_text: string;
+  topic: string;
+  options: { label: string; value: string }[];
+}
+
 export interface Attendance {
   id: string;
   student_id: string;

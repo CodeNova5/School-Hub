@@ -1484,3 +1484,199 @@ CREATE POLICY "Promotion progress admin manage"
   ON promotion_class_progress FOR ALL TO authenticated
   USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
   WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
+
+-- -----------------------------------------------------------------------------
+-- 14) Assignment Quiz tables — objective questions from question banks
+-- -----------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS assignment_quiz_config (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  assignment_id uuid NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+  school_id uuid NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+  shuffle_questions boolean NOT NULL DEFAULT true,
+  time_limit_minutes integer,
+  allow_retake boolean NOT NULL DEFAULT false,
+  show_results_immediately boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(assignment_id)
+);
+
+COMMENT ON TABLE assignment_quiz_config IS 'Configuration for objective-question assignments pulled from the question bank';
+COMMENT ON COLUMN assignment_quiz_config.time_limit_minutes IS 'NULL means no time limit; student must complete within this many minutes';
+COMMENT ON COLUMN assignment_quiz_config.show_results_immediately IS 'If true, student sees right/wrong and score right after submitting';
+
+CREATE TABLE IF NOT EXISTS assignment_quiz_questions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  assignment_id uuid NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+  school_id uuid NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+  question_id uuid NOT NULL REFERENCES teacher_questions(id) ON DELETE CASCADE,
+  marks integer NOT NULL DEFAULT 1,
+  display_order integer NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(assignment_id, question_id),
+  UNIQUE(assignment_id, display_order)
+);
+
+COMMENT ON TABLE assignment_quiz_questions IS 'Links assignments to questions from the teacher question bank for objective quizzes';
+
+-- New columns on assignment_submissions for quiz answers and auto-grading
+ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS answers jsonb DEFAULT '[]'::jsonb;
+ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS auto_score numeric;
+ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS auto_graded_at timestamptz;
+ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS started_at timestamptz;
+
+COMMENT ON COLUMN assignment_submissions.answers IS 'Array of { question_id, selected_option, is_correct, marks_obtained } for quiz assignments';
+COMMENT ON COLUMN assignment_submissions.auto_score IS 'Auto-calculated score from correct answers; teacher can override with grade';
+COMMENT ON COLUMN assignment_submissions.auto_graded_at IS 'When the auto-grading was performed';
+COMMENT ON COLUMN assignment_submissions.started_at IS 'When the student started the quiz (for time-limit tracking)';
+
+-- -----------------------------------------------------------------------------
+-- 14a) Assignment Quiz indexes
+-- -----------------------------------------------------------------------------
+
+CREATE INDEX IF NOT EXISTS idx_assignment_quiz_config_assignment
+  ON assignment_quiz_config (assignment_id);
+
+CREATE INDEX IF NOT EXISTS idx_assignment_quiz_config_school
+  ON assignment_quiz_config (school_id);
+
+CREATE INDEX IF NOT EXISTS idx_assignment_quiz_questions_assignment
+  ON assignment_quiz_questions (assignment_id, display_order);
+
+CREATE INDEX IF NOT EXISTS idx_assignment_quiz_questions_question
+  ON assignment_quiz_questions (question_id);
+
+CREATE INDEX IF NOT EXISTS idx_assignment_quiz_questions_school
+  ON assignment_quiz_questions (school_id);
+
+-- -----------------------------------------------------------------------------
+-- 14b) updated_at trigger for assignment_quiz_config
+-- -----------------------------------------------------------------------------
+
+DROP TRIGGER IF EXISTS set_assignment_quiz_config_updated_at ON assignment_quiz_config;
+CREATE TRIGGER set_assignment_quiz_config_updated_at
+  BEFORE UPDATE ON assignment_quiz_config
+  FOR EACH ROW
+  EXECUTE FUNCTION set_updated_at_timestamp();
+
+-- -----------------------------------------------------------------------------
+-- 14c) RLS for Assignment Quiz tables
+-- -----------------------------------------------------------------------------
+
+ALTER TABLE assignment_quiz_config ENABLE ROW LEVEL SECURITY;
+ALTER TABLE assignment_quiz_questions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Assignment quiz config school read" ON assignment_quiz_config;
+CREATE POLICY "Assignment quiz config school read"
+  ON assignment_quiz_config FOR SELECT TO authenticated
+  USING (is_super_admin() OR school_id = get_my_school_id());
+
+DROP POLICY IF EXISTS "Assignment quiz config teachers and admins manage" ON assignment_quiz_config;
+CREATE POLICY "Assignment quiz config teachers and admins manage"
+  ON assignment_quiz_config FOR ALL TO authenticated
+  USING (
+    is_super_admin()
+    OR (is_admin() AND school_id = get_my_school_id())
+    OR (
+      school_id = get_my_school_id()
+      AND EXISTS (
+        SELECT 1
+        FROM assignments a
+        WHERE a.id = assignment_quiz_config.assignment_id
+          AND EXISTS (
+            SELECT 1 FROM teachers t
+            WHERE t.id = a.teacher_id
+              AND t.user_id = auth.uid()
+          )
+      )
+    )
+  )
+  WITH CHECK (
+    is_super_admin()
+    OR (is_admin() AND school_id = get_my_school_id())
+    OR (
+      school_id = get_my_school_id()
+      AND EXISTS (
+        SELECT 1
+        FROM assignments a
+        WHERE a.id = assignment_quiz_config.assignment_id
+          AND EXISTS (
+            SELECT 1 FROM teachers t
+            WHERE t.id = a.teacher_id
+              AND t.user_id = auth.uid()
+          )
+      )
+    )
+  );
+
+DROP POLICY IF EXISTS "Assignment quiz questions school read" ON assignment_quiz_questions;
+CREATE POLICY "Assignment quiz questions school read"
+  ON assignment_quiz_questions FOR SELECT TO authenticated
+  USING (is_super_admin() OR school_id = get_my_school_id());
+
+DROP POLICY IF EXISTS "Assignment quiz questions teachers and admins manage" ON assignment_quiz_questions;
+CREATE POLICY "Assignment quiz questions teachers and admins manage"
+  ON assignment_quiz_questions FOR ALL TO authenticated
+  USING (
+    is_super_admin()
+    OR (is_admin() AND school_id = get_my_school_id())
+    OR (
+      school_id = get_my_school_id()
+      AND EXISTS (
+        SELECT 1
+        FROM assignments a
+        WHERE a.id = assignment_quiz_questions.assignment_id
+          AND EXISTS (
+            SELECT 1 FROM teachers t
+            WHERE t.id = a.teacher_id
+              AND t.user_id = auth.uid()
+          )
+      )
+    )
+  )
+  WITH CHECK (
+    is_super_admin()
+    OR (is_admin() AND school_id = get_my_school_id())
+    OR (
+      school_id = get_my_school_id()
+      AND EXISTS (
+        SELECT 1
+        FROM assignments a
+        WHERE a.id = assignment_quiz_questions.assignment_id
+          AND EXISTS (
+            SELECT 1 FROM teachers t
+            WHERE t.id = a.teacher_id
+              AND t.user_id = auth.uid()
+          )
+      )
+    )
+  );
+
+-- -----------------------------------------------------------------------------
+-- 14d) subject_class_id on assignments (used by AssignmentModal to link assignments to subject_classes)
+-- -----------------------------------------------------------------------------
+
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS subject_class_id uuid REFERENCES subject_classes(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_assignments_subject_class ON assignments(subject_class_id);
+
+-- -----------------------------------------------------------------------------
+-- 14e) Student-facing RLS on teacher_questions for quiz access
+-- Students need SELECT access to questions linked to their assignments
+-- via assignment_quiz_questions so they can view and answer quiz questions.
+-- -----------------------------------------------------------------------------
+
+DROP POLICY IF EXISTS "Students can read questions for their quizzes" ON teacher_questions;
+CREATE POLICY "Students can read questions for their quizzes"
+  ON teacher_questions FOR SELECT
+  TO authenticated
+  USING (
+    school_id = get_my_school_id()
+    AND EXISTS (
+      SELECT 1
+      FROM assignment_quiz_questions aqq
+      JOIN assignments a ON a.id = aqq.assignment_id
+      WHERE aqq.question_id = teacher_questions.id
+        AND a.school_id = get_my_school_id()
+    )
+  );

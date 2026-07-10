@@ -9,10 +9,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Calendar, FileText, Upload, Edit } from "lucide-react";
+import { Calendar, FileText, Upload, Edit, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 import { SubmissionModal } from "@/components/SubmissionModal";
 import { AssignmentModal } from "@/components/assignment-modal";
+import { TeacherQuizResultsView } from "@/components/teacher-quiz-results-view";
 import { getCurrentUser, getTeacherByUserId } from "@/lib/auth";
 import { useSchoolContext } from "@/hooks/use-school-context";
 
@@ -114,7 +115,9 @@ export default function AssignmentDetailsPage() {
   function getSubmissionLabel(type: string) {
     if (type === "text") return "Text Answer";
     if (type === "file") return "File Upload";
-    return "Text + File";
+    if (type === "both") return "Text + File";
+    if (type === "objective") return "Objective Quiz";
+    return type;
   }
 
 
@@ -161,6 +164,7 @@ export default function AssignmentDetailsPage() {
   }
 
 
+  const isObjective = assignment?.submission_type === "objective";
   const assignmentFileUrl = assignment?.file_url ?? null;
   const assignmentExt = assignmentFileUrl?.split(".").pop()?.toLowerCase();
   const assignmentIsImage = ["png", "jpg", "jpeg", "gif", "webp"].includes(assignmentExt);
@@ -283,146 +287,152 @@ export default function AssignmentDetailsPage() {
           </CardContent>
         </Card>
 
-        {/* Filters */}
-        <Card>
-          <CardContent className="pt-4 md:pt-6 space-y-3 md:space-y-4">
-            <div>
-              <Input
-                placeholder="Search student..."
-                className="w-full md:w-48 text-sm"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-              />
-            </div>
-            <div className="flex flex-wrap gap-2 md:gap-3">
-              <Button
-                variant={statusFilter === "all" ? "default" : "outline"}
-                onClick={() => setStatusFilter("all")}
-                size="sm"
-              >
-                All
-              </Button>
-              <Button
-                variant={statusFilter === "ungraded" ? "default" : "outline"}
-                onClick={() => setStatusFilter("ungraded")}
-                size="sm"
-              >
-                Ungraded
-              </Button>
-              <Button
-                variant={statusFilter === "graded" ? "default" : "outline"}
-                onClick={() => setStatusFilter("graded")}
-                size="sm"
-              >
-                Graded
-              </Button>
-
-              <Button
-                variant={lateOnly ? "destructive" : "outline"}
-                onClick={() => setLateOnly(v => !v)}
-                size="sm"
-              >
-                Late
-              </Button>
-
-              <Button
-                variant="outline"
-                onClick={() =>
-                  setDateOrder(o => (o === "newest" ? "oldest" : "newest"))
-                }
-                size="sm"
-              >
-                {dateOrder === "newest" ? "Newest" : "Oldest"}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 md:gap-4">
-          <Card className="bg-white border border-gray-200">
-            <CardContent className="pt-4 md:pt-6">
-              <div className="text-center">
-                <p className="text-2xl md:text-4xl font-bold text-gray-900">{submissions.length}</p>
-                <p className="text-xs md:text-sm text-gray-500 mt-1">Total</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-white border border-gray-200">
-            <CardContent className="pt-4 md:pt-6">
-              <div className="text-center">
-                <p className="text-2xl md:text-4xl font-bold text-green-600">{gradedCount}</p>
-                <p className="text-xs md:text-sm text-gray-500 mt-1">Graded</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-white border border-gray-200">
-            <CardContent className="pt-4 md:pt-6">
-              <div className="text-center">
-                <p className="text-2xl md:text-4xl font-bold text-red-600">{lateCount}</p>
-                <p className="text-xs md:text-sm text-gray-500 mt-1">Late</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Submissions List */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base md:text-lg">Student Submissions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {filteredSubmissions.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 text-sm">
-                No submissions match this filter.
-              </div>
-            ) : (
-              <div className="space-y-3 md:space-y-4">
-                {filteredSubmissions.map(sub => (
-                  <div
-                    key={sub.id}
-                    className="border rounded-lg p-3 md:p-4 hover:shadow-md transition cursor-pointer bg-white"
-                    onClick={() => setActiveSubmission(sub)}
+        {/* Objective Quiz Results View */}
+        {isObjective ? (
+          <TeacherQuizResultsView
+            schoolId={schoolId!}
+            assignment={assignment}
+            submissions={submissions}
+            onDataChange={loadData}
+          />
+        ) : (
+          <>
+            {/* Filters */}
+            <Card>
+              <CardContent className="pt-4 md:pt-6 space-y-3 md:space-y-4">
+                <div>
+                  <Input
+                    placeholder="Search student..."
+                    className="w-full md:w-48 text-sm"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2 md:gap-3">
+                  <Button
+                    variant={statusFilter === "all" ? "default" : "outline"}
+                    onClick={() => setStatusFilter("all")}
+                    size="sm"
                   >
-                    <div className="flex flex-col gap-2 md:flex-row md:justify-between md:items-start">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm md:text-base break-words">
-                          {sub.students?.first_name} {sub.students?.last_name}
-                        </p>
-                        <p className="text-xs md:text-sm text-muted-foreground">
-                          {new Date(sub.submitted_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                      </div>
+                    All
+                  </Button>
+                  <Button
+                    variant={statusFilter === "ungraded" ? "default" : "outline"}
+                    onClick={() => setStatusFilter("ungraded")}
+                    size="sm"
+                  >
+                    Ungraded
+                  </Button>
+                  <Button
+                    variant={statusFilter === "graded" ? "default" : "outline"}
+                    onClick={() => setStatusFilter("graded")}
+                    size="sm"
+                  >
+                    Graded
+                  </Button>
+                  <Button
+                    variant={lateOnly ? "destructive" : "outline"}
+                    onClick={() => setLateOnly(v => !v)}
+                    size="sm"
+                  >
+                    Late
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setDateOrder(o => (o === "newest" ? "oldest" : "newest"))}
+                    size="sm"
+                  >
+                    {dateOrder === "newest" ? "Newest" : "Oldest"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
 
-                      <div className="flex gap-1 md:gap-2 flex-shrink-0">
-                        {!sub.submitted_on_time && (
-                          <Badge variant="destructive" className="text-xs">Late</Badge>
-                        )}
-                        <Badge variant={sub.graded_at ? "success" : "warning"} className="text-xs">
-                          {sub.graded_at ? "Graded" : "Ungraded"}
-                        </Badge>
-                      </div>
-                    </div>
+            {/* Stats */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 md:gap-4">
+              <Card className="bg-white border border-gray-200">
+                <CardContent className="pt-4 md:pt-6">
+                  <div className="text-center">
+                    <p className="text-2xl md:text-4xl font-bold text-gray-900">{submissions.length}</p>
+                    <p className="text-xs md:text-sm text-gray-500 mt-1">Total</p>
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                </CardContent>
+              </Card>
+              <Card className="bg-white border border-gray-200">
+                <CardContent className="pt-4 md:pt-6">
+                  <div className="text-center">
+                    <p className="text-2xl md:text-4xl font-bold text-green-600">{gradedCount}</p>
+                    <p className="text-xs md:text-sm text-gray-500 mt-1">Graded</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="bg-white border border-gray-200">
+                <CardContent className="pt-4 md:pt-6">
+                  <div className="text-center">
+                    <p className="text-2xl md:text-4xl font-bold text-red-600">{lateCount}</p>
+                    <p className="text-xs md:text-sm text-gray-500 mt-1">Late</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
-      <SubmissionModal
-        submission={activeSubmission}
-        submissions={filteredSubmissions}
-        activeIndex={activeIndex}
-        setActiveSubmission={setActiveSubmission}
-        assignment={assignment}
-        grading={grading}
-        setGrading={setGrading}
-        savingId={savingId}
-        saveGrade={saveGrade}
-        onClose={() => setActiveSubmission(null)}
-      />
+            {/* Submissions List */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base md:text-lg">Student Submissions</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {filteredSubmissions.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500 text-sm">
+                    No submissions match this filter.
+                  </div>
+                ) : (
+                  <div className="space-y-3 md:space-y-4">
+                    {filteredSubmissions.map(sub => (
+                      <div
+                        key={sub.id}
+                        className="border rounded-lg p-3 md:p-4 hover:shadow-md transition cursor-pointer bg-white"
+                        onClick={() => setActiveSubmission(sub)}
+                      >
+                        <div className="flex flex-col gap-2 md:flex-row md:justify-between md:items-start">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-sm md:text-base break-words">
+                              {sub.students?.first_name} {sub.students?.last_name}
+                            </p>
+                            <p className="text-xs md:text-sm text-muted-foreground">
+                              {new Date(sub.submitted_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                          <div className="flex gap-1 md:gap-2 flex-shrink-0">
+                            {!sub.submitted_on_time && (
+                              <Badge variant="destructive" className="text-xs">Late</Badge>
+                            )}
+                            <Badge variant={sub.graded_at ? "success" : "warning"} className="text-xs">
+                              {sub.graded_at ? "Graded" : "Ungraded"}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <SubmissionModal
+              submission={activeSubmission}
+              submissions={filteredSubmissions}
+              activeIndex={activeIndex}
+              setActiveSubmission={setActiveSubmission}
+              assignment={assignment}
+              grading={grading}
+              setGrading={setGrading}
+              savingId={savingId}
+              saveGrade={saveGrade}
+              onClose={() => setActiveSubmission(null)}
+            />
+          </>
+        )}
 
       {teacherId && (
         <AssignmentModal
@@ -437,6 +447,7 @@ export default function AssignmentDetailsPage() {
           }}
         />
       )}
+      </div>
     </DashboardLayout>
   );
 }

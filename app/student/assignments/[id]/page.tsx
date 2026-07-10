@@ -8,9 +8,10 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, FileText, Loader2 } from "lucide-react";
+import { Calendar, FileText, Loader2, BookOpen } from "lucide-react";
 import { Download } from "lucide-react";
 import { useSchoolContext } from "@/hooks/use-school-context";
+import { StudentQuizView } from "@/components/student-quiz-view";
 
 export default function StudentAssignmentDetails() {
     const { id } = useParams();
@@ -18,6 +19,10 @@ export default function StudentAssignmentDetails() {
     const [submission, setSubmission] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const { schoolId, isLoading: schoolLoading } = useSchoolContext();
+    const [quizConfig, setQuizConfig] = useState<any>(null);
+    const [quizQuestions, setQuizQuestions] = useState<any[]>([]);
+    const [studentId, setStudentId] = useState<string>("");
+    const [loadingQuiz, setLoadingQuiz] = useState(false);
 
     useEffect(() => {
         if (!schoolLoading && schoolId) {
@@ -26,33 +31,72 @@ export default function StudentAssignmentDetails() {
     }, [id, schoolId, schoolLoading]);
 
     async function loadAssignment() {
-            if (!schoolId) return;
-            setLoading(true);
-            const { data: { session } } = await supabase.auth.getSession();
-            const user = session?.user;
-            const { data: student } = await supabase.from("students").select("id").eq("user_id", user?.id).eq("school_id", schoolId).maybeSingle();
-
-            const { data: assignmentData } = await supabase
-                .from("assignments")
-                .select("*, classes(name), subjects(name)")
-                .eq("id", id)
+        if (!schoolId) return;
+        setLoading(true);
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user;
+        if (!user) { setLoading(false); return; }
+        const { data: student } = await supabase.from("students").select("id").eq("user_id", user.id).eq("school_id", schoolId).maybeSingle();
+        if (student) setStudentId(student.id);
+        const { data: assignmentData } = await supabase
+            .from("assignments")
+            .select("*, classes(name), subjects(name)")
+            .eq("id", id)
+            .eq("school_id", schoolId)
+            .maybeSingle();
+        if (assignmentData && student) {
+            const { data: submissionData } = await supabase
+                .from("assignment_submissions")
+                .select("*")
+                .eq("assignment_id", assignmentData.id)
+                .eq("student_id", student.id)
                 .eq("school_id", schoolId)
                 .maybeSingle();
-
-            if (assignmentData && student) {
-                const { data: submissionData } = await supabase
-                    .from("assignment_submissions")
-                    .select("*")
-                    .eq("assignment_id", assignmentData.id)
-                    .eq("student_id", student.id)
-                    .eq("school_id", schoolId)
-                    .maybeSingle();
-                setSubmission(submissionData);
+            setSubmission(submissionData);
+            if (assignmentData.submission_type === "objective") {
+                await loadQuizData(assignmentData.id);
             }
-
-            setAssignment(assignmentData);
-            setLoading(false);
         }
+        setAssignment(assignmentData);
+        setLoading(false);
+    }
+
+    async function loadQuizData(assignmentId: string) {
+        setLoadingQuiz(true);
+        try {
+            const { data: config } = await supabase
+                .from("assignment_quiz_config")
+                .select("*")
+                .eq("assignment_id", assignmentId)
+                .maybeSingle();
+            setQuizConfig(config || { shuffle_questions: true, time_limit_minutes: null, allow_retake: false, show_results_immediately: true });
+            const { data: questions } = await supabase
+                .from("assignment_quiz_questions")
+                .select("id, question_id, marks, display_order")
+                .eq("assignment_id", assignmentId)
+                .order("display_order", { ascending: true });
+            if (questions && questions.length > 0) {
+                const questionIds = questions.map((q: any) => q.question_id);
+                const { data: teacherQuestions } = await supabase
+                    .from("teacher_questions")
+                    .select("id, question_text, options, correct_answer, explanation, topic")
+                    .in("id", questionIds);
+                const questionMap = new Map((teacherQuestions || []).map((q: any) => [q.id, q]));
+                setQuizQuestions(questions.map((q: any) => ({
+                    id: q.id,
+                    question_id: q.question_id,
+                    marks: q.marks,
+                    display_order: q.display_order,
+                    question: questionMap.get(q.question_id) || { question_text: "", options: [], correct_answer: null, explanation: null, topic: "" },
+                })));
+            }
+        } catch { /* non-critical */ }
+        finally { setLoadingQuiz(false); }
+    }
+
+    function handleSubmissionComplete(newSubmission: any) {
+        setSubmission(newSubmission);
+    }
 
 
     function getGradeStyles(marksObtained: number, totalMarks: number) {
@@ -120,14 +164,17 @@ export default function StudentAssignmentDetails() {
     function getSubmissionLabel(type: string) {
         if (type === "text") return "Text Answer";
         if (type === "file") return "File Upload";
-        return "Text + File";
+        if (type === "both") return "Text + File";
+        if (type === "objective") return "Objective Quiz";
+        return type;
     }
 
     const isGraded = submission && submission.graded_at;
-   const fileUrl = submission?.file_url ?? null;
+    const isObjective = assignment.submission_type === "objective";
+    const fileUrl = submission?.file_url ?? null;
 
     const ext = fileUrl?.split(".").pop()?.toLowerCase();
-    const isImage = ["png", "jpg", "jpeg", "gif", "webp"].includes(ext);
+    const isImage = ["png", "jpg", "jpeg", "gif", "webp"].includes(ext || "");
     const isPdf = ext === "pdf";
     const isOffice = ["doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(ext);
     const googleViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(
@@ -151,6 +198,12 @@ export default function StudentAssignmentDetails() {
                     <div className="flex flex-wrap gap-2 mt-3">
                         <Badge variant="outline">{assignment.classes?.name}</Badge>
                         <Badge variant="secondary">{assignment.subjects?.name}</Badge>
+                        {isObjective && (
+                            <Badge className="bg-blue-100 text-blue-700 border-blue-200">
+                                <BookOpen className="h-3 w-3 mr-1 inline" />
+                                Quiz
+                            </Badge>
+                        )}
                         <Badge>
                             <Calendar className="h-3 w-3 mr-1 inline" />
                             Due {new Date(assignment.due_date).toLocaleDateString()}
@@ -158,80 +211,97 @@ export default function StudentAssignmentDetails() {
                     </div>
                 </div>
 
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Assignment Information</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div>
-                            <p className="font-medium">Description</p>
-                            <p className="text-muted-foreground">{assignment.description || "—"}</p>
-                        </div>
-
-                        <div>
-                            <p className="font-medium">Instructions</p>
-                            <p className="text-muted-foreground whitespace-pre-wrap">
-                                {assignment.instructions || "—"}
-                            </p>
-                        </div>
-
-                        {assignment.file_url && (
+                {!isObjective && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Assignment Information</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
                             <div>
-                                <p className="font-medium mb-2">Attached File</p>
-                                <div className="border rounded-lg p-4">
-                                    {assignmentIsImage && (
-                                        <img
-                                            src={assignmentFileUrl}
-                                            className="w-full max-h-96 object-contain rounded-lg border"
-                                        />
-                                    )}
-                                    {assignmentIsPdf && (
-                                        <iframe
-                                            src={assignmentFileUrl}
-                                            className="w-full h-[60vh] rounded-md border"
-                                        />
-                                    )}
-                                    {assignmentIsOffice && (
-                                        <iframe
-                                            src={assignmentGoogleViewerUrl}
-                                            className="w-full h-[60vh] rounded-md border"
-                                        />
-                                    )}
-                                    {!assignmentIsImage && !assignmentIsPdf && !assignmentIsOffice && (
-                                        <div className="flex items-center gap-4">
-                                            <FileText className="h-8 w-8 text-muted-foreground" />
-                                            <div>
-                                                <p className="text-sm font-medium">
-                                                    {assignment.file_url.split("/").pop()}
-                                                </p>
-                                                <a
-                                                    href={assignmentFileUrl}
-                                                    target="_blank"
-                                                    className="text-sm text-primary hover:underline"
-                                                >
-                                                    Download File
-                                                </a>
+                                <p className="font-medium">Description</p>
+                                <p className="text-muted-foreground">{assignment.description || "—"}</p>
+                            </div>
+                            <div>
+                                <p className="font-medium">Instructions</p>
+                                <p className="text-muted-foreground whitespace-pre-wrap">{assignment.instructions || "—"}</p>
+                            </div>
+                            {assignment.file_url && (
+                                <div>
+                                    <p className="font-medium mb-2">Attached File</p>
+                                    <div className="border rounded-lg p-4">
+                                        {assignmentIsImage && <img src={assignmentFileUrl} className="w-full max-h-96 object-contain rounded-lg border" />}
+                                        {assignmentIsPdf && <iframe src={assignmentFileUrl} className="w-full h-[60vh] rounded-md border" />}
+                                        {assignmentIsOffice && <iframe src={assignmentGoogleViewerUrl} className="w-full h-[60vh] rounded-md border" />}
+                                        {!assignmentIsImage && !assignmentIsPdf && !assignmentIsOffice && (
+                                            <div className="flex items-center gap-4">
+                                                <FileText className="h-8 w-8 text-muted-foreground" />
+                                                <div>
+                                                    <p className="text-sm font-medium">{assignment.file_url.split("/").pop()}</p>
+                                                    <a href={assignmentFileUrl} target="_blank" className="text-sm text-primary hover:underline">Download File</a>
+                                                </div>
                                             </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                            <div className="flex flex-wrap gap-3">
+                                <Badge variant="outline"><FileText className="h-3 w-3 mr-1 inline" />{getSubmissionLabel(assignment.submission_type)}</Badge>
+                                <Badge variant="outline">{assignment.total_marks} Marks</Badge>
+                                {!assignment.allow_late_submission && <Badge variant="destructive">Late submissions not allowed</Badge>}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* Objective Quiz View */}
+                {isObjective && (
+                    <div className="space-y-4">
+                        {(assignment.description || assignment.instructions) && (
+                            <Card>
+                                <CardContent className="p-4 space-y-2">
+                                    {assignment.description && (
+                                        <div>
+                                            <p className="text-xs font-semibold uppercase text-muted-foreground mb-1">Description</p>
+                                            <p className="text-sm">{assignment.description}</p>
                                         </div>
                                     )}
-                                </div>
-                            </div>
+                                    {assignment.instructions && (
+                                        <div>
+                                            <p className="text-xs font-semibold uppercase text-muted-foreground mb-1">Instructions</p>
+                                            <p className="text-sm whitespace-pre-wrap">{assignment.instructions}</p>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
                         )}
+                        {loadingQuiz ? (
+                            <div className="flex items-center justify-center py-12">
+                                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                <span className="ml-2 text-sm text-muted-foreground">Loading quiz...</span>
+                            </div>
+                        ) : quizQuestions.length === 0 ? (
+                            <Card>
+                                <CardContent className="text-center py-8 text-muted-foreground">
+                                    <BookOpen className="h-10 w-10 mx-auto mb-3 opacity-40" />
+                                    <p className="font-medium">Quiz not available</p>
+                                    <p className="text-sm mt-1">This quiz has no questions configured yet.</p>
+                                </CardContent>
+                            </Card>
+                        ) : studentId && quizConfig ? (
+                            <StudentQuizView
+                                assignment={assignment}
+                                quizConfig={quizConfig}
+                                quizQuestions={quizQuestions}
+                                existingSubmission={submission}
+                                schoolId={schoolId!}
+                                studentId={studentId}
+                                onSubmissionComplete={handleSubmissionComplete}
+                            />
+                        ) : null}
+                    </div>
+                )}
 
-                        <div className="flex flex-wrap gap-3">
-                            <Badge variant="outline">
-                                <FileText className="h-3 w-3 mr-1 inline" />
-                                {getSubmissionLabel(assignment.submission_type)}
-                            </Badge>
-                            <Badge variant="outline">{assignment.total_marks} Marks</Badge>
-                            {!assignment.allow_late_submission && (
-                                <Badge variant="destructive">Late submissions not allowed</Badge>
-                            )}
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {submission && (
+                {!isObjective && submission && (
                     <Card>
                         <CardHeader>
                             <CardTitle>My Submission</CardTitle>
@@ -328,14 +398,13 @@ export default function StudentAssignmentDetails() {
                 )}
 
 
-                {/* Action / Status Section */}
-                {!submission && (
+                {!isObjective && !submission && (
                     <Link href={`/student/assignments/${id}/submit`}>
                         <Button size="lg">Submit Assignment</Button>
                     </Link>
                 )}
 
-                {submission && !isGraded && (
+                {!isObjective && submission && !isGraded && (
                     <Card className="border-dashed">
                         <CardContent className="py-6 text-center text-muted-foreground">
                             <p className="font-medium">Submission received</p>
@@ -347,7 +416,7 @@ export default function StudentAssignmentDetails() {
                 )}
 
 
-                {isGraded && (() => {
+                {!isObjective && isGraded && (() => {
                     const styles = getGradeStyles(
                         submission.grade,            // marks obtained (e.g. 14)
                         assignment.total_marks       // total marks (e.g. 20)

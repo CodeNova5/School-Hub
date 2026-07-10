@@ -190,9 +190,25 @@ export async function POST(
     }
 
     // If there's an existing submission (retake), update it; otherwise insert
-    const { error: upsertError } = await supabaseAdmin
+    const { data: existingSub } = await supabaseAdmin
       .from("assignment_submissions")
-      .upsert(submissionPayload, { onConflict: "assignment_submissions_assignment_id_student_id_key" });
+      .select("id")
+      .eq("assignment_id", assignmentId)
+      .eq("student_id", studentId)
+      .eq("school_id", schoolId)
+      .maybeSingle();
+
+    let upsertError;
+    if (existingSub) {
+      ({ error: upsertError } = await supabaseAdmin
+        .from("assignment_submissions")
+        .update(submissionPayload)
+        .eq("id", existingSub.id));
+    } else {
+      ({ error: upsertError } = await supabaseAdmin
+        .from("assignment_submissions")
+        .insert(submissionPayload));
+    }
 
     if (upsertError) {
       console.error("[submit-quiz] Upsert error:", upsertError);

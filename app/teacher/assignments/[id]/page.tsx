@@ -3,16 +3,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Calendar, FileText, Upload, Edit, BookOpen } from "lucide-react";
+import { Calendar, FileText, Upload, Edit, BookOpen, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { SubmissionModal } from "@/components/SubmissionModal";
-import { AssignmentModal } from "@/components/assignment-modal";
 import { TeacherQuizResultsView } from "@/components/teacher-quiz-results-view";
 import { getCurrentUser, getTeacherByUserId } from "@/lib/auth";
 import { useSchoolContext } from "@/hooks/use-school-context";
@@ -38,7 +38,6 @@ export default function AssignmentDetailsPage() {
   const [search, setSearch] = useState("");
   const [activeSubmission, setActiveSubmission] = useState<any | null>(null);
   const [teacherId, setTeacherId] = useState("");
-  const [openEditModal, setOpenEditModal] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!schoolId) return;
@@ -203,11 +202,14 @@ export default function AssignmentDetailsPage() {
               </div>
             </div>
 
-            <Button onClick={() => setOpenEditModal(true)} className="w-full md:w-auto flex-shrink-0 mt-3 md:mt-0">
-              <Edit className="h-4 w-4 mr-2" />
-              <span className="hidden md:inline">Edit Assignment</span>
-              <span className="md:hidden">Edit</span>
-            </Button>
+            <Link href={`/teacher/assignments/${assignmentId}/edit`}>
+              <Button className="w-full md:w-auto flex-shrink-0 mt-3 md:mt-0 gap-2">
+                <Edit className="h-4 w-4" />
+                <span className="hidden md:inline">Edit Assignment</span>
+                <span className="md:hidden">Edit</span>
+                <ExternalLink className="h-3 w-3 opacity-60" />
+              </Button>
+            </Link>
           </div>
         </div>
 
@@ -434,19 +436,6 @@ export default function AssignmentDetailsPage() {
           </>
         )}
 
-      {teacherId && (
-        <AssignmentModal
-          open={openEditModal}
-          teacherId={teacherId}
-          assignment={assignment}
-          onClose={() => setOpenEditModal(false)}
-          onSave={(updatedAssignment) => {
-            setAssignment(updatedAssignment);
-            setOpenEditModal(false);
-            toast.success("Assignment updated successfully");
-          }}
-        />
-      )}
       </div>
     </DashboardLayout>
   );

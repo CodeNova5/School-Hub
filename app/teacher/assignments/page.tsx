@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { AssignmentModal } from "@/components/assignment-modal";
 import { getCurrentUser, getTeacherByUserId } from "@/lib/auth";
 import { toast } from "sonner";
 import {
@@ -24,6 +23,7 @@ import {
   CheckCircle2,
   Clock,
   Loader2,
+  ArrowRight,
 } from "lucide-react";
 import { AssignmentFilters } from "@/components/AssignmentFilters";
 import { useSchoolContext } from "@/hooks/use-school-context";
@@ -111,8 +111,6 @@ export default function AssignmentsPage() {
   }>({});
 
   const [teacherId, setTeacherId] = useState("");
-  const [openModal, setOpenModal] = useState(false);
-  const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
   type CacheKey = string;
 
   const assignmentsCacheRef = useRef<
@@ -296,15 +294,6 @@ export default function AssignmentsPage() {
   }, [assignments, search, classFilter, subjectFilter, statusFilter]);
 
   /* ---------------------------------------------------------------------- */
-  /* EDIT                                                                   */
-  /* ---------------------------------------------------------------------- */
-
-  function handleEdit(assignment: Assignment) {
-    setEditingAssignment(assignment);
-    setOpenModal(true);
-  }
-
-  /* ---------------------------------------------------------------------- */
   /* DELETE                                                                 */
   /* ---------------------------------------------------------------------- */
 
@@ -383,10 +372,13 @@ export default function AssignmentsPage() {
               Manage submissions and grading
             </p>
           </div>
-          <Button onClick={() => setOpenModal(true)} className="w-full md:w-auto">
-            <Plus className="h-4 w-4 mr-2" />
-            Create Assignment
-          </Button>
+          <Link href="/teacher/assignments/create">
+            <Button className="w-full md:w-auto gap-2">
+              <Plus className="h-4 w-4" />
+              Create Assignment
+              <ArrowRight className="h-3.5 w-3.5 opacity-70" />
+            </Button>
+          </Link>
         </div>
 
         {/* Statistics Cards */}
@@ -603,15 +595,16 @@ export default function AssignmentsPage() {
                             View
                           </Button>
                         </Link>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1 md:flex-none md:w-full"
-                          onClick={() => handleEdit(a)}
-                        >
-                          <Edit className="h-4 w-4 md:mr-1" />
-                          <span className="hidden md:inline">Edit</span>
-                        </Button>
+                        <Link href={`/teacher/assignments/${a.id}/edit`} className="flex-1 md:flex-none">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full"
+                          >
+                            <Edit className="h-4 w-4 md:mr-1" />
+                            <span className="hidden md:inline">Edit</span>
+                          </Button>
+                        </Link>
                         <Button
                           size="sm"
                           variant="outline"
@@ -660,58 +653,6 @@ export default function AssignmentsPage() {
           </CardContent>
         </Card>
       </div>
-
-      <AssignmentModal
-        open={openModal}
-        teacherId={teacherId}
-        schoolId={schoolId}
-        assignment={editingAssignment}
-        onClose={() => {
-          setOpenModal(false);
-          setEditingAssignment(null);
-        }}
-        onSave={(updatedAssignment) => {
-          const cacheKey = getCacheKey(teacherId, page, filters);
-
-          if (editingAssignment) {
-            // 1️⃣ Optimistic UI update for edit
-            setAssignments((prev) =>
-              prev.map((a) => (a.id === updatedAssignment.id ? updatedAssignment : a))
-            );
-
-            // 2️⃣ Update cache
-            if (assignmentsCacheRef.current.has(cacheKey)) {
-              const cached = assignmentsCacheRef.current.get(cacheKey)!;
-              assignmentsCacheRef.current.set(cacheKey, {
-                data: cached.data.map((a) =>
-                  a.id === updatedAssignment.id ? updatedAssignment : a
-                ),
-                total: cached.total,
-                timestamp: Date.now(),
-              });
-            }
-          } else {
-            // 1️⃣ Optimistic UI update for new
-            setAssignments((prev) => [updatedAssignment, ...prev]);
-            setTotal((t) => t + 1);
-
-            // 2️⃣ Update cache
-            assignmentsCacheRef.current.set(cacheKey, {
-              data: [updatedAssignment, ...assignments],
-              total: total + 1,
-              timestamp: Date.now(),
-            });
-          }
-
-          // 3️⃣ Close modal instantly
-          setOpenModal(false);
-          setEditingAssignment(null);
-
-          // 4️⃣ Background revalidation (no spinner)
-          loadAssignments({ revalidate: true });
-        }}
-      />
-
     </DashboardLayout>
   );
 }

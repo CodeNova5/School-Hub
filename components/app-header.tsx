@@ -177,7 +177,7 @@ const QUICK_ACTIONS: Record<string, { label: string; href: string; icon: React.R
   teacher: [
     { label: "Take Attendance", href: "/teacher/students", icon: <ClipboardList className="h-4 w-4" /> },
     { label: "Add Result", href: "/teacher/results", icon: <GraduationCap className="h-4 w-4" /> },
-    { label: "New Assignment", href: "/teacher/assignments", icon: <FileText className="h-4 w-4" /> },
+    { label: "New Assignment", href: "/teacher/assignments/create", icon: <FileText className="h-4 w-4" /> },
   ],
   student: [
     { label: "View Results", href: "/student/results", icon: <GraduationCap className="h-4 w-4" /> },

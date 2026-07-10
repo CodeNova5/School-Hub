@@ -420,6 +420,7 @@ export default function AuditLogsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [tableFilter, setTableFilter] = useState("all");
   const [operationFilter, setOperationFilter] = useState("all");
+  const [undoneFilter, setUndoneFilter] = useState("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [selectedLog, setSelectedLog] = useState<AdminAuditLogRecord | null>(null);
@@ -458,6 +459,9 @@ export default function AuditLogsPage() {
       if (!showConfigChanges) {
         params.set("exclude_tables", Array.from(CONFIG_TABLES).join(","));
       }
+      if (undoneFilter !== "all") {
+        params.set("undone_status", undoneFilter);
+      }
 
       const res = await fetch(`/api/admin/audit-logs?${params}`);
       if (!res.ok) {
@@ -476,12 +480,12 @@ export default function AuditLogsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentPage, tableFilter, operationFilter, debouncedSearch, fromDate, toDate, showConfigChanges]);
+  }, [currentPage, tableFilter, operationFilter, debouncedSearch, fromDate, toDate, showConfigChanges, undoneFilter]);
 
   // Reload when filters change (reset to page 0)
   useEffect(() => {
     setCurrentPage(0);
-  }, [tableFilter, operationFilter, debouncedSearch, fromDate, toDate, showConfigChanges]);
+  }, [tableFilter, operationFilter, debouncedSearch, fromDate, toDate, showConfigChanges, undoneFilter]);
 
   useEffect(() => {
     loadLogs();
@@ -799,6 +803,26 @@ export default function AuditLogsPage() {
                             <SelectItem value="INSERT">Created</SelectItem>
                             <SelectItem value="UPDATE">Updated</SelectItem>
                             <SelectItem value="DELETE">Deleted</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex flex-col gap-1.5 min-w-[130px] flex-1 sm:flex-initial">
+                        <Label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide flex items-center gap-1">
+                          <RotateCcw className="w-2.5 h-2.5" />
+                          Status
+                        </Label>
+                        <Select
+                          value={undoneFilter}
+                          onValueChange={setUndoneFilter}
+                        >
+                          <SelectTrigger className="h-10 text-sm">
+                            <SelectValue placeholder="All" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Entries</SelectItem>
+                            <SelectItem value="undone">Undone Only</SelectItem>
+                            <SelectItem value="not_undone">Not Undone</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

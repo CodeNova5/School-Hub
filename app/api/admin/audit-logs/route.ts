@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
     const fromDate = url.searchParams.get('from_date') || '';
     const toDate = url.searchParams.get('to_date') || '';
     const excludeTablesRaw = url.searchParams.get('exclude_tables') || '';
+    const undoneStatus = url.searchParams.get('undone_status') || 'all';
 
     // Build query
     let query = supabase
@@ -62,6 +63,13 @@ export async function GET(request: NextRequest) {
 
     if (operation) {
       query = query.eq('operation', operation);
+    }
+
+    // Filter by undo status
+    if (undoneStatus === 'undone') {
+      query = query.not('undone_at', 'is', null);
+    } else if (undoneStatus === 'not_undone') {
+      query = query.is('undone_at', null);
     }
 
     // For search, we filter by changed_by_name ILIKE

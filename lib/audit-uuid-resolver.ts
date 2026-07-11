@@ -131,7 +131,7 @@ export async function resolveAuditLogUUIDs(
         continue;
       }
 
-      for (const row of (rows ?? []) as Record<string, unknown>[]) {
+      for (const row of (rows ?? []) as unknown as Record<string, unknown>[]) {
         const name = formatName(row, nameColumns);
         const rowId = String(row.id ?? '');
         if (name && rowId) {

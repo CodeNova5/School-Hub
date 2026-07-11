@@ -136,8 +136,11 @@ You MUST respond in valid JSON with exactly these fields:
 }
 
 function buildUserPrompt(log: AdminAuditLogRecord, nameMap?: ResolvedNameMap): string {
-  const resolve = (data: Record<string, unknown> | null | undefined) =>
-    data ? applyResolvedNames(data, nameMap) : data;
+  // Helper: apply resolved names if a nameMap is available
+  const resolveData = (data: Record<string, unknown> | null) => {
+    if (!nameMap || !data) return data;
+    return applyResolvedNames(data, nameMap);
+  };
 
   const tableLabel = TABLE_LABELS[log.table_name] || log.table_name.replace(/_/g, ' ');
   const actor = log.changed_by_name || 'an admin';
@@ -146,7 +149,7 @@ function buildUserPrompt(log: AdminAuditLogRecord, nameMap?: ResolvedNameMap): s
 
   switch (log.operation) {
     case 'INSERT': {
-      const newData = nameMap && log.new_data ? applyResolvedNames(log.new_data, nameMap) ?? {} : (log.new_data || {});
+      const newData = resolveData(log.new_data) ?? {};
       const keys = Object.keys(newData).filter(
         (k) => !['id', 'school_id', 'created_at', 'updated_at', 'user_id'].includes(k)
       );
@@ -161,9 +164,8 @@ function buildUserPrompt(log: AdminAuditLogRecord, nameMap?: ResolvedNameMap): s
       break;
     }
     case 'UPDATE': {
-      // Use name-mapped data if available
-      const oldSource = nameMap && log.old_data ? applyResolvedNames(log.old_data, nameMap) : log.old_data;
-      const newSource = nameMap && log.new_data ? applyResolvedNames(log.new_data, nameMap) : log.new_data;
+      const oldSource = resolveData(log.old_data);
+      const newSource = resolveData(log.new_data);
       const changes = getChangedFields(oldSource, newSource);
       if (changes.length === 0) {
         details = 'No meaningful changes detected.';
@@ -176,7 +178,7 @@ function buildUserPrompt(log: AdminAuditLogRecord, nameMap?: ResolvedNameMap): s
       break;
     }
     case 'DELETE': {
-      const oldData = nameMap && log.old_data ? applyResolvedNames(log.old_data, nameMap) ?? {} : (log.old_data || {});
+      const oldData = resolveData(log.old_data) ?? {};
       const keys = Object.keys(oldData).filter(
         (k) => !['id', 'school_id', 'created_at', 'updated_at', 'user_id'].includes(k)
       );

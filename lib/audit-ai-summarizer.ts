@@ -6,6 +6,8 @@
 
 import { fetchGroqChatCompletion } from './ai-assistant/groq-client';
 import { getChangedFields, TABLE_LABELS, type AdminAuditLogRecord } from './admin-audit';
+import type { ResolvedNameMap } from './audit-uuid-resolver';
+import { applyResolvedNames } from './audit-uuid-resolver';
 
 const GROQ_MODEL = 'openai/gpt-oss-20b';
 
@@ -19,9 +21,16 @@ export interface AuditAISummaryResult {
 /**
  * Build a human-readable prompt describing the audit log entry and send it to Groq.
  * Returns a plain-English explanation of what changed, plus an undo description.
+ *
+ * @param log       The audit log entry
+ * @param nameMap   Optional UUID→name mapping. When provided, UUIDs in the prompt
+ *                  are replaced with their human-readable names (e.g. "JSS 1A"
+ *                  instead of "550e8400-..."), letting the AI produce richer
+ *                  descriptions like "moved from JSS 1A to JSS 1B".
  */
 export async function generateAuditAISummary(
-  log: AdminAuditLogRecord
+  log: AdminAuditLogRecord,
+  nameMap?: ResolvedNameMap
 ): Promise<AuditAISummaryResult> {
   // Check if Groq is configured at all
   if (!process.env.GROQ_API_KEY && !process.env.GROQ_API_KEYS) {
@@ -39,7 +48,7 @@ export async function generateAuditAISummary(
   }
 
   const systemPrompt = buildSystemPrompt();
-  const userPrompt = buildUserPrompt(log);
+  const userPrompt = buildUserPrompt(log, nameMap);
 
   try {
     const result = await fetchGroqChatCompletion({
@@ -108,15 +117,15 @@ You MUST respond in valid JSON with exactly these fields:
 - Be concise — 1–3 short sentences for summary, 1-2 for undo_description.
 - Use natural language. Never mention "JSON", "database", "row", "diff", or technical terms.
 - Infer the real-world meaning from field names. For example:
-  - "class_id" change from one UUID to another → "Moved student to a different class"
+  - "class_id" change from "JSS 1A" to "JSS 1B" → "Moved student from JSS 1A to JSS 1B"
   - "first_name" or "last_name" change → "Renamed student from X to Y"
   - "email" change → "Updated email from old@email.com to new@email.com"
   - "status" or "is_active" change → "Activated/Deactivated the account"
   - "phone" change → "Updated phone number"
-  - "class_teacher_id" change → "Assigned a new class teacher"
+  - "class_teacher_id" change from "Mr. Smith" to "Ms. Jones" → "Changed class teacher from Mr. Smith to Ms. Jones"
 - For DELETE operations, state what was removed and provide identifying info (name, email, student_id).
 - For INSERT operations, describe what was created with key details like name, class, etc.
-- Use the actual values from the data — if a field has a UUID, say "changed the class" or "changed the teacher" rather than showing the UUID.
+- Use the actual values from the data — if a field already contains a human-readable name, use it directly.
 - Never invent data that wasn't provided.
 
 **Undo description examples:**
@@ -126,7 +135,10 @@ You MUST respond in valid JSON with exactly these fields:
 - For deleting a record: "This will restore the deleted record with all its previous data."`;
 }
 
-function buildUserPrompt(log: AdminAuditLogRecord): string {
+function buildUserPrompt(log: AdminAuditLogRecord, nameMap?: ResolvedNameMap): string {
+  const resolve = (data: Record<string, unknown> | null | undefined) =>
+    data ? applyResolvedNames(data, nameMap) : data;
+
   const tableLabel = TABLE_LABELS[log.table_name] || log.table_name.replace(/_/g, ' ');
   const actor = log.changed_by_name || 'an admin';
 
@@ -134,7 +146,7 @@ function buildUserPrompt(log: AdminAuditLogRecord): string {
 
   switch (log.operation) {
     case 'INSERT': {
-      const newData = log.new_data || {};
+      const newData = nameMap && log.new_data ? applyResolvedNames(log.new_data, nameMap) ?? {} : (log.new_data || {});
       const keys = Object.keys(newData).filter(
         (k) => !['id', 'school_id', 'created_at', 'updated_at', 'user_id'].includes(k)
       );
@@ -149,7 +161,10 @@ function buildUserPrompt(log: AdminAuditLogRecord): string {
       break;
     }
     case 'UPDATE': {
-      const changes = getChangedFields(log.old_data, log.new_data);
+      // Use name-mapped data if available
+      const oldSource = nameMap && log.old_data ? applyResolvedNames(log.old_data, nameMap) : log.old_data;
+      const newSource = nameMap && log.new_data ? applyResolvedNames(log.new_data, nameMap) : log.new_data;
+      const changes = getChangedFields(oldSource, newSource);
       if (changes.length === 0) {
         details = 'No meaningful changes detected.';
       } else {
@@ -161,7 +176,7 @@ function buildUserPrompt(log: AdminAuditLogRecord): string {
       break;
     }
     case 'DELETE': {
-      const oldData = log.old_data || {};
+      const oldData = nameMap && log.old_data ? applyResolvedNames(log.old_data, nameMap) ?? {} : (log.old_data || {});
       const keys = Object.keys(oldData).filter(
         (k) => !['id', 'school_id', 'created_at', 'updated_at', 'user_id'].includes(k)
       );

@@ -595,6 +595,140 @@ function buildChangeDescription(log: AdminAuditLogRecord): {
   }
 }
 
+// ─── Build an undo preview showing what fields will be restored ──────────
+
+interface UndoFieldPreview {
+  field: string;
+  currentValue: string;
+  restoredValue: string;
+}
+
+function buildUndoPreview(log: AdminAuditLogRecord): {
+  undoDescription: string;
+  fields: UndoFieldPreview[];
+  action: string;
+} {
+  const tableLabel = TABLE_LABELS[log.table_name] || log.table_name.replace(/_/g, " ");
+
+  // If an AI-powered undo_description exists, lead with it
+  const undoDescription = log.undo_description || (() => {
+    switch (log.operation) {
+      case "INSERT":
+        return `This will permanently delete the ${tableLabel} record that was just created.`;
+      case "UPDATE":
+        return `This will restore the ${tableLabel} record to how it was before these changes.`;
+      case "DELETE":
+        return `This will re-insert the ${tableLabel} record that was just deleted.`;
+      default:
+        return `This will reverse the action on the ${tableLabel} record.`;
+    }
+  })();
+
+  const fields: UndoFieldPreview[] = [];
+
+  switch (log.operation) {
+    case "UPDATE": {
+      if (!log.old_data || !log.new_data) break;
+      const changes = getChangedFields(log.old_data, log.new_data);
+      for (const c of changes.slice(0, 8)) {
+        // Skip internal fields
+        if (["updated_at", "created_at", "id", "school_id"].includes(c.field)) continue;
+        const fieldLabel = c.field.replace(/_/g, " ");
+        const currentVal = String(c.newValue ?? "—");
+        const restoredVal = String(c.oldValue ?? "—");
+
+        // Skip long UUIDs — show a shorter label
+        if (
+          (c.field.endsWith("_id") || c.field === "id") &&
+          typeof c.oldValue === "string" &&
+          c.oldValue.length > 20
+        ) {
+          // Show old != new then just say "changed"
+          if (c.oldValue !== c.newValue) {
+            fields.push({
+              field: fieldLabel.replace(/_id$/, ""),
+              currentValue: currentVal.slice(0, 12) + "…",
+              restoredValue: restoredVal.slice(0, 12) + "…",
+            });
+          }
+        } else if (currentVal.length < 60 || restoredVal.length < 60) {
+          fields.push({
+            field: fieldLabel,
+            currentValue: currentVal,
+            restoredValue: restoredVal,
+          });
+        } else {
+          fields.push({
+            field: fieldLabel,
+            currentValue: "(long value)",
+            restoredValue: "(long value)",
+          });
+        }
+      }
+      break;
+    }
+
+    case "INSERT": {
+      if (!log.new_data) break;
+      // Show what was created — all fields aside from internal ones
+      const keys = Object.keys(log.new_data).filter(
+        (k) => !["id", "school_id", "created_at", "updated_at", "user_id"].includes(k)
+      );
+      for (const key of keys.slice(0, 6)) {
+        const val = String(log.new_data[key] ?? "—");
+        if (val.length < 60) {
+          fields.push({
+            field: key.replace(/_/g, " "),
+            currentValue: val,
+            restoredValue: "(deleted)",
+          });
+        }
+      }
+      if (keys.length > 6) {
+        fields.push({
+          field: `+${keys.length - 6} more fields`,
+          currentValue: "",
+          restoredValue: "",
+        });
+      }
+      break;
+    }
+
+    case "DELETE": {
+      if (!log.old_data) break;
+      const keys = Object.keys(log.old_data).filter(
+        (k) => !["id", "school_id", "created_at", "updated_at", "user_id"].includes(k)
+      );
+      for (const key of keys.slice(0, 6)) {
+        const val = String(log.old_data[key] ?? "—");
+        if (val.length < 60) {
+          fields.push({
+            field: key.replace(/_/g, " "),
+            currentValue: "(deleted)",
+            restoredValue: val,
+          });
+        }
+      }
+      if (keys.length > 6) {
+        fields.push({
+          field: `+${keys.length - 6} more fields`,
+          currentValue: "",
+          restoredValue: "",
+        });
+      }
+      break;
+    }
+  }
+
+  const action = log.operation === "INSERT"
+    ? `Delete this ${tableLabel} record`
+    : log.operation === "DELETE"
+      ? `Restore this ${tableLabel} record`
+      : `Restore previous ${tableLabel} values`;
+
+  return { undoDescription, fields, action };
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────
 
 export default function AuditLogsPage() {
@@ -838,45 +972,107 @@ export default function AuditLogsPage() {
         open={!!undoConfirmId}
         onOpenChange={(v) => !v && setUndoConfirmId(null)}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="sm:max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-amber-600">
-              <RotateCcw className="w-5 h-5" />
-              Undo Action
+            <AlertDialogTitle className="flex items-center gap-2.5">
+              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-amber-100 shrink-0">
+                <RotateCcw className="w-4 h-4 text-amber-600" />
+              </div>
+              <span className="text-lg">Undo Action</span>
             </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <p>
-                This will reverse the most recent change made by you.
-              </p>
-              <p className="text-xs text-slate-500">
-                {(() => {
-                  const log = logs.find((l) => l.id === undoConfirmId);
-                  if (!log) return "";
-                  // Show AI-powered undo description if available
-                  if (log.undo_description) return log.undo_description;
-                  // Fallback
-                  const tableLabel = TABLE_LABELS[log.table_name] || log.table_name;
-                  switch (log.operation) {
-                    case "INSERT":
-                      return `This will delete the ${tableLabel} record that was just created.`;
-                    case "UPDATE":
-                      return `This will restore the ${tableLabel} record to its previous values.`;
-                    case "DELETE":
-                      return `This will re-insert the ${tableLabel} record that was just deleted.`;
-                    default:
-                      return "";
-                  }
-                })()}
-              </p>
-            </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+
+          {(() => {
+            const log = logs.find((l) => l.id === undoConfirmId);
+            if (!log) return null;
+
+            const preview = buildUndoPreview(log);
+
+            return (
+              <AlertDialogDescription asChild>
+                <div className="space-y-4">
+                  {/* AI-powered undo description or fallback */}
+                  <div className={`rounded-lg p-3.5 text-sm leading-relaxed ${log.undo_description ? "bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200" : "bg-slate-50 border border-slate-200"}`}>
+                    {log.undo_description ? (
+                      <div className="flex items-start gap-2">
+                        <Bot className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                        <div>
+                          <p className="text-xs font-semibold text-amber-700 mb-0.5">
+                            What will change
+                          </p>
+                          <p className="text-sm text-slate-700">{preview.undoDescription}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-600">{preview.undoDescription}</p>
+                    )}
+                  </div>
+
+                  {/* Fields preview table */}
+                  {preview.fields.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2.5 flex items-center gap-1.5">
+                        <ArrowUpDown className="w-3 h-3" />
+                        Fields that will be restored
+                      </p>
+                      <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden">
+                        {/* Header */}
+                        <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 px-3 py-2 bg-slate-50 text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+                          <span>Field</span>
+                          <span className="text-red-500">Current</span>
+                          <span className="text-emerald-600">Will become</span>
+                        </div>
+                        {/* Rows */}
+                        {preview.fields.map((f, i) => (
+                          <div
+                            key={i}
+                            className={`grid grid-cols-[1fr_1fr_1fr] gap-2 px-3 py-2.5 text-xs ${
+                              !f.currentValue && !f.restoredValue
+                                ? "text-slate-400 italic"
+                                : ""
+                            }`}
+                          >
+                            <span className="font-medium text-slate-700 capitalize truncate">
+                              {f.field}
+                            </span>
+                            <span className="text-red-600 break-words pr-1">
+                              {f.currentValue || "—"}
+                            </span>
+                            <span className="text-emerald-700 font-medium break-words pr-1">
+                              {f.restoredValue || "—"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Operation summary badge */}
+                  <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
+                    <span className="flex items-center gap-1.5">
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${operationColor(
+                          log.operation
+                        )}`}
+                      >
+                        {operationLabel(log.operation)}
+                      </span>
+                      <span>{TABLE_LABELS[log.table_name] || log.table_name}</span>
+                    </span>
+                    <span className="text-amber-600 font-medium">{preview.action}</span>
+                  </div>
+                </div>
+              </AlertDialogDescription>
+            );
+          })()}
+
+          <AlertDialogFooter className="gap-2">
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => undoConfirmId && handleUndo(undoConfirmId)}
-              className="bg-amber-600 hover:bg-amber-700 text-white"
+              className="bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
             >
-              Yes, Undo
+              Yes, {logs.find((l) => l.id === undoConfirmId)?.operation === "INSERT" ? "Delete" : "Restore"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

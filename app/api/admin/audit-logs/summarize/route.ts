@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { generateAuditAISummary } from '@/lib/audit-ai-summarizer';
+import { enrichAuditData } from '@/lib/audit-uuid-resolver';
 import type { AdminAuditLogRecord } from '@/lib/admin-audit';
 
 export const dynamic = 'force-dynamic';
@@ -44,8 +45,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Audit log entry not found' }, { status: 404 });
     }
 
-    // Generate AI summary + undo description
-    const result = await generateAuditAISummary(log as unknown as AdminAuditLogRecord);
+    // ── Resolve UUIDs to human-readable names for richer AI descriptions ──
+    // This replaces e.g. class_id="550e8400-..." with class_id="JSS 1A"
+    // so the AI can say "moved from JSS 1A to JSS 1B" instead of generic text.
+    const schoolId = (log as unknown as AdminAuditLogRecord).school_id;
+    const { nameMap } = await enrichAuditData(
+      supabase,
+      log.old_data as Record<string, unknown> | null,
+      log.new_data as Record<string, unknown> | null,
+      schoolId
+    );
+
+    // Generate AI summary + undo description with resolved names
+    const result = await generateAuditAISummary(
+      log as unknown as AdminAuditLogRecord,
+      nameMap
+    );
 
     if (result.error && !result.summary) {
       return NextResponse.json({ error: result.error }, { status: 502 });

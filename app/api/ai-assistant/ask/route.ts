@@ -4,8 +4,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+
 import { generateQueryPlan } from '@/lib/ai-assistant/query-planner';
 import { executeQueryPlan } from '@/lib/ai-assistant/query-executor';
 import { summarizeResults, generateSimpleSummary } from '@/lib/ai-assistant/result-summarizer';
@@ -42,7 +42,7 @@ const GROQ_MODEL = 'openai/gpt-oss-20b';
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createServerSupabaseClient();
 
     // Get authenticated user
     const {

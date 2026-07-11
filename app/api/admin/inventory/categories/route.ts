@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { checkIsAdminWithSchool, errorResponse, successResponse } from "@/lib/api-helpers";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +12,7 @@ export async function GET() {
   }
 
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createServerSupabaseClient();
     const schoolId = permission.schoolId;
 
     // Fetch all items and bucket by category in code
@@ -56,7 +55,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createServerSupabaseClient();
     const body = await req.json();
     const { old_name, new_name } = body;
 
@@ -88,7 +87,7 @@ export async function DELETE(req: NextRequest) {
   }
 
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createServerSupabaseClient();
     const url = new URL(req.url);
     const name = url.searchParams.get("name");
 

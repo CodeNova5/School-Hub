@@ -1,7 +1,7 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
-import { cookies } from "next/headers";
 import { errorResponse, successResponse } from "@/lib/api-helpers";
 
 interface PaystackVerifyResponse {
@@ -111,7 +111,7 @@ export async function GET(req: NextRequest) {
     return errorResponse("reference is required", 400);
   }
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceRoleKey) {
     return errorResponse("Finance settings unavailable", 500);

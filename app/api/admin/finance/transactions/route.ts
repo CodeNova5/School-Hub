@@ -1,6 +1,6 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+
 import { NextRequest } from "next/server";
-import { cookies } from "next/headers";
 import { checkIsAdminWithSchool, errorResponse, successResponse } from "@/lib/api-helpers";
 
 interface CreateTransactionPayload {
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
   }
 
   const status = req.nextUrl.searchParams.get("status");
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   let query = supabase
     .from("finance_transactions")
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
     return errorResponse("Missing transaction fields", 400);
   }
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

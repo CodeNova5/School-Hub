@@ -1,6 +1,5 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseAdmin = createClient(
@@ -25,7 +24,7 @@ export interface AvailableTerm {
 // Used by the checkout page to let subscribers pick which term to pay for.
 // ---------------------------------------------------------------------------
 export async function GET() {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
   const {
     data: { user },
     error: authError,

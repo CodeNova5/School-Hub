@@ -11,7 +11,8 @@ import {
     sendNotificationsToMultiple,
     initializeAdminSDK,
 } from "@/lib/firebase-admin";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 
@@ -22,7 +23,7 @@ const supabaseAdmin = createClient(
 
 // Middleware to check if user is admin
 async function checkIsAdmin() {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createServerSupabaseClient();
     const {
         data: { user },
     } = await supabase.auth.getUser();
@@ -45,7 +46,7 @@ async function checkIsAdmin() {
 
 // check if user is teacher
 async function checkIsTeacher() {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createServerSupabaseClient();
     const {
         data: { user },
     } = await supabase.auth.getUser();

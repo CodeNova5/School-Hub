@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { checkIsAdminWithSchool, errorResponse, successResponse } from "@/lib/api-helpers";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +12,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createServerSupabaseClient();
     const schoolId = permission.schoolId;
 
     // ── Parse filter query params ──

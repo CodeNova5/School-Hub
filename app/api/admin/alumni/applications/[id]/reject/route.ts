@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
-import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+
 import { checkIsAdminWithSchool, errorResponse, successResponse } from "@/lib/api-helpers";
 
 const supabaseAdmin = createClient(
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest, context: { params: { id: string } }
   }
 
   try {
-    const routeClient = createRouteHandlerClient({ cookies });
+    const routeClient = await createServerSupabaseClient();
     const {
       data: { user },
     } = await routeClient.auth.getUser();

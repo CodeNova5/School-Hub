@@ -1,7 +1,6 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
-import { cookies } from "next/headers";
 import { checkIsAdminWithSchool, errorResponse, successResponse } from "@/lib/api-helpers";
 
 interface InitializePayload {
@@ -38,7 +37,7 @@ export async function POST(req: NextRequest) {
     return errorResponse(permission.error || "Unauthorized", permission.status || 401);
   }
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

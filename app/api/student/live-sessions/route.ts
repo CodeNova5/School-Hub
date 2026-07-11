@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
-
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 async function autoCloseExpiredSessions(supabase: any, schoolId: string) {
   const nowIso = new Date().toISOString();
 
@@ -29,7 +27,7 @@ async function autoCloseExpiredSessions(supabase: any, schoolId: string) {
 }
 
 async function getStudentContext() {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   const {
     data: { user },
@@ -63,7 +61,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createServerSupabaseClient();
     await autoCloseExpiredSessions(supabase, context.schoolId);
 
     // Students can see all live sessions from their class (both timetable and custom)

@@ -1,6 +1,6 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+
 import { NextRequest } from "next/server";
-import { cookies } from "next/headers";
 import { checkIsAdminWithSchool, errorResponse, successResponse } from "@/lib/api-helpers";
 
 interface CreateSubaccountPayload {
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
     return errorResponse(paystackData.message || "Failed to create Paystack subaccount", 400);
   }
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   const { data: settings, error } = await supabase
     .from("finance_settings")

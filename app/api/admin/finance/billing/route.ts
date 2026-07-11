@@ -1,6 +1,6 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+
 import { NextRequest } from "next/server";
-import { cookies } from "next/headers";
 import { checkIsAdminWithSchool, errorResponse, successResponse } from "@/lib/api-helpers";
 
 interface BillItemInput {
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get("status");
   const studentId = searchParams.get("studentId");
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   let query = supabase
     .from("finance_student_bills")
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     return errorResponse("Missing billing payload fields", 400);
   }
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -146,7 +146,7 @@ export async function PATCH(req: NextRequest) {
     return errorResponse("Bill id is required", 400);
   }
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   // Build update payload with only provided fields
   const updates: Record<string, unknown> = {};
@@ -234,7 +234,7 @@ export async function DELETE(req: NextRequest) {
     return errorResponse("Bill id is required", 400);
   }
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   // Delete bill items first
   const { error: deleteItemsError } = await supabase

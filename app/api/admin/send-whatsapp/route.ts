@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import { sendWhatsAppToMany, normalizeToE164 } from "@/lib/whatsapp";
@@ -14,7 +14,7 @@ const supabaseAdmin = createClient(
 // ── Auth helper ───────────────────────────────────────────────────────────────
 
 async function checkIsAdmin() {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

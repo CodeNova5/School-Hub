@@ -1,5 +1,5 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+
 import { NextResponse } from "next/server";
 import {
   validateResultSettingsPayload,
@@ -7,7 +7,7 @@ import {
 } from "@/lib/result-settings";
 
 async function getSchoolIdOrError() {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   const {
     data: { user },

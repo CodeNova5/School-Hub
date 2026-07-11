@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { checkIsAdminWithSchool, errorResponse, successResponse } from "@/lib/api-helpers";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +12,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createServerSupabaseClient();
     const url = new URL(req.url);
     const unreadOnly = url.searchParams.get("unread_only") === "true";
     const limit = Math.min(Number(url.searchParams.get("limit") || "20"), 100);
@@ -51,7 +50,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createServerSupabaseClient();
     const body = await req.json();
     const { id, is_read } = body;
 

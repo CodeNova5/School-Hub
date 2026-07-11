@@ -4,7 +4,7 @@
  * Uses client auth with RLS to prevent unauthorized database access
  */
 
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createBrowserClient } from '@supabase/ssr';
 import type { QueryPlan } from './query-planner';
 
 export interface QueryResult {
@@ -121,7 +121,10 @@ export async function executeQueryPlan(
     }
 
     // Create Supabase client with user authentication (RLS enforced)
-    const supabase = createClientComponentClient();
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
 
     // Verify all placeholders were replaced
     if (finalQuery.includes('<school_id>') || finalQuery.includes('<user_id>')) {
@@ -205,7 +208,10 @@ export async function executeRawQuery(
   }
 
   try {
-    const supabase = createClientComponentClient();
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
 
     const { data, error } = await supabase.rpc('execute_ai_query', {
       query_text: query,

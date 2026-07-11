@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+
 import crypto from "crypto";
 import { buildSchoolSenderName, sendEmailSafe } from "@/lib/email";
 import { resolveSchoolName } from "@/lib/school-branding";
@@ -12,7 +12,7 @@ const supabase = createClient(
 );
 
 async function checkIsAdmin() {
-  const client = createRouteHandlerClient({ cookies });
+  const client = await createServerSupabaseClient();
   const { data: { user } } = await client.auth.getUser();
 
   if (!user) {
@@ -29,7 +29,7 @@ async function checkIsAdmin() {
 }
 
 async function getCallerSchoolId(): Promise<string | null> {
-  const client = createRouteHandlerClient({ cookies });
+  const client = await createServerSupabaseClient();
   const { data: { user } } = await client.auth.getUser();
   if (!user) return null;
   const { data } = await client.rpc("get_my_school_id");

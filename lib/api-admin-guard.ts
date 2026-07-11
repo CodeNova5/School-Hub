@@ -10,11 +10,10 @@
  *
  * Usage:
  *   import { requireAdminPermission } from "@/lib/api-admin-guard";
- *   import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
- *   import { cookies } from "next/headers";
+ *   import { createServerSupabaseClient } from "@/lib/supabase-server";
  *
  *   export async function GET(req: NextRequest) {
- *     const supabase = createRouteHandlerClient({ cookies });
+ *     const supabase = await createServerSupabaseClient();
  *     const auth = await requireAdminPermission(supabase, "inventory:read");
  *     if (!auth.allowed) return auth.response;
  *
@@ -23,7 +22,7 @@
  *   }
  *
  *   export async function POST(req: NextRequest) {
- *     const supabase = createRouteHandlerClient({ cookies });
+ *     const supabase = await createServerSupabaseClient();
  *     const auth = await requireAdminPermission(supabase, "inventory:write");
  *     if (!auth.allowed) return auth.response;
  *     // ... handle the request

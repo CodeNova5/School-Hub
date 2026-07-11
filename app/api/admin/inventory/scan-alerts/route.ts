@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { createClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
 import { checkIsAdminWithSchool, errorResponse, successResponse } from "@/lib/api-helpers";
 import { sendNotificationsToMultiple, initializeAdminSDK } from "@/lib/firebase-admin";
 
@@ -21,7 +20,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createServerSupabaseClient();
     const schoolId = permission.schoolId;
 
     // 1. Find all consumable/saleable items below their low-stock threshold

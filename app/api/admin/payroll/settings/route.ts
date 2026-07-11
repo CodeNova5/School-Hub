@@ -1,6 +1,5 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { NextRequest } from "next/server";
-import { cookies } from "next/headers";
 import { checkIsAdminWithSchool, errorResponse, successResponse } from "@/lib/api-helpers";
 
 export async function GET(_req: NextRequest) {
@@ -9,7 +8,7 @@ export async function GET(_req: NextRequest) {
     return errorResponse(permission.error || "Unauthorized", permission.status || 401);
   }
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   // Get all teachers with their payroll settings
   const { data: teachers, error: teachersError } = await supabase
@@ -85,7 +84,7 @@ export async function PUT(req: NextRequest) {
     return errorResponse("teacherId is required", 400);
   }
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

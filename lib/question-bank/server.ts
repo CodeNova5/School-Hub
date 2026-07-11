@@ -1,6 +1,4 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
-
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 export type AuthRoleContext = {
   ok: true;
   context: {
@@ -23,7 +21,7 @@ export async function getQuestionBankAuthContext(rolePath: string): Promise<Auth
     return { ok: false, error: 'Invalid workspace path segment', status: 400 };
   }
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   // 1. Check user session
   const { data: { user }, error: authError } = await supabase.auth.getUser();

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+
 import { encryptLiveSessionSecret } from "@/lib/live-session-crypto";
 import { parseZoomJoinUrl } from "@/lib/zoom-deeplink";
 import { createClient } from "@supabase/supabase-js";
@@ -271,7 +271,7 @@ async function notifyStudentsForLiveClassCreation(params: {
 }
 
 async function getTeacherContext(): Promise<TeacherContext | null> {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   const {
     data: { user },
@@ -309,7 +309,7 @@ export async function GET(req: Request) {
     const classId = url.searchParams.get("classId");
     const subjectClassId = url.searchParams.get("subjectClassId");
 
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createServerSupabaseClient();
     await autoCloseExpiredSessions(supabase, context.schoolId);
     const { data: assignedSubjects } = await supabase
       .from("subject_classes")
@@ -382,7 +382,7 @@ export async function POST(req: Request) {
     const { meetingId, password, webUrl } = parseZoomJoinUrl(zoomUrl);
     const encryptedPassword = password ? encryptLiveSessionSecret(password) : null;
 
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createServerSupabaseClient();
 
     let resolvedClassId = classId;
     let resolvedSubjectClassId = subjectClassId || null;

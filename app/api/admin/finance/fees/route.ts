@@ -1,6 +1,6 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+
 import { NextRequest } from "next/server";
-import { cookies } from "next/headers";
 import { checkIsAdminWithSchool, errorResponse, successResponse } from "@/lib/api-helpers";
 
 interface FeeClassAmountInput {
@@ -24,7 +24,7 @@ export async function GET(_req: NextRequest) {
     return errorResponse(permission.error || "Unauthorized", permission.status || 401);
   }
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("finance_fee_templates")
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     return errorResponse("Missing required fee fields", 400);
   }
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   const {
     data: { user },
@@ -117,7 +117,7 @@ export async function PATCH(req: NextRequest) {
     return errorResponse("Fee template id is required", 400);
   }
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   const updates = {
     ...(body.name ? { name: body.name.trim() } : {}),
@@ -184,7 +184,7 @@ export async function DELETE(req: NextRequest) {
     return errorResponse("Fee template id is required", 400);
   }
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   // Delete class amounts first
   const { error: classDeleteError } = await supabase

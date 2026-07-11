@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+
 import { checkIsAdminWithSchool, errorResponse, successResponse } from "@/lib/api-helpers";
 
 const supabaseAdmin = createClient(
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       return errorResponse("Student and parent must belong to the same school", 403);
     }
 
-    const supabaseAuth = createRouteHandlerClient({ cookies });
+    const supabaseAuth = await createServerSupabaseClient();
 
     // Use authenticated client so audit trigger captures the admin's identity
     const { error: linkError } = await supabaseAuth
@@ -169,7 +169,7 @@ export async function DELETE(req: NextRequest, { params }: RouteContext) {
       return errorResponse("Student and parent must belong to the same school", 403);
     }
 
-    const supabaseAuth = createRouteHandlerClient({ cookies });
+    const supabaseAuth = await createServerSupabaseClient();
 
     const { error: deleteError, count } = await supabaseAuth
       .from("student_guardian_links")

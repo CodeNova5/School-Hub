@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+
 import { createClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
 import { randomBytes } from "crypto";
 import { getJambExamConfig } from "@/lib/jamb-exam-config";
 
@@ -11,7 +11,7 @@ const supabaseAdmin = createClient(
 );
 
 async function getCurrentStudent() {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

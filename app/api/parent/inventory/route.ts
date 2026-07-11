@@ -1,13 +1,12 @@
 import { NextRequest } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { errorResponse, successResponse } from "@/lib/api-helpers";
 
 export const dynamic = "force-dynamic";
 
 // GET: Fetch assets assigned to the children of the authenticated parent
 export async function GET(_req: NextRequest) {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   try {
     const { data: { user } } = await supabase.auth.getUser();

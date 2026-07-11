@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getQuestionBankAuthContext } from '@/lib/question-bank/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { insertAuditLog } from '@/lib/question-bank/audit';
 
 export const dynamic = 'force-dynamic';

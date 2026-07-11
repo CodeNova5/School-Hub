@@ -1,6 +1,6 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { EducationLevel, ClassLevel, Stream, Department, Religion } from "@/lib/types";
 
 /**
@@ -13,7 +13,7 @@ import { EducationLevel, ClassLevel, Stream, Department, Religion } from "@/lib/
  * - education_level_id: uuid (optional, for filtering class_levels by education_level)
  */
 export async function GET(request: Request) {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   try {
     // Verify user is authenticated

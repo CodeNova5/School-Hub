@@ -9,11 +9,14 @@
  *   3. null (super_admin – no school restriction)
  */
 
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createBrowserClient } from '@supabase/ssr';
 
 /** Always create a fresh client per-call to avoid module-level `cookies()` access. */
 function getClient() {
-  return createClientComponentClient();
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
 }
 
 /**

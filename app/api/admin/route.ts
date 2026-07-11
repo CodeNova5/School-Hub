@@ -1,6 +1,5 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 import { buildSchoolSenderName, sendEmailSafe } from "@/lib/email";
@@ -13,7 +12,7 @@ const supabaseAdmin = createClient(
 
 // Middleware to check if user is admin
 async function checkIsAdmin() {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -49,7 +48,7 @@ export async function POST(req: NextRequest) {
       }
 
       // Use the authenticated client so the audit trigger captures the admin's identity
-      const supabaseAuth = createRouteHandlerClient({ cookies });
+      const supabaseAuth = await createServerSupabaseClient();
 
       const supabaseAdmin = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -189,7 +188,7 @@ export async function POST(req: NextRequest) {
       }
 
       // Use the authenticated client for operations that need audit trail identity
-      const supabaseAuth = createRouteHandlerClient({ cookies });
+      const supabaseAuth = await createServerSupabaseClient();
 
       const supabaseAdmin = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -353,7 +352,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const supabaseAuth = createRouteHandlerClient({ cookies });
+      const supabaseAuth = await createServerSupabaseClient();
 
       const supabaseAdmin = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,

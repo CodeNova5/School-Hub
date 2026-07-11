@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+
 import { checkIsAdminWithSchool, errorResponse, successResponse } from "@/lib/api-helpers";
 import {
   WEBSITE_DEFAULT_SITE_SETTINGS,
@@ -139,7 +139,7 @@ export async function GET(_req: NextRequest, context: { params: { slug: string }
   }
 
   const pageSlug = resolvePageSlug(context.params.slug);
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   try {
     const [{ data: settings, error: settingsError }, pageResult, mediaResult, schoolResult] = await Promise.all([
@@ -186,7 +186,7 @@ export async function PATCH(req: NextRequest, context: { params: { slug: string 
   }
 
   const pageSlug = resolvePageSlug(context.params.slug);
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   try {
     const body = await req.json();

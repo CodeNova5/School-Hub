@@ -1,6 +1,6 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+
 import { NextRequest } from "next/server";
-import { cookies } from "next/headers";
 import { errorResponse, successResponse } from "@/lib/api-helpers";
 
 interface CreateSubaccountPayload {
@@ -56,7 +56,7 @@ function getPaystackSecret() {
 
 export async function GET() {
   const paystackSecret = getPaystackSecret();
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
   const teacher = await getAuthenticatedTeacher(supabase);
 
   if (!teacher) {
@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
     return errorResponse("PAYSTACK_SECRET_KEY is not configured", 500);
   }
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
   const teacher = await getAuthenticatedTeacher(supabase);
 
   if (!teacher) {
@@ -201,7 +201,7 @@ export async function PUT(req: NextRequest) {
     return errorResponse("PAYSTACK_SECRET_KEY is not configured", 500);
   }
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
   const teacher = await getAuthenticatedTeacher(supabase);
 
   if (!teacher) {

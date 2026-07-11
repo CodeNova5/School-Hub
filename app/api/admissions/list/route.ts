@@ -1,6 +1,6 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseAdmin = createClient(
@@ -32,7 +32,7 @@ async function checkIsAdmin(supabase: any) {
 export async function GET(req: Request) {
     try {
         // Initialize Supabase client inside the request handler
-        const supabase = createRouteHandlerClient({ cookies });
+        const supabase = await createServerSupabaseClient();
 
         // Verify admin authentication
         const authCheck = await checkIsAdmin(supabase);

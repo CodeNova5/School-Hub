@@ -1,5 +1,5 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+
 import { NextResponse } from 'next/server';
 import { errorResponse, getAiAssistantContext } from '@/lib/api-helpers';
 import { AIAssistantRole, formatAIAssistantUsageSummary, getAIAssistantDailyTokenLimit, getUtcDateKey } from '@/lib/ai-assistant/usage';
@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createServerSupabaseClient();
 
     const {
       data: { session },

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { generateAuditAISummary } from '@/lib/audit-ai-summarizer';
 import { enrichAuditData } from '@/lib/audit-uuid-resolver';
 import type { AdminAuditLogRecord } from '@/lib/admin-audit';
@@ -10,7 +9,7 @@ export const maxDuration = 30; // AI calls may take a few seconds
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createServerSupabaseClient();
 
     const {
       data: { user },

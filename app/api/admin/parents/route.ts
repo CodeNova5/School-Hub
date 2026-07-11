@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+
 import { checkIsAdminWithSchool, errorResponse, successResponse } from "@/lib/api-helpers";
 import crypto from "crypto";
 import { buildSchoolSenderName, sendEmailSafe } from "@/lib/email";
@@ -139,7 +139,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   try {
-    const supabaseAuth = createRouteHandlerClient({ cookies });
+    const supabaseAuth = await createServerSupabaseClient();
 
     const body = await req.json();
     const id = String(body.id || "").trim();
@@ -182,7 +182,7 @@ export async function POST(req: NextRequest) {
   let createdParentId: string | null = null;
 
   try {
-    const supabaseAuth = createRouteHandlerClient({ cookies });
+    const supabaseAuth = await createServerSupabaseClient();
 
     const body = await req.json();
     const name = String(body.name || "").trim();

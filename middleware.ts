@@ -1,7 +1,7 @@
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
+import { createMiddlewareSupabaseClient } from "@/lib/supabase-server";
 import { getRoutes, isApiPathExcluded, getApiFeatureForPath, getFeatureForPath } from "@/lib/route-enforcer";
 import { getRequiredPermission } from "@/lib/route-permissions";
 
@@ -103,8 +103,12 @@ function rootHostFromSubdomainHost(hostname: string) {
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
-  const supabase = createMiddlewareClient({ req, res });
+  const supabase = createMiddlewareSupabaseClient(req, res);
   const { pathname } = req.nextUrl;
+
+  // Refresh the session in middleware — this also sets fresh auth cookies
+  // on the response if the access token was refreshed.
+  await supabase.auth.getUser();
 
   // ── Load feature routes from DB (cached in-memory with 5-min TTL) ──
   const routes = await getRoutes(supabase);
@@ -192,7 +196,10 @@ export async function middleware(req: NextRequest) {
     }
 
     // Check if the school can access this feature (DB-driven, super admin customizable)
+    // Retry once if the call returns false — the createMiddlewareClient auth
+    // context may not be fully propagated on the first attempt in some cases.
     let hasAccess = false;
+    let currentPlan = 'basic';
     try {
       const { data: accessResult } = await supabase.rpc("check_school_feature_access", {
         p_school_id: schoolId,
@@ -201,6 +208,21 @@ export async function middleware(req: NextRequest) {
       if (accessResult && typeof accessResult === 'object') {
         const result = accessResult as { has_access: boolean; current_plan: string };
         hasAccess = result.has_access;
+        currentPlan = result.current_plan || 'basic';
+      }
+
+      // Retry once if the first attempt returned false — transient auth/RPC
+      // issues can cause false negatives on initial navigation.
+      // Skip retry for schools confirmed on Basic (they never have access to gated features).
+      if (!hasAccess && currentPlan !== 'basic') {
+        const { data: retryResult } = await supabase.rpc("check_school_feature_access", {
+          p_school_id: schoolId,
+          p_feature_key: apiFeature.feature,
+        });
+        if (retryResult && typeof retryResult === 'object') {
+          const result = retryResult as { has_access: boolean; current_plan: string };
+          hasAccess = result.has_access;
+        }
       }
     } catch {
       // Deny on error (default most restrictive)
@@ -390,6 +412,8 @@ export async function middleware(req: NextRequest) {
     }
 
     // Check if the school can access this feature (DB-driven, super admin customizable)
+    // Retry once if the call returns false — the createMiddlewareClient auth
+    // context may not be fully propagated on the first attempt in some cases.
     let hasAccess = false;
     let currentPlan = 'basic';
     try {
@@ -401,6 +425,21 @@ export async function middleware(req: NextRequest) {
         const result = accessResult as { has_access: boolean; current_plan: string };
         hasAccess = result.has_access;
         currentPlan = result.current_plan;
+      }
+
+      // Retry once if the first attempt returned false — transient auth/RPC
+      // issues can cause false negatives on initial navigation.
+      // Skip retry for schools confirmed on Basic (they never have access to gated features).
+      if (!hasAccess && currentPlan !== 'basic') {
+        const { data: retryResult } = await supabase.rpc("check_school_feature_access", {
+          p_school_id: schoolId,
+          p_feature_key: matchedFeature.feature,
+        });
+        if (retryResult && typeof retryResult === 'object') {
+          const result = retryResult as { has_access: boolean; current_plan: string };
+          hasAccess = result.has_access;
+          if (result.current_plan) currentPlan = result.current_plan;
+        }
       }
     } catch {
       // Deny on error (default most restrictive)

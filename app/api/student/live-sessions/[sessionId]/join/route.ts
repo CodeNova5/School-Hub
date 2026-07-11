@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+
 import { decryptLiveSessionSecret } from "@/lib/live-session-crypto";
 import { buildZoomJoinLinks } from "@/lib/zoom-deeplink";
 
@@ -31,7 +31,7 @@ async function autoCloseExpiredSessions(supabase: any, schoolId: string) {
 }
 
 async function getStudentContext() {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   const {
     data: { user },
@@ -94,7 +94,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createServerSupabaseClient();
     await autoCloseExpiredSessions(supabase, context.schoolId);
 
     const { data: sessionData, error } = await supabase

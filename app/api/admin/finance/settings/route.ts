@@ -1,6 +1,6 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+
 import { NextRequest } from "next/server";
-import { cookies } from "next/headers";
 import { checkIsAdminWithSchool, errorResponse, successResponse } from "@/lib/api-helpers";
 
 interface UpdateFinanceSettingsPayload {
@@ -17,7 +17,7 @@ export async function GET(_req: NextRequest) {
     return errorResponse(permission.error || "Unauthorized", permission.status || 401);
   }
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("finance_settings")
@@ -48,7 +48,7 @@ export async function PUT(req: NextRequest) {
   }
 
   const body = (await req.json()) as UpdateFinanceSettingsPayload;
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   const payload = {
     school_id: permission.schoolId,

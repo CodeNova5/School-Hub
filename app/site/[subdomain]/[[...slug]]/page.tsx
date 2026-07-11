@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { cookies, headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { Facebook, Instagram, Youtube, Linkedin, MessageCircle, Music2, AtSign, Globe } from "lucide-react";
@@ -424,7 +424,7 @@ function resolvePreviewMode(searchParams: { preview?: string }) {
 }
 
 async function isAdminPreviewAllowed() {
-  const supabase = createServerComponentClient({ cookies });
+  const supabase = await createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return false;
   const { data: canAccessAdmin } = await supabase.rpc("can_access_admin");
@@ -1914,7 +1914,7 @@ export default async function PublicSchoolWebsite({
   }
 
   const isPreview = isPreviewRequested && previewAllowed;
-  const previewSupabase = isPreview ? createServerComponentClient({ cookies }) : null;
+  const previewSupabase = isPreview ? await createServerSupabaseClient() : null;
   const querySupabase = previewSupabase || supabase;
 
   const [{ data: settings }, { data: publishedPage }, { data: draftPage }] = await Promise.all([

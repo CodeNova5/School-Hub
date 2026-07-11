@@ -1,8 +1,9 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+
 import { cookies } from 'next/headers';
 
 export type TeacherQuestionBankContext = {
-  supabase: ReturnType<typeof createRouteHandlerClient>;
+  supabase: import('@supabase/supabase-js').SupabaseClient;
   userId: string;
   teacherId: string;
   schoolId: string;
@@ -14,7 +15,7 @@ export type TeacherQuestionBankContextResult =
 
 export async function getTeacherQuestionBankContext(): Promise<TeacherQuestionBankContextResult> {
   const cookieStore = cookies();
-  const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+  const supabase = await createServerSupabaseClient();
 
   // 1. Guard against null client initialization
   if (!supabase) {

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 import crypto from "crypto";
 import { buildSchoolSenderName, sendEmailSafe } from "@/lib/email";
 import { resolveSchoolName } from "@/lib/school-branding";
@@ -16,7 +15,7 @@ const supabase = createClient(
  * Falls back to the default school id if no school is found.
  */
 async function getCallerSchoolId(): Promise<string | null> {
-  const routeClient = createRouteHandlerClient({ cookies });
+  const routeClient = await createServerSupabaseClient();
   const { data: { user } } = await routeClient.auth.getUser();
   if (!user) return null;
   const { data } = await routeClient.rpc("get_my_school_id");
@@ -107,7 +106,7 @@ function getPrimaryGuardianId(studentData: Record<string, any>) {
 export async function POST(req: Request) {
   try {
     const studentData = await req.json();
-    const supabaseAuth = createRouteHandlerClient({ cookies });
+    const supabaseAuth = await createServerSupabaseClient();
     const warnings: string[] = [];
     const guardianInput = normalizeGuardianInput(studentData);
     const primaryGuardianId = getPrimaryGuardianId(studentData);

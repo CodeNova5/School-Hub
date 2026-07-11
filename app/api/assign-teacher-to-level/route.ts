@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 export async function POST(req: Request) {
   try {
@@ -15,9 +16,7 @@ export async function POST(req: Request) {
     );
 
     // Resolve school_id from calling user
-    const { createRouteHandlerClient } = await import("@supabase/auth-helpers-nextjs");
-    const { cookies } = await import("next/headers");
-    const routeClient = createRouteHandlerClient({ cookies });
+    const routeClient = await createServerSupabaseClient();
     const { data: schoolId } = await routeClient.rpc("get_my_school_id");
     if (!schoolId) {
       return NextResponse.json({ error: "Unable to determine school context" }, { status: 400 });

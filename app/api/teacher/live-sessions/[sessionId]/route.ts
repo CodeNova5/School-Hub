@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+
 import { createClient } from "@supabase/supabase-js";
 import { initializeAdminSDK, sendNotificationsToMultiple } from "@/lib/firebase-admin";
 import { deactivateToken } from "@/lib/notification-utils";
@@ -255,7 +255,7 @@ async function notifyStudentsForLiveSessionStart(params: {
 }
 
 async function getTeacherContext() {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   const {
     data: { user },
@@ -300,7 +300,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
 
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createServerSupabaseClient();
     await autoCloseExpiredSessions(supabase, context.schoolId);
 
     const { data: sessionRow, error: sessionError } = await supabase

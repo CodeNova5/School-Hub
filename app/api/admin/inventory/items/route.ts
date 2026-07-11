@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+
 import { checkIsAdminWithSchool, errorResponse, successResponse } from "@/lib/api-helpers";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createServerSupabaseClient();
     const url = new URL(req.url);
     const type = url.searchParams.get("type");
     const search = url.searchParams.get("search")?.trim();
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createServerSupabaseClient();
     const body = await req.json();
 
     const { name, category, item_type, stock_count, low_stock_threshold, description, unit_price } = body;
@@ -122,7 +122,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createServerSupabaseClient();
     const body = await req.json();
     const { id, ...updates } = body;
 
@@ -153,7 +153,7 @@ export async function DELETE(req: NextRequest) {
   }
 
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = await createServerSupabaseClient();
     const url = new URL(req.url);
     const id = url.searchParams.get("id");
 

@@ -1,13 +1,11 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 /**
  * Get the current admin's school_id using the get_my_school_id() RPC function.
  * This looks up the admin's school_id from the admins table or user_role_links.
  */
 export async function getAdminSchoolId() {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   try {
     // Use the RPC function from the database migration
@@ -32,7 +30,7 @@ export async function getAdminSchoolId() {
  * Returns { authorized: boolean, schoolId?: string, error?: string }
  */
 export async function checkIsAdminWithSchool() {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   try {
     const {
@@ -81,7 +79,7 @@ export function successResponse(data: any, status: number = 200) {
  * Returns { authorized: boolean, userId?: string, schoolId?: string, error?: string, status?: number }
  */
 export async function getStudentContext() {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   try {
     const {
@@ -122,7 +120,7 @@ export async function getStudentContext() {
  * Returns { authorized: boolean, userId?: string, schoolId?: string, role?: string, error?: string, status?: number }
  */
 export async function getAiAssistantContext() {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   try {
     const {

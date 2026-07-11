@@ -1,7 +1,7 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
-import { cookies } from "next/headers";
 import { errorResponse, successResponse } from "@/lib/api-helpers";
 
 interface SchoolFinanceSettings {
@@ -12,7 +12,7 @@ interface SchoolFinanceSettings {
 }
 
 export async function GET(_req: NextRequest) {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   const {
     data: { user },

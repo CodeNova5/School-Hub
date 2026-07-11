@@ -1,13 +1,12 @@
 import { NextRequest } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { errorResponse, successResponse } from "@/lib/api-helpers";
 
 export const dynamic = "force-dynamic";
 
 // POST: Report an issue with an assigned asset
 export async function POST(req: NextRequest) {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
 
   try {
     const { data: { user } } = await supabase.auth.getUser();

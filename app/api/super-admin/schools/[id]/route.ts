@@ -1,6 +1,6 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseAdmin = createClient(
@@ -9,7 +9,7 @@ const supabaseAdmin = createClient(
 );
 
 async function checkIsSuperAdmin() {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = await createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, status: 401, error: "Unauthorized" };
   const { data: canAccess } = await supabase.rpc("can_access_super_admin");
@@ -84,7 +84,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         // Use the atomic function that updates the plan AND logs the change
         // in a single transaction. This correctly captures who made the change
         // (the trigger-from-service-role pattern doesn't work across requests).
-        const supabase = createRouteHandlerClient({ cookies });
+        const supabase = await createServerSupabaseClient();
         const { data: { user } } = await supabase.auth.getUser();
 
         const { data: planResult, error: planError } = await supabaseAdmin

@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
 import { checkIsAdminWithSchool, errorResponse, successResponse } from "@/lib/api-helpers";
 import crypto from "crypto";
 import { buildSchoolSenderName, sendEmailSafe } from "@/lib/email";
@@ -137,6 +139,8 @@ export async function PATCH(req: NextRequest) {
   }
 
   try {
+    const supabaseAuth = createRouteHandlerClient({ cookies });
+
     const body = await req.json();
     const id = String(body.id || "").trim();
 
@@ -153,7 +157,8 @@ export async function PATCH(req: NextRequest) {
     if (typeof body.phone === "string") payload.phone = body.phone.trim() || null;
     if (typeof body.is_active === "boolean") payload.is_active = body.is_active;
 
-    const { error } = await supabaseAdmin
+    // Use authenticated client so audit trigger captures the admin's identity
+    const { error } = await supabaseAuth
       .from("parents")
       .update(payload)
       .eq("id", id)
@@ -177,6 +182,8 @@ export async function POST(req: NextRequest) {
   let createdParentId: string | null = null;
 
   try {
+    const supabaseAuth = createRouteHandlerClient({ cookies });
+
     const body = await req.json();
     const name = String(body.name || "").trim();
     const email = String(body.email || "").trim().toLowerCase();
@@ -252,7 +259,8 @@ export async function POST(req: NextRequest) {
     const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    const { data: createdParent, error: parentInsertError } = await supabaseAdmin
+    // Use authenticated client so audit trigger captures the admin's identity
+    const { data: createdParent, error: parentInsertError } = await supabaseAuth
       .from("parents")
       .insert({
         user_id: authData.user.id,
@@ -285,7 +293,7 @@ export async function POST(req: NextRequest) {
       updated_at: new Date().toISOString(),
     }));
 
-    const { error: linkError } = await supabaseAdmin
+    const { error: linkError } = await supabaseAuth
       .from("student_guardian_links")
       .upsert(linkRows, { onConflict: "student_id,guardian_id" });
 

@@ -30,18 +30,17 @@ export async function POST(req: Request) {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
+    const supabaseAuth = createRouteHandlerClient({ cookies });
 
     // Resolve school_id for the calling admin
-
-    const routeClient = createRouteHandlerClient({ cookies });
-    const { data: schoolId } = await routeClient.rpc("get_my_school_id");
+    const { data: schoolId } = await supabaseAuth.rpc("get_my_school_id");
     if (!schoolId) {
       return NextResponse.json({ error: "Unable to determine school context" }, { status: 400 });
     }
     const schoolName = await resolveSchoolName(supabase, schoolId);
 
-    // 1️⃣ Check if teacher already exists
-    const { data: existingTeacher } = await supabase
+    // 1️⃣ Check if teacher already exists — use authenticated client
+    const { data: existingTeacher } = await supabaseAuth
       .from("teachers")
       .select("id")
       .eq("email", email)
@@ -77,10 +76,10 @@ export async function POST(req: Request) {
     });
 
     // 3️⃣ Generate staff ID
-    const staff_id = await generateUniqueStaffId(supabase);
+    const staff_id = await generateUniqueStaffId(supabaseAuth);
 
-    // 4️⃣ Insert teacher
-    const { data: teacher, error: teacherError } = await supabase
+    // 4️⃣ Insert teacher — use authenticated client for audit identity
+    const { data: teacher, error: teacherError } = await supabaseAuth
       .from("teachers")
       .insert({
         ...teacherData,
@@ -99,9 +98,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: teacherError?.message }, { status: 400 });
     }
 
-    // 5️⃣ Assign class (DIRECTLY ON classes TABLE)
+    // 5️⃣ Assign class (DIRECTLY ON classes TABLE) — use authenticated client
     if (selectedClass) {
-      const { error: classError } = await supabase
+      const { error: classError } = await supabaseAuth
         .from("classes")
         .update({
           class_teacher_id: teacher.id,
@@ -116,7 +115,7 @@ export async function POST(req: Request) {
 
     // 6️⃣ Create user role entry for RBAC
     const roleType = selectedClass ? 'class_teacher' : 'subject_teacher';
-    const { error: roleError } = await supabase
+    const { error: roleError } = await supabaseAuth
       .from('user_roles')
       .insert({
         user_id: authData.user.id,
@@ -131,11 +130,11 @@ export async function POST(req: Request) {
       // Don't fail the entire operation, but log the warning
     }
 
-    // 7️⃣ Generate activation token
+    // 7️⃣ Generate activation token — use authenticated client
     const rawToken = crypto.randomBytes(32).toString("hex");
     const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
 
-    await supabase
+    await supabaseAuth
       .from("teachers")
       .update({
         activation_token_hash: tokenHash,

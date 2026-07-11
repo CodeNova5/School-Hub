@@ -48,6 +48,9 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // Use the authenticated client so the audit trigger captures the admin's identity
+      const supabaseAuth = createRouteHandlerClient({ cookies });
+
       const supabaseAdmin = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -138,8 +141,9 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // 9. Finally, delete student record
-      const { error: studentError } = await supabaseAdmin
+      // 9. Finally, delete student record — use authenticated client so audit
+      //    trigger captures who performed the deletion
+      const { error: studentError } = await supabaseAuth
         .from("students")
         .delete()
         .eq("id", studentId);
@@ -349,6 +353,8 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      const supabaseAuth = createRouteHandlerClient({ cookies });
+
       const supabaseAdmin = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -390,7 +396,8 @@ export async function POST(req: NextRequest) {
           updateData.is_active = false;
         }
 
-        const { error: updateError } = await supabaseAdmin
+        // Use authenticated client so audit trigger captures the admin's identity
+        const { error: updateError } = await supabaseAuth
           .from("teachers")
           .update(updateData)
           .eq("id", teacherId);
@@ -424,7 +431,7 @@ export async function POST(req: NextRequest) {
                 console.error("Error creating auth user:", authError);
               } else if (authData?.user?.id) {
                 // Update teacher record with the new user_id
-                await supabaseAdmin
+                await supabaseAuth
                   .from("teachers")
                   .update({ user_id: authData.user.id })
                   .eq("id", teacherId);
@@ -435,8 +442,8 @@ export async function POST(req: NextRequest) {
             const rawToken = crypto.randomBytes(32).toString("hex");
             const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
 
-            // Update activation token
-            await supabaseAdmin
+            // Update activation token — use authenticated client
+            await supabaseAuth
               .from("teachers")
               .update({
                 activation_token_hash: tokenHash,

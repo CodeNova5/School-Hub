@@ -23,8 +23,9 @@ async function getCallerSchoolId(): Promise<string | null> {
   return data ?? null;
 }
 
-// Function to generate unique student ID
-async function generateUniqueStudentId(): Promise<string> {
+// Update generateUniqueStudentId to accept a client parameter
+async function generateUniqueStudentId(client?: any): Promise<string> {
+  const db = client || supabase;
   let studentId: string;
   let isUnique = false;
   let attempts = 0;
@@ -38,7 +39,7 @@ async function generateUniqueStudentId(): Promise<string> {
     studentId = `STU${randomNum}`;
 
     // Check if this ID already exists
-    const { data: existingStudent } = await supabase
+    const { data: existingStudent } = await db
       .from('students')
       .select('id')
       .eq('student_id', studentId)
@@ -106,6 +107,7 @@ function getPrimaryGuardianId(studentData: Record<string, any>) {
 export async function POST(req: Request) {
   try {
     const studentData = await req.json();
+    const supabaseAuth = createRouteHandlerClient({ cookies });
     const warnings: string[] = [];
     const guardianInput = normalizeGuardianInput(studentData);
     const primaryGuardianId = getPrimaryGuardianId(studentData);
@@ -126,10 +128,10 @@ export async function POST(req: Request) {
     if (!schoolId) {
       return NextResponse.json({ error: "Unable to determine school context" }, { status: 400 });
     }
-    const schoolName = await resolveSchoolName(supabase, schoolId);
+    const schoolName = await resolveSchoolName(supabaseAuth, schoolId);
 
     // Generate unique student ID
-    const generatedStudentId = await generateUniqueStudentId();
+    const generatedStudentId = await generateUniqueStudentId(supabaseAuth);
 
     // Determine if student has their own email or using parent's
     const hasOwnEmail = studentData.email && studentData.email.trim() !== '';
@@ -162,7 +164,7 @@ export async function POST(req: Request) {
     let isNewParent = false;
 
     if (primaryGuardianId) {
-      const { data: parentById, error: parentByIdError } = await supabase
+      const { data: parentById, error: parentByIdError } = await supabaseAuth
         .from("parents")
         .select("id, user_id, school_id")
         .eq("id", primaryGuardianId)
@@ -180,7 +182,7 @@ export async function POST(req: Request) {
       parentRecordId = parentById.id;
     } else {
       // 2️⃣ Check if parent already exists
-      const { data: existingParent } = await supabase
+      const { data: existingParent } = await supabaseAuth
         .from("parents")
         .select("*")
         .eq("email", guardianInput.guardianEmail)
@@ -194,7 +196,7 @@ export async function POST(req: Request) {
         parentUserId = existingParent.user_id;
         parentRecordId = existingParent.id;
 
-        const { error: parentUpdateError } = await supabase
+        const { error: parentUpdateError } = await supabaseAuth
           .from("parents")
           .update({
             name: guardianInput.guardianName,
@@ -228,8 +230,8 @@ export async function POST(req: Request) {
           .update(rawToken)
           .digest("hex");
 
-        // Create parent record
-        const { error: parentInsertError } = await supabase.from("parents").insert({
+        // Create parent record — use authenticated client for audit identity
+        const { error: parentInsertError } = await supabaseAuth.from("parents").insert({
           user_id: parentUserId,
           email: guardianInput.guardianEmail,
           name: guardianInput.guardianName,
@@ -243,7 +245,7 @@ export async function POST(req: Request) {
 
         if (parentInsertError) throw parentInsertError;
 
-        const { data: createdParent, error: parentLookupError } = await supabase
+        const { data: createdParent, error: parentLookupError } = await supabaseAuth
           .from("parents")
           .select("id")
           .eq("email", guardianInput.guardianEmail)
@@ -261,7 +263,7 @@ export async function POST(req: Request) {
     }
 
     if (!parentRecordId && guardianInput.guardianEmail) {
-      const { data: resolvedParent, error: parentLookupError } = await supabase
+      const { data: resolvedParent, error: parentLookupError } = await supabaseAuth
         .from("parents")
         .select("id")
         .eq("email", guardianInput.guardianEmail)
@@ -296,7 +298,7 @@ export async function POST(req: Request) {
       image_url: studentData.image_url || null,
     };
 
-    const { data: createdStudent, error: studentError } = await supabase
+    const { data: createdStudent, error: studentError } = await supabaseAuth
       .from("students")
       .insert(studentInsertData)
       .select()
@@ -345,7 +347,7 @@ export async function POST(req: Request) {
       let createdNewParent = false;
 
       if (gGuardianId) {
-        const { data: existingById, error: existingByIdError } = await supabase
+        const { data: existingById, error: existingByIdError } = await supabaseAuth
           .from("parents")
           .select("id, school_id")
           .eq("id", gGuardianId)
@@ -366,7 +368,7 @@ export async function POST(req: Request) {
         parentId = existingById.id;
       } else {
         // Check for existing parent record
-        const { data: existingP } = await supabase
+        const { data: existingP } = await supabaseAuth
           .from("parents")
           .select("*")
           .eq("email", gEmail)
@@ -380,7 +382,7 @@ export async function POST(req: Request) {
 
           parentId = existingP.id;
 
-          const { error: updateErr } = await supabase
+          const { error: updateErr } = await supabaseAuth
             .from("parents")
             .update({ name: gName, phone: gPhone, updated_at: new Date().toISOString() })
             .eq("id", existingP.id);
@@ -400,7 +402,7 @@ export async function POST(req: Request) {
           const rawToken = crypto.randomBytes(32).toString("hex");
           const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
 
-          const { error: parentInsertError } = await supabase.from("parents").insert({
+          const { error: parentInsertError } = await supabaseAuth.from("parents").insert({
             user_id: parentAuthData.user.id,
             email: gEmail,
             name: gName,
@@ -414,7 +416,7 @@ export async function POST(req: Request) {
 
           if (parentInsertError) throw parentInsertError;
 
-          const { data: createdP, error: parentLookupError } = await supabase
+          const { data: createdP, error: parentLookupError } = await supabaseAuth
             .from("parents")
             .select("id")
             .eq("email", gEmail)
@@ -430,7 +432,7 @@ export async function POST(req: Request) {
 
       if (!parentId) continue;
 
-      const { error: linkError } = await supabase
+      const { error: linkError } = await supabaseAuth
         .from("student_guardian_links")
         .upsert({
           school_id: schoolId,
@@ -454,8 +456,8 @@ export async function POST(req: Request) {
         .update(rawToken)
         .digest("hex");
 
-      // Save token in students table
-      const { error: studentTokenError } = await supabase
+      // Save token in students table — use authenticated client for audit identity
+      const { error: studentTokenError } = await supabaseAuth
         .from("students")
         .update({
           activation_token_hash: tokenHash,
@@ -496,7 +498,7 @@ export async function POST(req: Request) {
 
     // 3.6️⃣ Automatically assign subjects based on religion and department
     if (studentData.class_id) {
-      const { data: subjectClassesData, error: subjectClassesError } = await supabase
+      const { data: subjectClassesData, error: subjectClassesError } = await supabaseAuth
         .from("subject_classes")
         .select(`
           id,
@@ -536,7 +538,7 @@ export async function POST(req: Request) {
             subject_class_id: sc.id,
           }));
 
-          const { error: studentSubjectsError } = await supabase
+          const { error: studentSubjectsError } = await supabaseAuth
             .from("student_subjects")
             .insert(studentSubjectsToInsert);
 
@@ -575,7 +577,7 @@ export async function POST(req: Request) {
     try {
       const guardianEmails = guardiansList.map((g: any) => String(g.guardian_email ?? g.email ?? "").trim()).filter(Boolean);
       if (guardianEmails.length > 0) {
-        const { data: parentsRecords } = await supabase
+        const { data: parentsRecords } = await supabaseAuth
           .from("parents")
           .select("email,name,is_active")
           .in("email", guardianEmails);

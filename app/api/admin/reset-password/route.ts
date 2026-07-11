@@ -60,7 +60,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unable to determine school context" }, { status: 400 });
     }
 
-    let query = supabase
+    // Use authenticated client so audit trigger captures the admin's identity
+    const supabaseAuth = createRouteHandlerClient({ cookies });
+
+    let query = supabaseAuth
       .from("students")
       .select("id, email, first_name, last_name, user_id, school_id")
       .eq("school_id", schoolId);
@@ -98,7 +101,7 @@ export async function POST(req: Request) {
     const expirationTime = new Date();
     expirationTime.setHours(expirationTime.getHours() + 24);
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseAuth
       .from("students")
       .update({
         is_active: false,
@@ -117,7 +120,7 @@ export async function POST(req: Request) {
     }
 
     const activationLink = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/student/reset-password?token=${activationToken}`;
-    const schoolName = await resolveSchoolName(supabase, student.school_id);
+    const schoolName = await resolveSchoolName(supabaseAuth, student.school_id);
 
     try {
       await sendEmailSafe({

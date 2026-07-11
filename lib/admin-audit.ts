@@ -14,6 +14,8 @@ export interface AdminAuditLogRecord {
   changed_by_name: string | null;
   created_at: string;
   undone_at: string | null;
+  ai_summary: string | null;
+  undo_description: string | null;
 }
 
 export interface AuditLogsResponse {

@@ -44,15 +44,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Audit log entry not found' }, { status: 404 });
     }
 
-    // Generate AI summary
+    // Generate AI summary + undo description
     const result = await generateAuditAISummary(log as unknown as AdminAuditLogRecord);
 
     if (result.error && !result.summary) {
       return NextResponse.json({ error: result.error }, { status: 502 });
     }
 
+    // Persist the AI results to the database so they're cached for future views
+    const updatePayload: Record<string, string> = {};
+    if (result.summary) updatePayload.ai_summary = result.summary;
+    if (result.undo_description) updatePayload.undo_description = result.undo_description;
+
+    if (Object.keys(updatePayload).length > 0) {
+      const { error: updateError } = await supabase
+        .from('admin_audit_logs')
+        .update(updatePayload)
+        .eq('id', logId);
+
+      if (updateError) {
+        console.warn('[AuditLogs Summarize] Failed to persist AI summary:', updateError.message);
+        // Non-fatal — the summary was already generated
+      }
+    }
+
     return NextResponse.json({
       summary: result.summary,
+      undo_description: result.undo_description,
       cached: result.cached || false,
     });
   } catch (err: any) {

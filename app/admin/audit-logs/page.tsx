@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,6 +51,7 @@ import {
   Bot,
   Download,
   RotateCcw,
+  CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth-provider";
@@ -103,7 +104,7 @@ function exportToCSV(logs: AdminAuditLogRecord[]) {
       log.operation === "UPDATE" && log.old_data && log.new_data
         ? getChangedFields(log.old_data, log.new_data)
             .slice(0, 5)
-            .map((c) => `${c.field}: ${c.oldValue} → ${c.newValue}`)
+            .map((c) => `${c.field}: ${c.oldValue} \u2192 ${c.newValue}`)
             .join("; ")
         : log.operation === "INSERT"
           ? "Record created"
@@ -113,16 +114,16 @@ function exportToCSV(logs: AdminAuditLogRecord[]) {
       formatAuditTimestamp(log.created_at),
       operationLabel(log.operation),
       TABLE_LABELS[log.table_name] || log.table_name,
-      log.record_id.slice(0, 8) + "…",
+      log.record_id.slice(0, 8) + "\u2026",
       log.changed_by_name || "Unknown",
-      changes,
+      log.ai_summary || changes,
     ];
   });
 
   const csvContent = [
     headers.join(","),
     ...rows.map((row) =>
-      row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")
+      row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
     ),
   ].join("\n");
 
@@ -133,6 +134,28 @@ function exportToCSV(logs: AdminAuditLogRecord[]) {
   a.download = `audit-logs-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// ─── Generate AI Summary Helper ───────────────────────────────────────────
+
+async function generateSummaryForLog(
+  logId: string
+): Promise<{ summary: string; undo_description?: string } | null> {
+  try {
+    const res = await fetch("/api/admin/audit-logs/summarize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ log_id: logId }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      console.warn("AI summary failed:", data.error);
+      return null;
+    }
+    return { summary: data.summary, undo_description: data.undo_description };
+  } catch {
+    return null;
+  }
 }
 
 // ─── Detail Sheet ─────────────────────────────────────────────────────────
@@ -151,16 +174,18 @@ function AuditDetailSheet({
   if (!log) return null;
   const logId = log.id;
 
-  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [aiSummary, setAiSummary] = useState<string | null>(log.ai_summary || null);
+  const [undoDescription, setUndoDescription] = useState<string | null>(log.undo_description || null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
 
   // Reset AI state when switching to a different log entry
   useEffect(() => {
-    setAiSummary(null);
+    setAiSummary(log.ai_summary || null);
+    setUndoDescription(log.undo_description || null);
     setAiLoading(false);
     setAiError(null);
-  }, [logId]);
+  }, [logId, log.ai_summary, log.undo_description]);
 
   const changes =
     log.operation === "UPDATE" && log.old_data && log.new_data
@@ -170,27 +195,18 @@ function AuditDetailSheet({
   async function generateAISummary() {
     setAiLoading(true);
     setAiError(null);
-    try {
-      const res = await fetch("/api/admin/audit-logs/summarize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ log_id: logId }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setAiError(data.error || "Failed to generate AI summary");
-        return;
-      }
-      setAiSummary(data.summary);
-    } catch (err) {
+    const result = await generateSummaryForLog(logId);
+    if (result) {
+      setAiSummary(result.summary);
+      if (result.undo_description) setUndoDescription(result.undo_description);
+    } else {
       setAiError("Failed to generate AI summary");
-    } finally {
-      setAiLoading(false);
     }
+    setAiLoading(false);
   }
 
   const renderValue = (val: unknown): string => {
-    if (val === null || val === undefined) return "—";
+    if (val === null || val === undefined) return "\u2014";
     if (typeof val === "boolean") return val ? "true" : "false";
     if (typeof val === "string" && !isNaN(Date.parse(val)) && val.includes("-"))
       return new Date(val).toLocaleDateString("en-GB", {
@@ -213,29 +229,30 @@ function AuditDetailSheet({
               )}`}
             >
               {operationLabel(log.operation)}
-            </span>              <span className="text-base font-semibold text-slate-900">
-                {TABLE_LABELS[log.table_name] || log.table_name}
-              </span>
-              {log.undone_at && (
-                <Badge
-                  variant="outline"
-                  className="text-[10px] gap-1 bg-slate-100 text-slate-500 border-slate-200 font-normal"
-                >
-                  <RotateCcw className="w-2.5 h-2.5" />
-                  Undone
-                </Badge>
-              )}
-            </SheetTitle>
+            </span>
+            <span className="text-base font-semibold text-slate-900">
+              {TABLE_LABELS[log.table_name] || log.table_name}
+            </span>
+            {log.undone_at && (
+              <Badge
+                variant="outline"
+                className="text-[10px] gap-1 bg-slate-100 text-slate-500 border-slate-200 font-normal"
+              >
+                <RotateCcw className="w-2.5 h-2.5" />
+                Undone
+              </Badge>
+            )}
+          </SheetTitle>
           <SheetDescription>
             <span className="text-xs text-slate-500 flex items-center gap-2">
               <span>{formatAuditTimestamp(log.created_at)}</span>
-              <span className="text-slate-300">·</span>
+              <span className="text-slate-300">\u00b7</span>
               <span className="text-purple-500 font-medium">
                 {timeAgo(log.created_at)}
               </span>
               {log.changed_by_name && (
                 <>
-                  <span className="text-slate-300">·</span>
+                  <span className="text-slate-300">\u00b7</span>
                   <span>by </span>
                   <button
                     onClick={() => onFilterByAdmin?.(log.changed_by_name!)}
@@ -264,6 +281,19 @@ function AuditDetailSheet({
                   </p>
                 </div>
               </div>
+              {undoDescription && (
+                <div className="mt-3 pt-3 border-t border-purple-200/50 flex items-start gap-2">
+                  <RotateCcw className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold text-amber-700 mb-0.5">
+                      What undoing this will do
+                    </p>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      {undoDescription}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           ) : aiError ? (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3">
@@ -309,7 +339,7 @@ function AuditDetailSheet({
             <div className="flex justify-between text-sm">
               <span className="text-slate-500 font-medium">Record ID</span>
               <code className="text-xs text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
-                {log.record_id.slice(0, 8)}…
+                {log.record_id.slice(0, 8)}\u2026
               </code>
             </div>
             <div className="flex justify-between text-sm">
@@ -406,6 +436,165 @@ function AuditDetailSheet({
   );
 }
 
+// ─── Build a human-readable change description ────────────────────────────
+
+function buildChangeDescription(log: AdminAuditLogRecord): {
+  primary: string;
+  detail: string | null;
+} {
+  // If AI summary is available, use it as the primary description
+  if (log.ai_summary) {
+    return { primary: log.ai_summary, detail: null };
+  }
+
+  const tableLabel = TABLE_LABELS[log.table_name] || log.table_name.replace(/_/g, " ");
+
+  switch (log.operation) {
+    case "INSERT":
+      return {
+        primary: `Created a new ${tableLabel.toLowerCase()} record`,
+        detail: null,
+      };
+    case "UPDATE": {
+      if (!log.old_data || !log.new_data) {
+        return { primary: `Updated a ${tableLabel.toLowerCase()} record`, detail: null };
+      }
+      const changes = getChangedFields(log.old_data, log.new_data);
+      if (changes.length === 0) {
+        return { primary: `Updated a ${tableLabel.toLowerCase()} record`, detail: null };
+      }
+
+      // Build a smart description from field changes
+      // Group related fields and produce natural-language descriptions
+      const hasNameChange = changes.some((c) =>
+        ["first_name", "last_name", "name"].includes(c.field)
+      );
+      const hasClassChange = changes.some((c) => c.field === "class_id");
+      const hasEmailChange = changes.some((c) => c.field === "email");
+      const hasStatusChange = changes.some((c) =>
+        ["is_active", "status", "activation_used"].includes(c.field)
+      );
+      const hasPhoneChange = changes.some((c) => c.field === "phone");
+      const hasTeacherChange = changes.some((c) => c.field === "class_teacher_id");
+      const smartParts: string[] = [];
+
+      if (hasNameChange) {
+        const oldFirst = changes.find((c) => c.field === "first_name")?.oldValue;
+        const newFirst = changes.find((c) => c.field === "first_name")?.newValue;
+        const oldLast = changes.find((c) => c.field === "last_name")?.oldValue;
+        const newLast = changes.find((c) => c.field === "last_name")?.newValue;
+        if (oldFirst || oldLast || newFirst || newLast) {
+          const oldName = [oldFirst, oldLast].filter(Boolean).join(" ") || "—";
+          const newName = [newFirst, newLast].filter(Boolean).join(" ") || "—";
+          if (oldName !== newName) {
+            smartParts.push(`renamed from “${oldName}” to “${newName}”`);
+          }
+        } else {
+          smartParts.push("name");
+        }
+      }
+      if (hasClassChange) {
+        smartParts.push("moved to a different class");
+      }
+      if (hasEmailChange) {
+        const oldEmail = changes.find((c) => c.field === "email")?.oldValue;
+        const newEmail = changes.find((c) => c.field === "email")?.newValue;
+        if (oldEmail && newEmail && String(oldEmail).length < 60) {
+          smartParts.push(`email from ${oldEmail} to ${newEmail}`);
+        } else {
+          smartParts.push("email");
+        }
+      }
+      if (hasStatusChange) {
+        const oldStatus = changes.find((c) => c.field === "is_active")?.oldValue;
+        const newStatus = changes.find((c) => c.field === "is_active")?.newValue;
+        if (oldStatus !== undefined && newStatus !== undefined) {
+          smartParts.push(
+            newStatus === true || newStatus === "active"
+              ? "activated the account"
+              : "deactivated the account"
+          );
+        } else {
+          smartParts.push("status");
+        }
+      }
+      if (hasPhoneChange) {
+        const oldPhone = changes.find((c) => c.field === "phone")?.oldValue;
+        const newPhone = changes.find((c) => c.field === "phone")?.newValue;
+        if (oldPhone && newPhone) {
+          smartParts.push(`phone to ${newPhone}`);
+        } else {
+          smartParts.push("phone number");
+        }
+      }
+      if (hasTeacherChange) {
+        smartParts.push("assigned a new class teacher");
+      }
+
+      // For remaining changes not covered above, add them generically
+      const coveredFields = new Set([
+        "first_name",
+        "last_name",
+        "name",
+        "class_id",
+        "email",
+        "is_active",
+        "status",
+        "activation_used",
+        "phone",
+        "class_teacher_id",
+        "activation_token_hash",
+        "user_id",
+      ]);
+      for (const c of changes) {
+        if (coveredFields.has(c.field)) continue;
+        const fieldName = c.field.replace(/_/g, " ");
+        const oldStr = String(c.oldValue ?? "—");
+        const newStr = String(c.newValue ?? "—");
+        if (
+          (c.field.endsWith("_id") || c.field === "id") &&
+          typeof c.oldValue === "string" &&
+          c.oldValue.length > 20
+        ) {
+          smartParts.push(fieldName.replace(/_id$/, ""));
+        } else if (
+          typeof c.oldValue === "boolean" ||
+          typeof c.newValue === "boolean"
+        ) {
+          smartParts.push(`${fieldName} → ${newStr}`);
+        } else if (oldStr.length < 50 && newStr.length < 50) {
+          smartParts.push(`${fieldName}: ${oldStr} → ${newStr}`);
+        } else {
+          smartParts.push(fieldName);
+        }
+      }
+
+      // Remove duplicates
+      const uniqueParts = [...new Set(smartParts)];
+
+      if (uniqueParts.length === 0) {
+        return { primary: `Updated a ${tableLabel.toLowerCase()} record`, detail: null };
+      }
+
+      const extra = changes.length > uniqueParts.length
+        ? ` +${changes.length - uniqueParts.length} more`
+        : "";
+      const primary = uniqueParts[0].charAt(0).toUpperCase() + uniqueParts[0].slice(1) +
+        (uniqueParts.length > 1
+          ? `, ${uniqueParts.slice(1).join(", ")}`
+          : "") + extra;
+      return { primary, detail: null };
+    }
+    case "DELETE":
+      return {
+        primary: `Deleted a ${tableLabel.toLowerCase()} record`,
+        detail: null,
+      };
+    default:
+      return { primary: `Action on ${tableLabel.toLowerCase()}`, detail: null };
+  }
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────
 
 export default function AuditLogsPage() {
@@ -431,6 +620,8 @@ export default function AuditLogsPage() {
   const [showConfigChanges, setShowConfigChanges] = useState(true);
   const [undoingId, setUndoingId] = useState<string | null>(null);
   const [undoConfirmId, setUndoConfirmId] = useState<string | null>(null);
+  const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
+  const autoGeneratedRef = useRef(false);
 
   const LIMIT = 50;
 
@@ -472,7 +663,8 @@ export default function AuditLogsPage() {
       }
 
       const data = await res.json();
-      setLogs(data.logs || []);
+      const fetchedLogs: AdminAuditLogRecord[] = data.logs || [];
+      setLogs(fetchedLogs);
       setTotalCount(data.total || 0);
     } catch (err) {
       console.error("Failed to load audit logs", err);
@@ -485,11 +677,60 @@ export default function AuditLogsPage() {
   // Reload when filters change (reset to page 0)
   useEffect(() => {
     setCurrentPage(0);
+    autoGeneratedRef.current = false; // Reset auto-generation flag
   }, [tableFilter, operationFilter, debouncedSearch, fromDate, toDate, showConfigChanges, undoneFilter]);
 
   useEffect(() => {
     loadLogs();
   }, [loadLogs]);
+
+  // Auto-generate AI summaries in the background AFTER logs load,
+  // without blocking the UI. Only runs once per filter set.
+  useEffect(() => {
+    if (logs.length === 0 || autoGeneratedRef.current) return;
+    const logsWithoutSummary = logs.filter(
+      (l) => !l.ai_summary && !l.undo_description
+    );
+    if (logsWithoutSummary.length === 0) {
+      autoGeneratedRef.current = true;
+      return;
+    }
+    autoGeneratedRef.current = true;
+
+    const toGenerate = logsWithoutSummary.slice(0, 3);
+    let cancelled = false;
+
+    (async () => {
+      for (const log of toGenerate) {
+        if (cancelled) break;
+        setGeneratingIds((prev) => new Set(prev).add(log.id));
+        const result = await generateSummaryForLog(log.id);
+        if (cancelled) break;
+        if (result) {
+          setLogs((prev) =>
+            prev.map((l) =>
+              l.id === log.id
+                ? {
+                    ...l,
+                    ai_summary: result.summary,
+                    undo_description: result.undo_description || null,
+                  }
+                : l
+            )
+          );
+        }
+        setGeneratingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(log.id);
+          return next;
+        });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [logs]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / LIMIT));
 
@@ -610,17 +851,20 @@ export default function AuditLogsPage() {
               <p className="text-xs text-slate-500">
                 {(() => {
                   const log = logs.find((l) => l.id === undoConfirmId);
-                  if (!log) return '';
+                  if (!log) return "";
+                  // Show AI-powered undo description if available
+                  if (log.undo_description) return log.undo_description;
+                  // Fallback
                   const tableLabel = TABLE_LABELS[log.table_name] || log.table_name;
                   switch (log.operation) {
-                    case 'INSERT':
+                    case "INSERT":
                       return `This will delete the ${tableLabel} record that was just created.`;
-                    case 'UPDATE':
+                    case "UPDATE":
                       return `This will restore the ${tableLabel} record to its previous values.`;
-                    case 'DELETE':
+                    case "DELETE":
                       return `This will re-insert the ${tableLabel} record that was just deleted.`;
                     default:
-                      return '';
+                      return "";
                   }
                 })()}
               </p>
@@ -742,7 +986,7 @@ export default function AuditLogsPage() {
                       onClick={() => setSearchQuery("")}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                     >
-                      ×
+                      \u00d7
                     </button>
                   )}
                 </div>
@@ -899,19 +1143,19 @@ export default function AuditLogsPage() {
                       {tableFilter !== "all" && (
                         <Badge variant="secondary" className="text-[10px] gap-1">
                           {TABLE_LABELS[tableFilter]}
-                          <button onClick={() => setTableFilter("all")}>×</button>
+                          <button onClick={() => setTableFilter("all")}>\u00d7</button>
                         </Badge>
                       )}
                       {operationFilter !== "all" && (
                         <Badge variant="secondary" className="text-[10px] gap-1">
                           {operationLabel(operationFilter as AuditOperation)}
-                          <button onClick={() => setOperationFilter("all")}>×</button>
+                          <button onClick={() => setOperationFilter("all")}>\u00d7</button>
                         </Badge>
                       )}
                       {debouncedSearch && (
                         <Badge variant="secondary" className="text-[10px] gap-1">
                           Admin: {debouncedSearch}
-                          <button onClick={() => { setSearchQuery(""); setDebouncedSearch(""); }}>×</button>
+                          <button onClick={() => { setSearchQuery(""); setDebouncedSearch(""); }}>\u00d7</button>
                         </Badge>
                       )}
                     </div>
@@ -958,147 +1202,161 @@ export default function AuditLogsPage() {
           {!isLoading && logs.length > 0 && (
             <Card className="border-slate-200 overflow-hidden">
               <CardContent className="p-0 divide-y divide-slate-100">
-                {logs.map((log, index) => (
-                  <div
-                    key={log.id}
-                    className="flex items-start gap-4 px-4 sm:px-6 py-4 hover:bg-slate-50 transition-colors group animate-in fade-in duration-200"
-                    style={{ animationDelay: `${index * 30}ms` }}
-                  >
-                    {/* Operation icon */}
-                    <div
-                      className={`flex items-center justify-center w-9 h-9 rounded-xl border shrink-0 mt-0.5 ${operationColor(
-                        log.operation
-                      )}`}
-                    >
-                      <OperationIcon op={log.operation} />
-                    </div>
+                {logs.map((log, index) => {
+                  const description = buildChangeDescription(log);
+                  const isGenerating = generatingIds.has(log.id);
 
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] font-semibold ${operationColor(
-                            log.operation
-                          )}`}
-                        >
-                          {operationLabel(log.operation)}
-                        </Badge>
-                        {log.undone_at && (
+                  return (
+                    <div
+                      key={log.id}
+                      className="flex items-start gap-4 px-4 sm:px-6 py-4 hover:bg-slate-50 transition-colors group animate-in fade-in duration-200"
+                      style={{ animationDelay: `${index * 30}ms` }}
+                    >
+                      {/* Operation icon */}
+                      <div
+                        className={`flex items-center justify-center w-9 h-9 rounded-xl border shrink-0 mt-0.5 ${operationColor(
+                          log.operation
+                        )}`}
+                      >
+                        <OperationIcon op={log.operation} />
+                      </div>
+
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-0.5">
                           <Badge
                             variant="outline"
-                            className="text-[10px] gap-1 bg-slate-100 text-slate-500 border-slate-200 font-normal"
+                            className={`text-[10px] font-semibold ${operationColor(
+                              log.operation
+                            )}`}
                           >
-                            <RotateCcw className="w-2.5 h-2.5" />
-                            Undone
+                            {operationLabel(log.operation)}
                           </Badge>
-                        )}
-                        <span className="text-xs font-medium text-slate-600 truncate">
-                          {TABLE_LABELS[log.table_name] || log.table_name}
-                        </span>
-                        <span className="text-xs text-slate-300 hidden sm:inline">·</span>
-                        <span className="text-xs text-slate-400 hidden sm:inline whitespace-nowrap">
-                          {formatAuditTimestamp(log.created_at)}
-                        </span>
-                        <span className="text-xs text-purple-500 font-medium whitespace-nowrap">
-                          {timeAgo(log.created_at)}
-                        </span>
-                      </div>
+                          {log.undone_at && (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] gap-1 bg-slate-100 text-slate-500 border-slate-200 font-normal"
+                            >
+                              <RotateCcw className="w-2.5 h-2.5" />
+                              Undone
+                            </Badge>
+                          )}
+                          <span className="text-xs font-medium text-slate-600 truncate">
+                            {TABLE_LABELS[log.table_name] || log.table_name}
+                          </span>
+                          <span className="text-xs text-slate-300 hidden sm:inline">\u00b7</span>
+                          <span className="text-xs text-slate-400 hidden sm:inline whitespace-nowrap">
+                            {formatAuditTimestamp(log.created_at)}
+                          </span>
+                          <span className="text-xs text-purple-500 font-medium whitespace-nowrap">
+                            {timeAgo(log.created_at)}
+                          </span>
+                        </div>
 
-                      {/* Changed fields summary for UPDATE */}
-                      {log.operation === "UPDATE" &&
-                        log.old_data &&
-                        log.new_data && (
+                        {/* AI-powered description or fallback */}
+                        {log.ai_summary ? (
+                          <div className="mt-1 flex items-start gap-1.5">
+                            <Bot className="w-3.5 h-3.5 text-purple-400 mt-0.5 shrink-0 hidden sm:block" />
+                            <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">
+                              {log.ai_summary}
+                            </p>
+                          </div>
+                        ) : isGenerating ? (
+                          <div className="mt-1 flex items-center gap-1.5 text-xs text-purple-500">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            Generating AI explanation...
+                          </div>
+                        ) : (
                           <p className="text-xs text-slate-500 mt-1 line-clamp-1">
-                            {(() => {
-                              const changes = getChangedFields(
-                                log.old_data,
-                                log.new_data
-                              );
-                              if (changes.length === 0) return "No visible changes";
-                              const fieldLabels = changes
-                                .slice(0, 3)
-                                .map((c) => c.field.replace(/_/g, " "));
-                              const remaining = changes.length - 3;
-                              return (
-                                <>
-                                  Changed:{" "}
-                                  <span className="text-slate-700 font-medium">
-                                    {fieldLabels.join(", ")}
-                                    {remaining > 0 &&
-                                      ` +${remaining} more`}
-                                  </span>
-                                </>
-                              );
-                            })()}
+                            {description.primary}
                           </p>
                         )}
-
-                      {/* For INSERT/DELETE, show a simple description */}
-                      {log.operation !== "UPDATE" && (
-                        <p className="text-xs text-slate-500 mt-1">
-                          {log.operation === "INSERT"
-                            ? "Record created"
-                            : "Record deleted"}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Actor + View + Undo buttons */}
-                    <div className="shrink-0 flex items-center gap-1">
-                      <div className="text-right hidden sm:block">
-                        {log.changed_by_name && (
-                          <button
-                            onClick={() => filterByAdmin(log.changed_by_name!)}
-                            className="text-xs font-medium text-slate-500 hover:text-blue-600 hover:underline transition-colors"
-                            title={`Filter by ${log.changed_by_name}`}
-                          >
-                            {log.changed_by_name}
-                          </button>
-                        )}
                       </div>
 
-                      {/* Undo button — only on the most recent entry within 5 min */}
-                      {index === 0 && canUndo(log) && (
+                      {/* Actor + Generate AI + View + Undo buttons */}
+                      <div className="shrink-0 flex items-center gap-1">
+                        <div className="text-right hidden sm:block">
+                          {log.changed_by_name && (
+                            <button
+                              onClick={() => filterByAdmin(log.changed_by_name!)}
+                              className="text-xs font-medium text-slate-500 hover:text-blue-600 hover:underline transition-colors"
+                              title={`Filter by ${log.changed_by_name}`}
+                            >
+                              {log.changed_by_name}
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Generate AI button — only show if no AI summary yet */}
+                        {!log.ai_summary && !isGenerating && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={async () => {
+                              setGeneratingIds((prev) => new Set(prev).add(log.id));
+                              const result = await generateSummaryForLog(log.id);
+                              if (result) {
+                                setLogs((prev) =>
+                                  prev.map((l) =>
+                                    l.id === log.id
+                                      ? { ...l, ai_summary: result.summary, undo_description: result.undo_description || null }
+                                      : l
+                                  )
+                                );
+                              }
+                              setGeneratingIds((prev) => {
+                                const next = new Set(prev);
+                                next.delete(log.id);
+                                return next;
+                              });
+                            }}
+                            className="h-8 w-8 text-slate-400 hover:text-purple-600 hover:bg-purple-50 transition-colors"
+                            title="Generate AI explanation"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+
+                        {/* Undo button — only on the most recent entry within 5 min */}
+                        {index === 0 && canUndo(log) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setUndoConfirmId(log.id)}
+                            disabled={undoingId === log.id}
+                            className="h-8 w-8 text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                            title="Undo this action"
+                          >
+                            {undoingId === log.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <RotateCcw className="w-4 h-4" />
+                            )}
+                          </Button>
+                        )}
+
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => setUndoConfirmId(log.id)}
-                          disabled={undoingId === log.id}
-                          className="h-8 w-8 text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
-                          title="Undo this action"
+                          className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                          title="View details"
+                          onClick={() => openDetail(log)}
                         >
-                          {undoingId === log.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <RotateCcw className="w-4 h-4" />
-                          )}
+                          <Eye className="w-4 h-4" />
                         </Button>
-                      )}
-
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                        title="View details"
-                        onClick={() => openDetail(log)}
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </CardContent>
             </Card>
           )}
-
-
 
           {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6">
               <p className="text-xs text-slate-500 order-2 sm:order-1">
-                Showing {(currentPage * LIMIT) + 1}–{Math.min((currentPage + 1) * LIMIT, totalCount)} of {totalCount} entries
+                Showing {(currentPage * LIMIT) + 1}\u2013{Math.min((currentPage + 1) * LIMIT, totalCount)} of {totalCount} entries
               </p>
               <div className="flex items-center gap-1 order-1 sm:order-2">
                 <button
@@ -1111,7 +1369,6 @@ export default function AuditLogsPage() {
                 </button>
 
                 {(() => {
-                  // Show maximum page buttons based on screen size
                   const maxVisible = totalPages <= 7 ? totalPages : 5;
                   let startPage: number;
                   if (totalPages <= 7) {
@@ -1140,7 +1397,7 @@ export default function AuditLogsPage() {
                             1
                           </button>
                           {startPage > 1 && (
-                            <span className="px-1 text-slate-300 text-xs">…</span>
+                            <span className="px-1 text-slate-300 text-xs">\u2026</span>
                           )}
                         </>
                       )}
@@ -1162,7 +1419,7 @@ export default function AuditLogsPage() {
                       {startPage + maxVisible < totalPages && (
                         <>
                           {startPage + maxVisible < totalPages - 1 && (
-                            <span className="px-1 text-slate-300 text-xs">…</span>
+                            <span className="px-1 text-slate-300 text-xs">\u2026</span>
                           )}
                           <button
                             onClick={() => setCurrentPage(totalPages - 1)}

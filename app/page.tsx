@@ -1200,15 +1200,9 @@ export default function LandingPage() {
               &copy; {new Date().getFullYear()} School Hub. All rights reserved.
             </p>
             <div className="flex items-center gap-4">
-              {["Privacy Policy", "Terms of Service", "Cookie Policy"].map((item) => (
-                <Link
-                  key={item}
-                  href="#"
-                  className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
-                >
-                  {item}
-                </Link>
-              ))}
+              <Link href="/privacy" className="text-xs text-gray-600 hover:text-gray-400 transition-colors">Privacy Policy</Link>
+              <Link href="/terms" className="text-xs text-gray-600 hover:text-gray-400 transition-colors">Terms of Service</Link>
+              <span className="text-xs text-gray-600">Cookie Policy</span>
             </div>
           </div>
         </div>

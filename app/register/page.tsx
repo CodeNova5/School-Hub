@@ -780,7 +780,7 @@ function RegisterForm() {
                       Terms of Service
                     </Link>{" "}
                     and{" "}
-                    <Link href="#" className="text-blue-600 hover:text-blue-700 font-semibold underline underline-offset-2">
+                    <Link href="/privacy" className="text-blue-600 hover:text-blue-700 font-semibold underline underline-offset-2">
                       Privacy Policy
                     </Link>
                   </span>

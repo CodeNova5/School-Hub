@@ -112,7 +112,7 @@ export function SchoolDomainFooter({ siteSettings }: SchoolDomainFooterProps) {
       <div className="mt-12 border-t border-white/10 py-6 text-center text-sm text-white/70">
         <p>
           &copy; 2026 {siteSettings.site_title}. All rights reserved. |{" "}
-          <a href="#" style={{ color: siteSettings.secondary_color }}>
+          <a href="/privacy" style={{ color: siteSettings.secondary_color }}>
             Privacy Policy
           </a>{" "}
           |{" "}

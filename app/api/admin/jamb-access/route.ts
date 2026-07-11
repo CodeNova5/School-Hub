@@ -122,45 +122,67 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Student not found" }, { status: 404 });
   }
 
-  const payload = active
-    ? {
-        school_id: schoolId,
-        student_id: studentId,
-        granted_by_user_id: permission.userId,
-        granted_at: new Date().toISOString(),
-        revoked_at: null,
-        is_active: true,
-        notes: notes || null,
-        updated_at: new Date().toISOString(),
-      }
-    : {
-        school_id: schoolId,
-        student_id: studentId,
-        granted_by_user_id: permission.userId,
-        revoked_at: new Date().toISOString(),
-        is_active: false,
-        notes: notes || null,
-        updated_at: new Date().toISOString(),
-      };
-
   const { data: existingAccess } = await supabaseAdmin
     .from("jamb_student_access")
     .select("id")
     .eq("student_id", studentId)
     .single();
 
-  const mutation = existingAccess
-    ? await supabaseAdmin
-        .from("jamb_student_access")
-        .update(payload)
-        .eq("id", existingAccess.id)
-        .select()
-        .single()
-    : await supabaseAdmin
-        .from("jamb_student_access")
-        .insert(payload)
-        .select()
-        .single();
+  let mutation;
+
+  if (existingAccess) {
+    // Update existing record — only touch fields that changed
+    mutation = await supabaseAdmin
+      .from("jamb_student_access")
+      .update(
+        active
+          ? {
+              granted_at: new Date().toISOString(),
+              revoked_at: null,
+              is_active: true,
+              notes: notes || null,
+              updated_at: new Date().toISOString(),
+            }
+          : {
+              revoked_at: new Date().toISOString(),
+              is_active: false,
+              notes: notes || null,
+              updated_at: new Date().toISOString(),
+            }
+      )
+      .eq("id", existingAccess.id)
+      .select()
+      .single();
+  } else {
+    // Insert new record — all required fields
+    mutation = await supabaseAdmin
+      .from("jamb_student_access")
+      .insert(
+        active
+          ? {
+              school_id: schoolId,
+              student_id: studentId,
+              granted_by_user_id: permission.userId,
+              granted_at: new Date().toISOString(),
+              revoked_at: null,
+              is_active: true,
+              notes: notes || null,
+              updated_at: new Date().toISOString(),
+            }
+          : {
+              school_id: schoolId,
+              student_id: studentId,
+              granted_by_user_id: permission.userId,
+              granted_at: new Date().toISOString(),
+              revoked_at: new Date().toISOString(),
+              is_active: false,
+              notes: notes || null,
+              updated_at: new Date().toISOString(),
+            }
+      )
+      .select()
+      .single();
+  }
 
   if (mutation.error) {
     return NextResponse.json({ error: mutation.error.message }, { status: 500 });

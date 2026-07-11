@@ -2,7 +2,7 @@
  * Server-side Supabase client utilities using @supabase/ssr.
  *
  * Replaces createServerComponentClient and createRouteHandlerClient
- * from @supabase/auth-helpers-nextjs.
+ * from @supabase/auth-helpers-nextjs (now fully migrated to @supabase/ssr).
  *
  * Usage (Server Component / Route Handler):
  *   import { createServerSupabaseClient } from "@/lib/supabase-server";

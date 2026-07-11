@@ -184,6 +184,9 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // Use the authenticated client for operations that need audit trail identity
+      const supabaseAuth = createRouteHandlerClient({ cookies });
+
       const supabaseAdmin = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -248,8 +251,9 @@ export async function POST(req: NextRequest) {
               .delete()
               .eq("student_id", studentId);
 
-            // 5. Update student's class
-            await supabaseAdmin
+            // 5. Update student's class — use authenticated client so audit
+            //    trigger captures the admin's identity (changed_by / changed_by_name)
+            await supabaseAuth
               .from("students")
               .update({ class_id: targetClassId })
               .eq("id", studentId);

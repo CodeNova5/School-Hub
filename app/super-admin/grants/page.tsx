@@ -63,6 +63,7 @@ import {
   ChevronRight,
   ArrowRight,
   FileText,
+  Bell,
 } from "lucide-react";
 import type { SchoolPlan } from "@/lib/types";
 import { usePlanDisplayInfo, PLAN_KEYS_IN_ORDER } from "@/hooks/use-plan-display-info";
@@ -165,6 +166,9 @@ export default function GrantsManagementPage() {
   // Delete / Expire
   const [deleteGrant, setDeleteGrant] = useState<SchoolGrant | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Send reminder
+  const [sendingReminder, setSendingReminder] = useState<string | null>(null);
 
   // Filter tabs
   const [filter, setFilter] = useState<"all" | "active" | "expired">("all");
@@ -389,6 +393,33 @@ export default function GrantsManagementPage() {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setDeleting(false);
+    }
+  }
+
+  // ── Send reminder for a single grant ──────────────────────────────────
+
+  async function handleSendReminder(grant: SchoolGrant) {
+    setSendingReminder(grant.id);
+    try {
+      const res = await fetch(`/api/super-admin/plan-grants/${grant.id}/send-reminder`, {
+        method: "POST",
+      });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || "Failed to send reminder");
+
+      toast({
+        title: "✅ Reminder sent",
+        description: data.message,
+      });
+    } catch (err: any) {
+      toast({
+        title: "❌ Failed to send reminder",
+        description: err.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingReminder(null);
     }
   }
 
@@ -655,14 +686,29 @@ export default function GrantsManagementPage() {
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
                             {grant.is_active && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                title="Expire Grant"
-                                onClick={() => setDeleteGrant(grant)}
-                              >
-                                <Trash2 className="h-4 w-4 text-red-500" />
-                              </Button>
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  title="Send Expiry Reminder"
+                                  onClick={() => handleSendReminder(grant)}
+                                  disabled={sendingReminder === grant.id}
+                                >
+                                  {sendingReminder === grant.id ? (
+                                    <Loader2 className="h-4 w-4 text-pink-500 animate-spin" />
+                                  ) : (
+                                    <Bell className="h-4 w-4 text-pink-500" />
+                                  )}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  title="Expire Grant"
+                                  onClick={() => setDeleteGrant(grant)}
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-500" />
+                                </Button>
+                              </>
                             )}
                           </div>
                         </TableCell>

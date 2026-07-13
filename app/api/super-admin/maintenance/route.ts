@@ -20,7 +20,7 @@ async function checkIsSuperAdmin() {
 // ---------------------------------------------------------------------------
 // POST /api/super-admin/maintenance
 // Run one or all maintenance tasks manually (super admin only)
-// Body: { task: "charge" | "downgrade" | "expire-grants" | "reminders" | "grant-reminders" | "all" }
+// Body: { task: "charge" | "downgrade" | "expire-grants" | "reminders" | "grant-reminders" | "all", school_id?: string }
 // ---------------------------------------------------------------------------
 export async function POST(req: NextRequest) {
   const guard = await checkIsSuperAdmin();
@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const task = body.task || "all";
+    const schoolId: string | undefined = body.school_id || undefined;
 
     const validTasks = ["charge", "downgrade", "expire-grants", "reminders", "grant-reminders", "all"];
     if (!validTasks.includes(task)) {
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
     const results: Record<string, any> = {};
 
     if (task === "all" || task === "charge") {
-      const chargeResult = await runChargeSubscriptions();
+      const chargeResult = await runChargeSubscriptions(schoolId);
       results.charge_subscriptions = {
         processed: chargeResult.processed,
         succeeded: chargeResult.succeeded,
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (task === "all" || task === "downgrade") {
-      const downgradeResult = await runDowngradeExpired();
+      const downgradeResult = await runDowngradeExpired(schoolId);
       results.downgrade_expired = {
         total: downgradeResult.downgraded + downgradeResult.failed,
         downgraded: downgradeResult.downgraded,
@@ -63,7 +64,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (task === "all" || task === "expire-grants") {
-      const expireGrantsResult = await runExpirePlanGrants();
+      const expireGrantsResult = await runExpirePlanGrants(schoolId);
       results.expire_plan_grants = {
         total: expireGrantsResult.expired + expireGrantsResult.failed,
         expired: expireGrantsResult.expired,
@@ -73,7 +74,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (task === "all" || task === "reminders") {
-      const reminderResult = await runSubscriptionReminders();
+      const reminderResult = await runSubscriptionReminders(schoolId);
       results.subscription_reminders = {
         total: reminderResult.sent + reminderResult.skipped + reminderResult.failed,
         sent: reminderResult.sent,
@@ -84,7 +85,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (task === "all" || task === "grant-reminders") {
-      const grantReminderResult = await runGrantExpiryReminders();
+      const grantReminderResult = await runGrantExpiryReminders(schoolId);
       results.grant_expiry_reminders = {
         total: grantReminderResult.sent + grantReminderResult.skipped + grantReminderResult.failed,
         sent: grantReminderResult.sent,
@@ -99,6 +100,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       task,
+      school_id: schoolId || null,
       duration_ms: duration,
       results,
     });

@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
 import {
   Loader2,
   Zap,
@@ -17,6 +19,9 @@ import {
   SkipForward,
   AlertTriangle,
   RefreshCw,
+  Search,
+  School,
+  X,
 } from "lucide-react";
 
 type TaskId = "charge" | "downgrade" | "expire-grants" | "reminders" | "grant-reminders";
@@ -33,10 +38,17 @@ interface TaskResult {
   details?: any[];
 }
 
+interface SchoolOption {
+  id: string;
+  name: string;
+  subdomain: string | null;
+}
+
 const TASK_DEFINITIONS: {
   id: TaskId;
   label: string;
   description: string;
+  singleDesc: string;
   icon: React.ReactNode;
   color: string;
   bgColor: string;
@@ -46,6 +58,7 @@ const TASK_DEFINITIONS: {
     id: "charge",
     label: "Charge Due Subscriptions",
     description: "Charge all schools due for billing that have a stored payment method. On success: renews subscription. On failure: sets 7-day grace period.",
+    singleDesc: "Charge this school's stored payment method for their current subscription.",
     icon: <Zap className="h-5 w-5" />,
     color: "text-blue-600",
     bgColor: "bg-blue-50 dark:bg-blue-950",
@@ -55,6 +68,7 @@ const TASK_DEFINITIONS: {
     id: "downgrade",
     label: "Downgrade Expired Grace Periods",
     description: "Downgrade schools past their 7-day grace period to the Basic plan and send downgrade alerts.",
+    singleDesc: "Downgrade this school to Basic if their grace period has expired.",
     icon: <ArrowDown className="h-5 w-5" />,
     color: "text-amber-600",
     bgColor: "bg-amber-50 dark:bg-amber-950",
@@ -64,6 +78,7 @@ const TASK_DEFINITIONS: {
     id: "expire-grants",
     label: "Expire Past Plan Grants",
     description: "Expire any manual time-limited plan grants that have passed their end date.",
+    singleDesc: "Expire past-due plan grants for this school.",
     icon: <Clock className="h-5 w-5" />,
     color: "text-purple-600",
     bgColor: "bg-purple-50 dark:bg-purple-950",
@@ -73,6 +88,7 @@ const TASK_DEFINITIONS: {
     id: "reminders",
     label: "Send Renewal Reminders",
     description: "Send T-7 renewal reminder emails to schools with upcoming billing dates and stored payment methods.",
+    singleDesc: "Send a renewal reminder email to this school if they have a stored payment method.",
     icon: <Mail className="h-5 w-5" />,
     color: "text-green-600",
     bgColor: "bg-green-50 dark:bg-green-950",
@@ -81,7 +97,8 @@ const TASK_DEFINITIONS: {
   {
     id: "grant-reminders",
     label: "Send Grant Expiry Reminders",
-    description: "Send T-7 reminder emails to schools with granted plans (Pro/Premium) expiring soon. Grants have no auto-renewal.",
+    description: "Send T-7 reminder emails to schools with granted plans (Pro/Premium) expiring soon.",
+    singleDesc: "Send a grant expiry reminder email to this school if they have active grants.",
     icon: <Mail className="h-5 w-5" />,
     color: "text-pink-600",
     bgColor: "bg-pink-50 dark:bg-pink-950",
@@ -98,7 +115,6 @@ function resultSummary(taskId: TaskId, result: TaskResult): string {
     case "expire-grants":
       return `${result.expired ?? 0} expired, ${result.failed ?? 0} failed`;
     case "reminders":
-      return `${result.sent ?? 0} sent, ${result.skipped ?? 0} skipped, ${result.failed ?? 0} failed`;
     case "grant-reminders":
       return `${result.sent ?? 0} sent, ${result.skipped ?? 0} skipped, ${result.failed ?? 0} failed`;
     default:
@@ -113,16 +129,63 @@ export default function MaintenancePage() {
   const [lastRun, setLastRun] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // School selector
+  const [schools, setSchools] = useState<SchoolOption[]>([]);
+  const [schoolsLoading, setSchoolsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedSchool, setSelectedSchool] = useState<SchoolOption | null>(null);
+
+  useEffect(() => {
+    fetchSchools();
+  }, []);
+
+  async function fetchSchools() {
+    try {
+      setSchoolsLoading(true);
+      const { data, error } = await supabase
+        .from("schools")
+        .select("id, name, subdomain")
+        .order("name");
+      if (error) throw error;
+      setSchools(data ?? []);
+    } catch (err: any) {
+      console.error("Failed to fetch schools:", err);
+    } finally {
+      setSchoolsLoading(false);
+    }
+  }
+
+  const filteredSchools = schools.filter(
+    (s) =>
+      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.subdomain ?? "").toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  function selectSchool(school: SchoolOption) {
+    setSelectedSchool(school);
+    setShowDropdown(false);
+    setSearchQuery("");
+  }
+
+  function clearSchool() {
+    setSelectedSchool(null);
+    setSearchQuery("");
+  }
+
   async function runTask(task: TaskId | "all") {
     setRunningTask(task);
     setResults(null);
     setError(null);
 
     try {
+      const body: any = { task };
+      if (selectedSchool) body.school_id = selectedSchool.id;
+
       const res = await fetch("/api/super-admin/maintenance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task }),
+        body: JSON.stringify(body),
       });
 
       const data = await res.json();
@@ -173,40 +236,132 @@ export default function MaintenancePage() {
       <div>
         <h1 className="text-3xl font-bold">Maintenance Tasks</h1>
         <p className="text-muted-foreground mt-1">
-          Manually run platform maintenance tasks that were previously handled by the daily cron job.
+          Manually run platform maintenance tasks — globally or for a specific school.
         </p>
       </div>
 
-      {/* Run All Button */}
-      <Card className="border-purple-200 dark:border-purple-800 bg-gradient-to-br from-purple-50/50 to-transparent dark:from-purple-950/20">
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-purple-100 dark:bg-purple-900">
-                <PlayCircle className="h-6 w-6 text-purple-600" />
+      {/* School Selector */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <School className="h-4 w-4 text-muted-foreground" />
+            Target School
+            {selectedSchool && (
+              <Badge variant="secondary" className="ml-2 text-xs font-normal">
+                Single school mode
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {selectedSchool ? (
+            <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/30">
+              <School className="h-4 w-4 text-purple-600 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate">{selectedSchool.name}</p>
+                {selectedSchool.subdomain && (
+                  <p className="text-xs text-muted-foreground">{selectedSchool.subdomain}.myapp.com</p>
+                )}
               </div>
-              <div>
-                <h3 className="text-lg font-semibold">Run All Maintenance Tasks</h3>
-                <p className="text-sm text-muted-foreground">
-                  Executes all 5 tasks in sequence: Charge &rarr; Downgrade &rarr; Expire Grants &rarr; Renewal Reminders &rarr; Grant Reminders
-                </p>
-              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearSchool}
+                className="shrink-0 h-8 px-2 text-muted-foreground hover:text-foreground"
+                disabled={isRunning}
+              >
+                <X className="h-4 w-4 mr-1" />
+                Clear
+              </Button>
             </div>
-            <Button
-              onClick={() => runTask("all")}
-              disabled={isRunning}
-              className="bg-purple-600 hover:bg-purple-700 min-w-[140px]"
-              size="lg"
-            >
-              {runningTask === "all" ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Running All...</>
-              ) : (
-                <><PlayCircle className="h-4 w-4 mr-2" /> Run All Tasks</>
+          ) : (
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search schools or leave empty for global mode..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setShowDropdown(true);
+                }}
+                onFocus={() => setShowDropdown(true)}
+                onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+                className="pl-9"
+              />
+              {showDropdown && (
+                <div className="absolute top-full left-0 right-0 mt-1 z-50 max-h-60 overflow-y-auto rounded-lg border bg-popover shadow-lg">
+                  {schoolsLoading ? (
+                    <div className="flex items-center justify-center py-6">
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : filteredSchools.length === 0 ? (
+                    <div className="py-6 text-center text-sm text-muted-foreground">
+                      {searchQuery ? "No schools match your search." : "Start typing to search schools."}
+                    </div>
+                  ) : (
+                    <div className="py-1">
+                      {filteredSchools.map((school) => (
+                        <button
+                          key={school.id}
+                          onClick={() => selectSchool(school)}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted transition-colors text-left"
+                        >
+                          <School className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{school.name}</p>
+                            {school.subdomain && (
+                              <p className="text-xs text-muted-foreground truncate">{school.subdomain}.myapp.com</p>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
-            </Button>
-          </div>
+            </div>
+          )}
+
+          {!selectedSchool && !showDropdown && !searchQuery && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Leave empty to run tasks against all schools (global mode).
+            </p>
+          )}
         </CardContent>
       </Card>
+
+      {/* Run All Button */}
+      {!selectedSchool && (
+        <Card className="border-purple-200 dark:border-purple-800 bg-gradient-to-br from-purple-50/50 to-transparent dark:from-purple-950/20">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-purple-100 dark:bg-purple-900">
+                  <PlayCircle className="h-6 w-6 text-purple-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">Run All Maintenance Tasks</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Executes all 5 tasks in sequence: Charge &rarr; Downgrade &rarr; Expire Grants &rarr; Renewal Reminders &rarr; Grant Reminders
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={() => runTask("all")}
+                disabled={isRunning}
+                className="bg-purple-600 hover:bg-purple-700 min-w-[140px]"
+                size="lg"
+              >
+                {runningTask === "all" ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Running All...</>
+                ) : (
+                  <><PlayCircle className="h-4 w-4 mr-2" /> Run All Tasks</>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Individual Tasks */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -238,11 +393,16 @@ export default function MaintenancePage() {
                       <CardTitle className="text-base">{task.label}</CardTitle>
                     </div>
                   </div>
+                  {selectedSchool && (
+                    <Badge variant="outline" className="text-[10px] shrink-0">
+                      Single School
+                    </Badge>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground mb-4 min-h-[40px]">
-                  {task.description}
+                  {selectedSchool ? task.singleDesc : task.description}
                 </p>
 
                 {/* Result display */}
@@ -301,7 +461,7 @@ export default function MaintenancePage() {
                   {runningTask === task.id ? (
                     <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Running...</>
                   ) : (
-                    <><PlayCircle className="h-4 w-4 mr-2" /> Run Task</>
+                    <><PlayCircle className="h-4 w-4 mr-2" /> {selectedSchool ? `Run for ${selectedSchool.name}` : "Run Task"}</>
                   )}
                 </Button>
               </CardContent>

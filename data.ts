@@ -90,7 +90,7 @@ export function getCopyrightText(): string {
  * Also imported by lib/school-branding.ts as a fallback.
  */
 export const PLATFORM_NAME = APP_NAME;
-export const DEFAULT_FROM_EMAIL = "mail.schooldeck.tech";
+export const DEFAULT_FROM_EMAIL = "no-reply@mail.schooldeck.tech";
 
 // ─── Landing Page ─────────────────────────────────────────────────────────
 

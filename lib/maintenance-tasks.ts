@@ -473,10 +473,9 @@ export async function runSubscriptionReminders(schoolId?: string): Promise<{
       status: sub.status,
     }];
   } else {
-    const sixDaysFromNow = new Date();
-    sixDaysFromNow.setDate(sixDaysFromNow.getDate() + 6);
-    const eightDaysFromNow = new Date();
-    eightDaysFromNow.setDate(eightDaysFromNow.getDate() + 8);
+    const now = new Date();
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
 
     const { data } = await supabaseAdmin
       .from("school_subscriptions")
@@ -487,8 +486,8 @@ export async function runSubscriptionReminders(schoolId?: string): Promise<{
       `)
       .eq("status", "active")
       .not("auth_code", "is", null)
-      .gte("next_billing_date", sixDaysFromNow.toISOString())
-      .lte("next_billing_date", eightDaysFromNow.toISOString());
+      .gte("next_billing_date", now.toISOString())
+      .lte("next_billing_date", thirtyDaysFromNow.toISOString());
 
     schools = (data ?? []).map((row: any) => ({
       school_id: row.school_id,

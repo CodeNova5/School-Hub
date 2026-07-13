@@ -88,7 +88,7 @@ const TASK_DEFINITIONS: {
   {
     id: "reminders",
     label: "Send Renewal Reminders",
-    description: "Send T-7 renewal reminder emails to schools with upcoming billing dates and stored payment methods.",
+    description: "Send renewal reminder emails to schools with upcoming billing dates (within 30 days) and stored payment methods.",
     singleDesc: "Send a renewal reminder email to this school if they have a stored payment method.",
     icon: <Mail className="h-5 w-5" />,
     color: "text-green-600",

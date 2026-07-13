@@ -464,6 +464,78 @@ export async function sendSuperAdminAtRiskAlert(schoolId: string): Promise<void>
   }
 }
 
+// ============================================================================
+// Email #6: Grant Expiry Reminder (sent T-7 days before a plan grant expires)
+// ============================================================================
+
+export async function sendGrantExpiryReminder(
+  schoolId: string,
+  planName: string,
+  expiresAt: string
+): Promise<string | null> {
+  try {
+    const info = await getSubscriptionInfo(schoolId);
+    if (!info) return "School not found";
+
+    const recipientEmail = info.admin_email || info.school_email;
+    if (!recipientEmail || !recipientEmail.includes("@")) {
+      return `No valid admin email for school ${schoolId}`;
+    }
+
+    const expiryDate = formatDate(expiresAt);
+    const daysLeft = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+
+    const subject = `⏳ ${planName} Plan Grant Expiring Soon — ${info.school_name}`;
+
+    const body = [
+      `Dear Administrator,`,
+      ``,
+      `This is a reminder that the **${planName}** plan grant for **${info.school_name}** is expiring soon.`,
+      ``,
+      `━━━ Grant Summary ━━━`,
+      `Plan: ${planName}`,
+      `Grant Expires: ${expiryDate}`,
+      `Days Remaining: ${daysLeft}`,
+      `━━━━━━━━━━━━━━━━━━━`,
+      ``,
+      daysLeft <= 3
+        ? `⚠️ **Urgent:** Your plan grant expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}. After expiration, your school will be downgraded to the Basic plan and paid features will be locked.`
+        : `Your plan grant will expire on ${expiryDate}. After expiration, your school will be downgraded to the Basic plan and paid features will be locked.`,
+      ``,
+      `🔧 **To retain your ${planName} features:**`,
+      `1. Contact the school administration to arrange payment for plan renewal`,
+      `2. Once payment is confirmed, a new grant will be applied to your account`,
+      ``,
+      `If you have any questions, please reach out to your school's administrative office.`,
+      ``,
+      `Thank you,`,
+      `${EMAIL_SENDER_TEAM}`,
+    ].join("\n");
+
+    const html = buildEmailTemplate(subject, body, info.school_name);
+    const fromName = buildSchoolSenderName(info.school_name, "Billing");
+
+    const error = await sendEmailSafe({
+      to: recipientEmail,
+      subject,
+      html,
+      fromName,
+    });
+
+    if (error) {
+      console.error(`Failed to send grant expiry reminder to ${recipientEmail}:`, error);
+    } else {
+      console.log(`✅ Grant expiry reminder sent to ${recipientEmail} for school ${schoolId}`);
+      await logSubscriptionEmail(schoolId, subject, body, recipientEmail, "renewal_reminder");
+    }
+
+    return error;
+  } catch (err: any) {
+    console.error(`Error sending grant expiry reminder for school ${schoolId}:`, err.message);
+    return err.message || "Unknown error";
+  }
+}
+
 export async function sendPaymentSuccessConfirmation(
   schoolId: string
 ): Promise<string | null> {

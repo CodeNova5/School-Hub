@@ -5,6 +5,7 @@ import {
   runDowngradeExpired,
   runExpirePlanGrants,
   runSubscriptionReminders,
+  runGrantExpiryReminders,
 } from "@/lib/maintenance-tasks";
 
 async function checkIsSuperAdmin() {
@@ -19,7 +20,7 @@ async function checkIsSuperAdmin() {
 // ---------------------------------------------------------------------------
 // POST /api/super-admin/maintenance
 // Run one or all maintenance tasks manually (super admin only)
-// Body: { task: "charge" | "downgrade" | "expire-grants" | "reminders" | "all" }
+// Body: { task: "charge" | "downgrade" | "expire-grants" | "reminders" | "grant-reminders" | "all" }
 // ---------------------------------------------------------------------------
 export async function POST(req: NextRequest) {
   const guard = await checkIsSuperAdmin();
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const task = body.task || "all";
 
-    const validTasks = ["charge", "downgrade", "expire-grants", "reminders", "all"];
+    const validTasks = ["charge", "downgrade", "expire-grants", "reminders", "grant-reminders", "all"];
     if (!validTasks.includes(task)) {
       return NextResponse.json(
         { error: `Invalid task "${task}". Valid options: ${validTasks.join(", ")}` },
@@ -79,6 +80,17 @@ export async function POST(req: NextRequest) {
         skipped: reminderResult.skipped,
         failed: reminderResult.failed,
         details: reminderResult.results,
+      };
+    }
+
+    if (task === "all" || task === "grant-reminders") {
+      const grantReminderResult = await runGrantExpiryReminders();
+      results.grant_expiry_reminders = {
+        total: grantReminderResult.sent + grantReminderResult.skipped + grantReminderResult.failed,
+        sent: grantReminderResult.sent,
+        skipped: grantReminderResult.skipped,
+        failed: grantReminderResult.failed,
+        details: grantReminderResult.results,
       };
     }
 

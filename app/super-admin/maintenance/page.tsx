@@ -19,7 +19,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 
-type TaskId = "charge" | "downgrade" | "expire-grants" | "reminders";
+type TaskId = "charge" | "downgrade" | "expire-grants" | "reminders" | "grant-reminders";
 
 interface TaskResult {
   total?: number;
@@ -78,6 +78,15 @@ const TASK_DEFINITIONS: {
     bgColor: "bg-green-50 dark:bg-green-950",
     borderColor: "border-green-200 dark:border-green-800",
   },
+  {
+    id: "grant-reminders",
+    label: "Send Grant Expiry Reminders",
+    description: "Send T-7 reminder emails to schools with granted plans (Pro/Premium) expiring soon. Grants have no auto-renewal.",
+    icon: <Mail className="h-5 w-5" />,
+    color: "text-pink-600",
+    bgColor: "bg-pink-50 dark:bg-pink-950",
+    borderColor: "border-pink-200 dark:border-pink-800",
+  },
 ];
 
 function resultSummary(taskId: TaskId, result: TaskResult): string {
@@ -89,6 +98,8 @@ function resultSummary(taskId: TaskId, result: TaskResult): string {
     case "expire-grants":
       return `${result.expired ?? 0} expired, ${result.failed ?? 0} failed`;
     case "reminders":
+      return `${result.sent ?? 0} sent, ${result.skipped ?? 0} skipped, ${result.failed ?? 0} failed`;
+    case "grant-reminders":
       return `${result.sent ?? 0} sent, ${result.skipped ?? 0} skipped, ${result.failed ?? 0} failed`;
     default:
       return "";
@@ -177,7 +188,7 @@ export default function MaintenancePage() {
               <div>
                 <h3 className="text-lg font-semibold">Run All Maintenance Tasks</h3>
                 <p className="text-sm text-muted-foreground">
-                  Executes all 4 tasks in sequence: Charge &rarr; Downgrade &rarr; Expire Grants &rarr; Reminders
+                  Executes all 5 tasks in sequence: Charge &rarr; Downgrade &rarr; Expire Grants &rarr; Renewal Reminders &rarr; Grant Reminders
                 </p>
               </div>
             </div>
@@ -207,6 +218,8 @@ export default function MaintenancePage() {
               ? "downgrade_expired"
               : task.id === "expire-grants"
               ? "expire_plan_grants"
+              : task.id === "grant-reminders"
+              ? "grant_expiry_reminders"
               : "subscription_reminders"
           ];
 

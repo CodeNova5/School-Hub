@@ -5,6 +5,7 @@ import {
   sendSuperAdminAtRiskAlert,
   sendSubscriptionDowngradedAlert,
   sendRenewalReminder,
+  sendGrantExpiryReminder,
 } from "@/lib/subscription-email";
 
 export const supabaseAdmin = createClient(
@@ -42,6 +43,15 @@ interface ExpiredGrant {
   school_name: string;
   plan_key: string;
   expired_at: string;
+}
+
+interface GrantExpiringSoon {
+  grant_id: string;
+  school_id: string;
+  school_name: string;
+  plan_key: string;
+  expires_at: string;
+  school_email: string | null;
 }
 
 interface SchoolDueForReminder {
@@ -391,6 +401,94 @@ export async function runSubscriptionReminders(): Promise<{
     } else {
       sent++;
       results.push({ task: "reminder", school_id: school.school_id, school_name: school.school_name, status: "sent" });
+    }
+  }
+
+  return { results, sent, skipped, failed };
+}
+
+// ===========================================================================
+// Task 5: grant-expiry-reminders — send T-7 reminder emails for expiring grants
+// ===========================================================================
+
+export async function runGrantExpiryReminders(): Promise<{
+  results: any[];
+  sent: number;
+  skipped: number;
+  failed: number;
+}> {
+  const results: any[] = [];
+  let sent = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  const sixDaysFromNow = new Date();
+  sixDaysFromNow.setDate(sixDaysFromNow.getDate() + 6);
+  const eightDaysFromNow = new Date();
+  eightDaysFromNow.setDate(eightDaysFromNow.getDate() + 8);
+
+  // Find active grants expiring within the next 6-8 days
+  const { data: expiringGrants } = await supabaseAdmin
+    .from("school_plan_grants")
+    .select(`
+      id, school_id, plan_key, expires_at,
+      schools!inner(name, email)
+    `)
+    .eq("is_active", true)
+    .gte("expires_at", sixDaysFromNow.toISOString())
+    .lte("expires_at", eightDaysFromNow.toISOString());
+
+  const grants = (expiringGrants ?? []).map((row: any) => ({
+    grant_id: row.id,
+    school_id: row.school_id,
+    school_name: row.schools?.name || "Unknown",
+    plan_key: row.plan_key,
+    expires_at: row.expires_at,
+    school_email: row.schools?.email || null,
+  })) as GrantExpiringSoon[];
+
+  if (grants.length === 0) {
+    return { results: [], sent: 0, skipped: 0, failed: 0 };
+  }
+
+  console.log(`[maintenance] Sending ${grants.length} grant expiry reminder(s)`);
+
+  for (const grant of grants) {
+    // Fetch admin email
+    const { data: admin } = await supabaseAdmin
+      .from("admins")
+      .select("email")
+      .eq("school_id", grant.school_id)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle();
+
+    const recipientEmail = admin?.email || grant.school_email;
+    if (!recipientEmail || !recipientEmail.includes("@")) {
+      skipped++;
+      results.push({
+        task: "grant-reminder", grant_id: grant.grant_id,
+        school_id: grant.school_id, school_name: grant.school_name,
+        plan_key: grant.plan_key, status: "skipped", error: "No valid admin email",
+      });
+      continue;
+    }
+
+    const err = await sendGrantExpiryReminder(grant.school_id, grant.plan_key, grant.expires_at);
+    if (err) {
+      failed++;
+      results.push({
+        task: "grant-reminder", grant_id: grant.grant_id,
+        school_id: grant.school_id, school_name: grant.school_name,
+        plan_key: grant.plan_key, status: "failed", error: err,
+      });
+    } else {
+      sent++;
+      results.push({
+        task: "grant-reminder", grant_id: grant.grant_id,
+        school_id: grant.school_id, school_name: grant.school_name,
+        plan_key: grant.plan_key, status: "sent",
+      });
     }
   }
 

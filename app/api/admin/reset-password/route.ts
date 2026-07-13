@@ -1,3 +1,4 @@
+import { APP_NAME } from "@/data";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
@@ -138,7 +139,7 @@ export async function POST(req: Request) {
             <p>Or copy this link: <a href="${activationLink}">${activationLink}</a></p>
             <p style="color: #666; font-size: 14px;">This link will expire in 24 hours.</p>
             <p style="color: #666; font-size: 12px;">If you didn't request a password reset, please ignore this email.</p>
-            <p style="color: #666; font-size: 12px;">Powered by School Deck.</p>
+            <p style="color: #666; font-size: 12px;">Powered by ${APP_NAME}.</p>
           </div>
         `,
       });

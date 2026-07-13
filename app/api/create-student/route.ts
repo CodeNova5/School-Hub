@@ -1,3 +1,4 @@
+import { APP_NAME } from "@/data";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
@@ -486,7 +487,7 @@ export async function POST(req: Request) {
         </a>
       </p>
       <p>This link expires in 24 hours.</p>
-      <p>Welcome to School Deck.</p>
+      <p>Welcome to ${APP_NAME}.</p>
     `,
       });
 
@@ -565,7 +566,7 @@ export async function POST(req: Request) {
             <a href="${activationLink}" style="color:#2563eb;">Activate Parent Account</a>
           </p>
           <p>This link expires in 24 hours.</p>
-          <p>Powered by School Deck.</p>
+          <p>Powered by ${APP_NAME}.</p>
         `,
       });
 
@@ -593,7 +594,7 @@ export async function POST(req: Request) {
                   <p>A new student has been added to your ${schoolName} parent portal account:</p>
                   <p><strong>${studentData.first_name} ${studentData.last_name}</strong> (ID: ${generatedStudentId})</p>
                   <p>You can now view their information in your parent portal.</p>
-                  <p>Powered by School Deck.</p>
+                  <p>Powered by ${APP_NAME}.</p>
                 `,
               });
 

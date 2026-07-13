@@ -1,5 +1,6 @@
 "use client";
 
+import { APP_NAME } from "@/data";
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { MessageSquare, Plus, Settings, LogOut, Loader2, Download, Trash2 as TrashIcon, Trash, Archive, Clock, MoreVertical } from 'lucide-react';
@@ -423,7 +424,7 @@ export default function AdminAIAssistantLandingPage() {
 									<MessageSquare className="h-5 w-5 text-white" />
 								</div>
 								<div className="min-w-0">
-									<h1 className="truncate text-lg font-semibold tracking-tight text-white">School Deck AI</h1>
+									<h1 className="truncate text-lg font-semibold tracking-tight text-white">{APP_NAME} AI</h1>
 									<p className="truncate text-sm text-slate-400">Ask questions, get data answers</p>
 								</div>
 							</div>
@@ -445,7 +446,7 @@ export default function AdminAIAssistantLandingPage() {
 					<AIAssistantChat
 						loadHistory={false}
 						onSessionIdChange={handleSessionIdChange}
-						welcomeMessage="👋 Welcome to School Deck AI! I'm here to help you analyze your school data. Ask me anything about students, classes, grades, attendance, teachers, and more."
+						welcomeMessage={`👋 Welcome to ${APP_NAME} AI! I'm here to help you analyze your school data. Ask me anything about students, classes, grades, attendance, teachers, and more.`}
 						placeholder="Ask me anything about your school data..."
 						suggestedQuestions={[
 							'How many students are enrolled?',

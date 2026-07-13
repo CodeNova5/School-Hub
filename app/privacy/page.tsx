@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { APP_NAME, CONTACT_EMAIL, DPO_EMAIL, CONTACT_PHONE, COMPANY_ADDRESS, getCopyrightText } from "@/data";
 import {
   GraduationCap,
   Shield,
@@ -28,7 +29,7 @@ const sections = [
     content: (
       <>
         <p className="mb-4">
-          School Hub (&ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;) is committed to protecting
+          {APP_NAME} (&ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;) is committed to protecting
           the privacy and security of your personal data. This Privacy Policy explains how we
           collect, use, disclose, and safeguard your information when you use our multi-tenant
           school management platform, including our website, mobile applications, and related
@@ -541,8 +542,8 @@ const sections = [
               </div>
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Email</p>
-                <a href="mailto:hello@schhub.app" className="text-sm font-bold text-blue-700 hover:text-blue-800 transition-colors">
-                  hello@schhub.app
+                <a href={`mailto:${CONTACT_EMAIL}`} className="text-sm font-bold text-blue-700 hover:text-blue-800 transition-colors">
+                  {CONTACT_EMAIL}
                 </a>
               </div>
             </div>
@@ -552,18 +553,18 @@ const sections = [
               </div>
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Phone</p>
-                <p className="text-sm font-bold text-gray-700">+1 (555) 123-4567</p>
+                <p className="text-sm font-bold text-gray-700">{CONTACT_PHONE}</p>
               </div>
             </div>
             <div className="flex items-start gap-3">
               <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center">
-                <MapPin className="h-4.5 w-4.5 text-blue-600" />
+                <MapPin className="h-5 w-5 text-blue-600" />
               </div>
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Address</p>
                 <p className="text-sm text-gray-700">
-                  123 Education Ave, Suite 200<br />
-                  San Francisco, CA 94105
+                  {COMPANY_ADDRESS.line1}<br />
+                  {COMPANY_ADDRESS.city}, {COMPANY_ADDRESS.state} {COMPANY_ADDRESS.zip}
                 </p>
               </div>
             </div>
@@ -577,7 +578,7 @@ const sections = [
               <p className="font-semibold mb-1">Data Protection Officer (DPO)</p>
               <p>
                 For data protection-related inquiries, you may also contact our Data Protection
-                Officer at <a href="mailto:dpo@schhub.app" className="font-bold underline underline-offset-2 hover:text-amber-900">dpo@schhub.app</a>.
+                Officer at <a href={`mailto:${DPO_EMAIL}`} className="font-bold underline underline-offset-2 hover:text-amber-900">{DPO_EMAIL}</a>.
               </p>
               <p className="mt-2">
                 If you are in Nigeria and wish to lodge a complaint regarding our handling of
@@ -603,7 +604,7 @@ export default function PrivacyPolicyPage() {
                 <GraduationCap className="h-4 w-4 text-white" />
               </div>
               <span className="text-base font-bold tracking-tight text-gray-900">
-                School Hub
+                {APP_NAME}
               </span>
             </Link>
             <div className="flex items-center gap-3">
@@ -633,8 +634,7 @@ export default function PrivacyPolicyPage() {
             Privacy Policy
           </h1>
           <p className="text-lg text-gray-500 max-w-2xl mx-auto leading-relaxed">
-            How we collect, use, disclose, and safeguard your information when you use the School
-            Hub platform.
+            How we collect, use, disclose, and safeguard your information when you use the {APP_NAME} platform.
           </p>
         </div>
       </section>
@@ -695,7 +695,7 @@ export default function PrivacyPolicyPage() {
             {/* ── Footer note ── */}
             <div className="mt-16 pt-8 border-t border-gray-100 max-w-3xl">
               <p className="text-xs text-gray-400 text-center">
-                &copy; {new Date().getFullYear()} School Hub. All rights reserved. |{" "}
+                {getCopyrightText()} |{" "}
                 <Link href="/" className="text-gray-500 hover:text-gray-700 transition-colors underline underline-offset-2">
                   Home
                 </Link>
@@ -707,6 +707,4 @@ export default function PrivacyPolicyPage() {
     </div>
   );
 }
-
-// Helper to avoid missing import since lucide doesn't export BarChart directly for this usage
 

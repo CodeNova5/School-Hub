@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
+import { APP_NAME } from "@/data";
 import {
   Search,
   Bell,
@@ -690,7 +691,7 @@ function QuickActionsMenu({ role }: { role: AppHeaderProps["role"] }) {
 export function AppHeader({
   onMenuToggle,
   role,
-  schoolName = "School Deck",
+  schoolName = APP_NAME,
 }: AppHeaderProps) {
   const pathname = usePathname();
   const [isScrolled, setIsScrolled] = useState(false);

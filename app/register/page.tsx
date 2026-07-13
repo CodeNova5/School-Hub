@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { APP_NAME } from "@/data";
 import {
   Building2,
   Mail,
@@ -382,7 +383,7 @@ function RegisterForm() {
               <GraduationCap className="w-6 h-6 text-white" />
             </div>
             <div>
-              <span className="text-white font-bold text-lg tracking-tight">School Hub</span>
+              <span className="text-white font-bold text-lg tracking-tight">{APP_NAME}</span>
               <p className="text-blue-200 text-[10px] font-medium tracking-widest uppercase">Portal</p>
             </div>
           </div>
@@ -394,7 +395,7 @@ function RegisterForm() {
               <span className="text-blue-200">Fully managed.</span>
             </h1>
             <p className="text-blue-100/80 text-sm leading-relaxed max-w-xs">
-              Join thousands of schools already using School Hub to streamline administration, engage parents and improve learning outcomes.
+              Join thousands of schools already using {APP_NAME} to streamline administration, engage parents and improve learning outcomes.
             </p>
           </div>
 
@@ -427,7 +428,7 @@ function RegisterForm() {
           {/* Testimonial quote */}
           <div className="mt-6 pt-6 border-t border-white/10">
             <p className="text-blue-100/70 text-xs italic leading-relaxed">
-              "School Hub transformed how we manage our 1,200+ students. Setup took minutes."
+              "{APP_NAME} transformed how we manage our 1,200+ students. Setup took minutes."
             </p>
             <p className="text-blue-200 text-xs font-semibold mt-2">— Principal Adeyemi, Lagos</p>
           </div>
@@ -441,7 +442,7 @@ function RegisterForm() {
           <div className="p-2 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl">
             <GraduationCap className="w-5 h-5 text-white" />
           </div>
-          <span className="font-bold text-gray-900">School Hub</span>
+          <span className="font-bold text-gray-900">{APP_NAME}</span>
         </div>
 
         <div className="w-full max-w-md">

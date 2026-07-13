@@ -1,3 +1,4 @@
+import { APP_NAME } from "@/data";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -138,7 +139,7 @@ export async function POST(req: NextRequest) {
           subject: `Activate Your School Admin Account - ${schoolName}`,
           html: `
             <p>Hello ${name},</p>
-            <p>You have been added as an administrator for <strong>${schoolName}</strong> on School Deck.</p>
+            <p>You have been added as an administrator for <strong>${schoolName}</strong> on ${APP_NAME}.</p>
             <p>Click the link below to activate your account and set your password:</p>
             <p>
               <a href="${activationLink}" style="color:#2563eb; text-decoration:none;">

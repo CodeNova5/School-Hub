@@ -1,5 +1,6 @@
 export const runtime = "nodejs";
 
+import { APP_NAME } from "@/data";
 import { NextRequest, NextResponse } from "next/server";
 import { sendEmailSafe, buildSchoolSenderName } from "@/lib/email";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
@@ -80,7 +81,7 @@ async function logEmail(
 // Function to build email HTML template
 function buildEmailTemplate(subject: string, body: string, schoolName?: string): string {
     const brandColor = "#3B82F6";
-    const schoolDisplay = schoolName ?? "School Deck";
+    const schoolDisplay = schoolName ?? APP_NAME;
     
     return `
 <!DOCTYPE html>

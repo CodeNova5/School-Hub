@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { createBrowserClient } from "@supabase/ssr";
 import { PortalSwitcher } from "@/components/portal-switcher";
+import { APP_NAME } from "@/data";
 import {
   Lock,
   Mail,
@@ -106,7 +107,7 @@ function AdminLoginForm() {
             <div className="p-3.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-2xl shadow-blue-500/30 mb-4">
               <GraduationCap className="w-8 h-8 text-white" />
             </div>
-            <span className="text-white font-extrabold text-xl tracking-tight">School Hub</span>
+            <span className="text-white font-extrabold text-xl tracking-tight">{APP_NAME}</span>
             <span className="text-blue-300/70 text-xs font-medium tracking-widest uppercase mt-0.5">Admin Portal</span>
           </div>
 
@@ -118,7 +119,7 @@ function AdminLoginForm() {
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                 </div>
                 <div>
-                  <p className="text-emerald-300 font-bold text-sm">Welcome to School Hub! 🎉</p>
+                  <p className="text-emerald-300 font-bold text-sm">Welcome to {APP_NAME}! 🎉</p>
                   <p className="text-emerald-200/70 text-xs mt-0.5 leading-relaxed">
                     Your school was registered successfully. Sign in using the email and password you just created.
                   </p>

@@ -15,14 +15,14 @@ async function sendEmail() {
   }
 
   const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
-  const fromName = process.env.RESEND_FROM_NAME || 'School Deck';
+  const fromName = process.env.RESEND_FROM_NAME || 'Prism';
 
   const { data, error } = await resend.emails.send({
     from: `${fromName} <${fromEmail}>`,
     to: EMAIL_TO,
-    subject: 'School Deck Resend Test',
+    subject: 'Prism Resend Test',
     text: 'Hello! This is a test email sent with Resend.',
-    html: '<p>Hello! This is a <b>test email</b> sent with Resend for School Deck.</p>',
+    html: '<p>Hello! This is a <b>test email</b> sent with Resend for Prism.</p>',
   });
 
   if (error) {

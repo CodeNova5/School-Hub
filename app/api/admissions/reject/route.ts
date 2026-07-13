@@ -1,3 +1,4 @@
+import { APP_NAME } from "@/data";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 import { NextResponse } from "next/server";
@@ -102,7 +103,7 @@ export async function POST(req: Request) {
           
           <p>Best regards,<br>
           <strong>${schoolName} Admissions Team</strong></p>
-          <p style="color: #666; font-size: 12px;">Powered by School Deck.</p>
+          <p style="color: #666; font-size: 12px;">Powered by ${APP_NAME}.</p>
         </div>
       `,
     });

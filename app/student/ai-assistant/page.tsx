@@ -1,5 +1,7 @@
 "use client";
 
+import { APP_NAME } from "@/data";
+
 /**
  * Student AI Assistant Page with Chat History
  * Provides AI-powered data insights with session-based chat memory
@@ -1049,7 +1051,7 @@ export default function StudentAIAssistantPage() {
                 <MessageSquare className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-white">School Deck AI</h1>
+                <h1 className="text-xl font-bold text-white">{APP_NAME} AI</h1>
                 <p className="text-sm text-slate-300">Intelligent Analytics Platform</p>
               </div>
             </div>
@@ -1069,7 +1071,7 @@ export default function StudentAIAssistantPage() {
               onMessagesUpdate={handleMessagesUpdate}
               onGeneratedTitle={handleTitleGenerated}
                 onSessionIdChange={handleSessionIdChange}
-              welcomeMessage="👋 Welcome to School Deck AI! I'm here to help you analyze your school data. Ask me anything about students, classes, grades, attendance, teachers, and more."
+              welcomeMessage={`👋 Welcome to ${APP_NAME} AI! I'm here to help you analyze your school data. Ask me anything about students, classes, grades, attendance, teachers, and more.`}
               placeholder="Ask me anything about your school data..."
               suggestedQuestions={[
                 'How many students are enrolled?',

@@ -1,3 +1,4 @@
+import { EMAIL_SENDER_TEAM, EMAIL_SENDER_SYSTEM, APP_NAME } from "@/data";
 import { sendEmailSafe, buildSchoolSenderName } from "@/lib/email";
 import { buildEmailTemplate } from "@/lib/email-templates";
 import { createClient } from "@supabase/supabase-js";
@@ -176,7 +177,7 @@ export async function sendRenewalReminder(schoolId: string): Promise<string | nu
       `If you need to update your payment method, please log in to your dashboard and visit the Subscription settings page.`,
       ``,
       `Thank you for choosing ${info.school_name}.`,
-      `— The School Hub Team`,
+      `${EMAIL_SENDER_TEAM}`,
     ].join("\n");
 
     const html = buildEmailTemplate(subject, body, info.school_name);
@@ -249,7 +250,7 @@ export async function sendPaymentFailureAlert(
       `If you need assistance, please contact our support team.`,
       ``,
       `Thank you,`,
-      `— The School Hub Team`,
+      `${EMAIL_SENDER_TEAM}`,
     ].join("\n");
 
     const html = buildEmailTemplate(subject, body, info.school_name);
@@ -320,7 +321,7 @@ export async function sendSubscriptionDowngradedAlert(
       `If you have any questions or need assistance, please contact our support team.`,
       ``,
       `Thank you,`,
-      `— The School Hub Team`,
+      `${EMAIL_SENDER_TEAM}`,
     ].join("\n");
 
     const html = buildEmailTemplate(subject, body, info.school_name);
@@ -413,11 +414,11 @@ export async function sendSuperAdminAtRiskAlert(schoolId: string): Promise<void>
       ``,
       `If payment is not received within 7 days, the school will be automatically downgraded to the Basic plan.`,
       ``,
-      `— School Hub System`,
+      `${EMAIL_SENDER_SYSTEM}`,
     ].join("\n");
 
     const html = buildEmailTemplate(subject, body, "Super Admin");
-    const fromName = buildSchoolSenderName("School Hub", "System");
+    const fromName = buildSchoolSenderName(APP_NAME, "System");
 
     // Send to each super admin sequentially
     for (const email of emails) {
@@ -494,7 +495,7 @@ export async function sendPaymentSuccessConfirmation(
       `Your subscription is now active and all features are available. No further action is needed.`,
       ``,
       `Thank you for being a valued member of ${info.school_name}.`,
-      `— The School Hub Team`,
+      `${EMAIL_SENDER_TEAM}`,
     ].join("\n");
 
     const html = buildEmailTemplate(subject, body, info.school_name);

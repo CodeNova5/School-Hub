@@ -1,3 +1,4 @@
+import { APP_NAME } from "@/data";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { fileToBase64, uploadFile } from "@/lib/github";
@@ -366,7 +367,7 @@ export async function POST(req: NextRequest) {
           
           <p>Best regards,<br>
           <strong>${schoolName} Admissions Team</strong></p>
-          <p style="color: #666; font-size: 12px;">Powered by School Deck.</p>
+          <p style="color: #666; font-size: 12px;">Powered by ${APP_NAME}.</p>
         </div>
       `,
     });
@@ -394,7 +395,7 @@ export async function POST(req: NextRequest) {
             <p>Please log in to your admin dashboard to review and process this application.</p>
             
             <p>Best regards,<br>
-            <strong>School Deck Admissions System</strong></p>
+            <strong>${APP_NAME} Admissions System</strong></p>
           </div>
         `,
       });

@@ -1,3 +1,4 @@
+import { APP_NAME } from "@/data";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
@@ -201,7 +202,7 @@ export async function POST(req: Request) {
           subject: `Verify Your New Email Address - ${schoolName}`,
           html: `
             <p>Hello ${currentStudent.first_name},</p>
-            <p>Your email address has been updated for <strong>${schoolName}</strong> in School Deck.</p>
+            <p>Your email address has been updated for <strong>${schoolName}</strong> in ${APP_NAME}.</p>
             <p>Click the link below to verify your new email address:</p>
             <p>
               <a href="${activationLink}" style="color:#2563eb; text-decoration:none;">

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePlanDisplayInfo, PLAN_KEYS_IN_ORDER } from "@/hooks/use-plan-display-info";
+import { APP_NAME, getCopyrightText } from "@/data";
 import {
   Check,
   X,
@@ -613,7 +614,7 @@ export default function SubscriptionPage() {
               <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-blue-600 to-blue-400">
                 <GraduationCap className="h-3.5 w-3.5 text-white" />
               </div>
-              <span className="text-sm font-bold text-gray-900">School Hub</span>
+              <span className="text-sm font-bold text-gray-900">{APP_NAME}</span>
             </div>
             <div className="flex items-center gap-6">
               <Link href="/privacy" className="text-xs text-gray-500 hover:text-gray-700 transition-colors">Privacy Policy</Link>
@@ -621,7 +622,7 @@ export default function SubscriptionPage() {
               <Link href="#" className="text-xs text-gray-500 hover:text-gray-700 transition-colors">Contact Support</Link>
             </div>
             <p className="text-xs text-gray-400">
-              &copy; {new Date().getFullYear()} School Hub. All rights reserved.
+              {getCopyrightText()}
             </p>
           </div>
         </div>

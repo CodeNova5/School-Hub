@@ -1,3 +1,4 @@
+import { APP_NAME } from "@/data";
 import { Suspense } from "react";
 import { FeatureLockedPage } from "@/components/feature-locked-page";
 
@@ -10,8 +11,8 @@ import { FeatureLockedPage } from "@/components/feature-locked-page";
  *   - plan:    The school's current plan (e.g., "basic", "pro")
  */
 export const metadata = {
-  title: "Upgrade Required — School Hub",
-  description: "This feature requires an upgraded school plan.",
+  title: `Upgrade Required — ${APP_NAME}`,
+  description: `This feature requires an upgraded school plan.`,
 };
 
 export default function UpgradePage() {

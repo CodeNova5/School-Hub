@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { APP_NAME } from "@/data";
 import {
   Shield,
   ShieldAlert,
@@ -472,7 +473,7 @@ export function FeatureLockedPage({
 
       {/* ── Footer branding ── */}
       <p className="mt-8 text-xs text-slate-400 dark:text-slate-600 transition-all duration-500 delay-1000">
-        School Hub — Plan &amp; Billing
+        {APP_NAME} — Plan &amp; Billing
       </p>
     </div>
   );

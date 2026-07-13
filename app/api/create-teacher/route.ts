@@ -1,3 +1,4 @@
+import { APP_NAME } from "@/data";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
@@ -158,7 +159,7 @@ export async function POST(req: Request) {
         <p>Click the link below to activate your account:</p>
         <p><a href="${activationLink}">Activate Account</a></p>
         <p>This link expires in 24 hours.</p>
-        <p>Powered by School Deck.</p>
+        <p>Powered by ${APP_NAME}.</p>
       `,
     });
 

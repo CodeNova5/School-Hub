@@ -40,6 +40,22 @@ import {
   Wallet,
   Quote,
 } from "lucide-react";
+import {
+  APP_NAME,
+  APP_TAGLINE,
+  HERO_HEADLINE,
+  HERO_SUBHEADLINE,
+  NAV_LINKS,
+  STATS,
+  PORTALS,
+  FOOTER_LINKS,
+  CONTACT_EMAIL,
+  CONTACT_PHONE,
+  COMPANY_ADDRESS,
+  getCopyrightText,
+  EMAIL_SENDER_TEAM,
+} from "@/data";
+
 
 /* ═══════════════════════════════════════
    ANIMATION HOOK
@@ -132,7 +148,7 @@ function BrowserFrame({
         <div className="mx-auto flex max-w-[60%] items-center gap-2 rounded-md bg-white px-3 py-1.5 shadow-sm">
           <Shield className="h-3 w-3 text-emerald-500" />
           <span className="truncate text-[11px] font-medium text-gray-500">
-            app.schoolhub.com
+            app.{APP_NAME.toLowerCase()}.com
           </span>
         </div>
       </div>
@@ -271,10 +287,10 @@ function Navbar() {
             </div>
             <div className="flex flex-col">
               <span className="text-lg font-bold tracking-tight text-gray-900 leading-none">
-                School Hub
+                {APP_NAME}
               </span>
               <span className="text-[10px] font-medium text-blue-600 leading-none tracking-wider uppercase mt-0.5">
-                Multi-Tenant Platform
+                {APP_TAGLINE}
               </span>
             </div>
           </Link>
@@ -684,7 +700,7 @@ export default function LandingPage() {
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-50 border border-blue-100 mb-6 animate-in fade-in duration-700">
               <Sparkles className="h-3.5 w-3.5 text-blue-500" />
               <span className="text-xs font-medium text-blue-700">
-                Multi-Tenant School Management Platform
+                {APP_TAGLINE} — School Management
               </span>
             </div>
 
@@ -831,7 +847,7 @@ export default function LandingPage() {
         title="AI That Works For Your School — From Lesson Notes to Chatbots"
         description="Leverage artificial intelligence to reduce teacher workload, generate question banks, create lesson notes, and provide instant answers to parents and students through an intelligent chatbot."
         bullets={[
-          { icon: Bot, text: "School Deck AI — chat with your school data for instant insights" },
+          { icon: Bot, text: "{APP_NAME} AI — chat with your school data for instant insights" },
           { icon: BookOpen, text: "AI-powered question bank generator from any topic or subject" },
           { icon: FileText, text: "Automated lesson note creation aligned with your curriculum" },
           { icon: MessageSquare, text: "AI chatbot for student & parent inquiries — available 24/7" },
@@ -841,7 +857,7 @@ export default function LandingPage() {
             src="/landing/ai-chat.png"
             gradient="from-blue-700 via-indigo-700 to-purple-800"
             icon={Bot}
-            label="School Deck AI Chat Interface"
+            label="{APP_NAME} AI Chat Interface"
           />
         }
       />
@@ -1025,14 +1041,14 @@ export default function LandingPage() {
               What School Leaders Say
             </h2>
             <p className="text-gray-500 leading-relaxed">
-              Schools across Nigeria trust School Hub to streamline operations and improve outcomes.
+              Schools across Nigeria trust {APP_NAME} to streamline operations and improve outcomes.
             </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6">
             {[
               {
-                quote: "School Hub transformed how we manage our three campuses. The multi-tenant architecture means each school has autonomy while I get a bird's-eye view of everything.",
+                quote: "{APP_NAME} transformed how we manage our three campuses. The multi-tenant architecture means each school has autonomy while I get a bird's-eye view of everything.",
                 author: "Dr. Adebayo O.",
                 role: "Executive Director, 3-Campus School Network",
               },
@@ -1076,7 +1092,7 @@ export default function LandingPage() {
             Ready to Transform Your School Network?
           </h2>
           <p className="text-gray-400 text-lg leading-relaxed mb-8 max-w-xl mx-auto">
-            Join hundreds of schools already using School Hub to streamline operations, improve
+            Join hundreds of schools already using {APP_NAME} to streamline operations, improve
             academic outcomes, and connect their entire community.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -1111,7 +1127,7 @@ export default function LandingPage() {
                 <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-blue-400">
                   <GraduationCap className="h-4 w-4 text-white" />
                 </div>
-                <span className="text-base font-bold text-white">School Hub</span>
+                <span className="text-base font-bold text-white">{APP_NAME}</span>
               </div>
               <p className="text-sm text-gray-400 leading-relaxed mb-4 max-w-xs">
                 A comprehensive multi-tenant school management platform for modern education
@@ -1177,7 +1193,7 @@ export default function LandingPage() {
               <ul className="space-y-3">
                 <li className="flex items-start gap-2.5">
                   <Mail className="h-4 w-4 text-gray-500 mt-0.5 flex-shrink-0" />
-                  <span className="text-sm text-gray-500">hello@schhub.app</span>
+                  <span className="text-sm text-gray-500">{CONTACT_EMAIL}</span>
                 </li>
                 <li className="flex items-start gap-2.5">
                   <Phone className="h-4 w-4 text-gray-500 mt-0.5 flex-shrink-0" />
@@ -1197,7 +1213,7 @@ export default function LandingPage() {
 
           <div className="mt-12 pt-8 border-t border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-xs text-gray-600">
-              &copy; {new Date().getFullYear()} School Hub. All rights reserved.
+              &copy; {new Date().getFullYear()} {APP_NAME}. All rights reserved.
             </p>
             <div className="flex items-center gap-4">
               <Link href="/privacy" className="text-xs text-gray-600 hover:text-gray-400 transition-colors">Privacy Policy</Link>

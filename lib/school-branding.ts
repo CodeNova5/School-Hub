@@ -1,5 +1,5 @@
+import { PLATFORM_NAME } from "@/data";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { PLATFORM_NAME } from "./email";
 
 export async function resolveSchoolName(
   supabase: SupabaseClient,

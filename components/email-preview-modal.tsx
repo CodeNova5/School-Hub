@@ -1,5 +1,6 @@
 "use client";
 
+import { APP_NAME } from "@/data";
 import React, { useState } from "react";
 import {
   Dialog,
@@ -25,7 +26,7 @@ export function EmailPreviewModal({
   onOpenChange,
   subject,
   htmlContent,
-  schoolName = "School Deck",
+  schoolName = APP_NAME,
 }: EmailPreviewModalProps) {
   const [copiedHtml, setCopiedHtml] = useState(false);
 

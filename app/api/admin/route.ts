@@ -1,3 +1,4 @@
+import { APP_NAME } from "@/data";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
@@ -463,7 +464,7 @@ export async function POST(req: NextRequest) {
               subject: `Activate Your Updated Teacher Account - ${schoolName}`,
               html: `
                 <p>Hello ${first_name},</p>
-                <p>Your email address has been updated for <strong>${schoolName}</strong> in School Deck.</p>
+                <p>Your email address has been updated for <strong>${schoolName}</strong> in ${APP_NAME}.</p>
                 <p>Click the link below to activate your account with the new email:</p>
                 <p><a href="${activationLink}">Activate Account</a></p>
                 <p>This link expires in 24 hours.</p>

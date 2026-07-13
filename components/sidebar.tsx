@@ -36,6 +36,7 @@ import {
   Shield
 } from "lucide-react";
 
+import { APP_NAME } from "@/data";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useEffect, useState } from "react";
@@ -307,7 +308,7 @@ export function Sidebar({
               </div>
               {!collapsed && (
                 <div className="flex flex-col">
-                  <span className="text-sm font-bold text-slate-900">School Deck</span>
+                  <span className="text-sm font-bold text-slate-900">{APP_NAME}</span>
                   <span className="text-xs text-slate-500">Management</span>
                 </div>
               )}
@@ -384,7 +385,7 @@ export function Sidebar({
           {/* Footer */}
           {!collapsed && (
             <div className="border-t border-slate-200 p-4 text-xs text-slate-500 text-center">
-              School Deck v1.0
+              {APP_NAME} v1.0
             </div>
           )}
         </div>

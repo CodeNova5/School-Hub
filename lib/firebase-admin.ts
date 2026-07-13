@@ -66,7 +66,7 @@ export async function sendNotificationToToken(
         body: notification.body,
         imageUrl:
           notification.imageUrl ||
-          "https://schooldeck/logo.png",
+          "https://prism.app/logo.png",
         link: data?.link || "/",
         tag: data?.tag || "default",
         ...(data || {}),

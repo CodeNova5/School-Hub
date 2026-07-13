@@ -1,6 +1,8 @@
+import { APP_NAME } from "@/data";
+
 export function buildEmailTemplate(subject: string, body: string, schoolName?: string): string {
     const brandColor = "#3B82F6";
-    const schoolDisplay = schoolName ?? "School Deck";
+    const schoolDisplay = schoolName ?? APP_NAME;
     
     return `
 <!DOCTYPE html>

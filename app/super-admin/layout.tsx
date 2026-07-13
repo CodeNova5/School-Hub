@@ -15,6 +15,7 @@ import {
   UserCog,
   DollarSign,
   Gift,
+  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
@@ -25,6 +26,7 @@ const navItems = [
   { href: "/super-admin/grants", label: "Grants", icon: <Gift className="h-5 w-5" /> },
   { href: "/super-admin/admins", label: "Admins", icon: <UserCog className="h-5 w-5" /> },
   { href: "/super-admin/subscription", label: "Subscription", icon: <DollarSign className="h-5 w-5" /> },
+  { href: "/super-admin/maintenance", label: "Maintenance", icon: <Settings className="h-5 w-5" /> },
 ];
 
 export default function SuperAdminLayout({ children }: { children: React.ReactNode }) {

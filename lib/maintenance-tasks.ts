@@ -1,5 +1,4 @@
 import { createClient } from "@supabase/supabase-js";
-import { NextRequest, NextResponse } from "next/server";
 import {
   sendPaymentFailureAlert,
   sendPaymentSuccessConfirmation,
@@ -8,7 +7,7 @@ import {
   sendRenewalReminder,
 } from "@/lib/subscription-email";
 
-const supabaseAdmin = createClient(
+export const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
@@ -71,10 +70,10 @@ interface PaystackChargeResponse {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function generateReference(): string {
+function generateReference(prefix = "SUB-CRON"): string {
   const timestamp = Date.now().toString();
   const random = Math.random().toString(36).slice(2, 8).toUpperCase();
-  return `SUB-CRON-${timestamp}-${random}`;
+  return `${prefix}-${timestamp}-${random}`;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -161,7 +160,7 @@ async function handleFailedCharge(school: SchoolDueForBilling): Promise<void> {
 // Task 1: charge-subscriptions — charge stored auth codes for due renewals
 // ===========================================================================
 
-async function runChargeSubscriptions(): Promise<{
+export async function runChargeSubscriptions(): Promise<{
   results: any[];
   processed: number;
   succeeded: number;
@@ -176,7 +175,7 @@ async function runChargeSubscriptions(): Promise<{
 
   const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
   if (!paystackSecret) {
-    console.warn("[daily-maintenance] PAYSTACK_SECRET_KEY not set — skipping billing charges");
+    console.warn("[maintenance] PAYSTACK_SECRET_KEY not set — skipping billing charges");
     return { results: [{ task: "charge-subscriptions", skipped: true, reason: "PAYSTACK_SECRET_KEY not set" }], processed: 0, succeeded: 0, failed: 0, skipped: 1 };
   }
 
@@ -184,11 +183,11 @@ async function runChargeSubscriptions(): Promise<{
   const schools = (schoolsDue ?? []) as SchoolDueForBilling[];
 
   if (schools.length === 0) {
-    console.log("[daily-maintenance] No schools due for billing");
+    console.log("[maintenance] No schools due for billing");
     return { results: [], processed: 0, succeeded: 0, failed: 0, skipped: 0 };
   }
 
-  console.log(`[daily-maintenance] Charging ${schools.length} school(s) due for billing`);
+  console.log(`[maintenance] Charging ${schools.length} school(s) due for billing`);
 
   for (let i = 0; i < schools.length; i++) {
     const school = schools[i];
@@ -202,7 +201,7 @@ async function runChargeSubscriptions(): Promise<{
       continue;
     }
 
-    const reference = generateReference();
+    const reference = generateReference("SUB-CRON");
     const amountInKobo = Math.round(Number(school.amount) * 100);
 
     // Create pending transaction (non-fatal)
@@ -255,7 +254,7 @@ async function runChargeSubscriptions(): Promise<{
 // Task 2: downgrade-expired — downgrade schools past their grace period
 // ===========================================================================
 
-async function runDowngradeExpired(): Promise<{
+export async function runDowngradeExpired(): Promise<{
   results: any[];
   downgraded: number;
   failed: number;
@@ -271,7 +270,7 @@ async function runDowngradeExpired(): Promise<{
     return { results: [], downgraded: 0, failed: 0 };
   }
 
-  console.log(`[daily-maintenance] Downgrading ${schools.length} school(s) past grace period`);
+  console.log(`[maintenance] Downgrading ${schools.length} school(s) past grace period`);
 
   for (const school of schools) {
     const { data: ok, error } = await supabaseAdmin.rpc("downgrade_school_to_basic", { p_school_id: school.school_id });
@@ -294,7 +293,7 @@ async function runDowngradeExpired(): Promise<{
 // Task 3: expire-plan-grants — expire manual grants that have ended
 // ===========================================================================
 
-async function runExpirePlanGrants(): Promise<{
+export async function runExpirePlanGrants(): Promise<{
   results: any[];
   expired: number;
   failed: number;
@@ -306,7 +305,7 @@ async function runExpirePlanGrants(): Promise<{
   const { data: expiredGrants, error } = await supabaseAdmin.rpc("expire_past_plan_grants");
 
   if (error) {
-    console.error(`[daily-maintenance] expire_past_plan_grants RPC error:`, error);
+    console.error(`[maintenance] expire_past_plan_grants RPC error:`, error);
     return { results: [{ task: "expire-grants", status: "failed", error: error.message }], expired: 0, failed: 1 };
   }
 
@@ -316,7 +315,7 @@ async function runExpirePlanGrants(): Promise<{
     return { results: [], expired: 0, failed: 0 };
   }
 
-  console.log(`[daily-maintenance] Expiring ${grants.length} plan grant(s)`);
+  console.log(`[maintenance] Expiring ${grants.length} plan grant(s)`);
 
   for (const grant of grants) {
     expired++;
@@ -334,7 +333,7 @@ async function runExpirePlanGrants(): Promise<{
 // Task 4: subscription-reminders — send T-7 renewal reminder emails
 // ===========================================================================
 
-async function runSubscriptionReminders(): Promise<{
+export async function runSubscriptionReminders(): Promise<{
   results: any[];
   sent: number;
   skipped: number;
@@ -376,7 +375,7 @@ async function runSubscriptionReminders(): Promise<{
     return { results: [], sent: 0, skipped: 0, failed: 0 };
   }
 
-  console.log(`[daily-maintenance] Sending ${schools.length} renewal reminder(s)`);
+  console.log(`[maintenance] Sending ${schools.length} renewal reminder(s)`);
 
   for (const school of schools) {
     if (!school.auth_code) {
@@ -396,94 +395,4 @@ async function runSubscriptionReminders(): Promise<{
   }
 
   return { results, sent, skipped, failed };
-}
-
-// ===========================================================================
-// POST & GET /api/cron/daily-maintenance
-// Consolidated daily cron — runs all maintenance tasks in sequence
-// ===========================================================================
-
-async function handleCron(req: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) {
-    return NextResponse.json(
-      { error: "Cron endpoint not configured. Set CRON_SECRET environment variable." },
-      { status: 500 }
-    );
-  }
-
-  const authHeader = req.headers.get("authorization") || "";
-  const apiKeyHeader = req.headers.get("x-api-key") || "";
-  const providedSecret = authHeader.startsWith("Bearer ")
-    ? authHeader.slice(7)
-    : apiKeyHeader;
-
-  if (!providedSecret || providedSecret !== cronSecret) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const startTime = Date.now();
-
-  // ── Run all four tasks sequentially ──────────────────────────────────
-
-  console.log("[daily-maintenance] Starting daily maintenance run...");
-
-  const chargeResult = await runChargeSubscriptions();
-  console.log(`[daily-maintenance] ✓ charge-subscriptions: ${chargeResult.succeeded} ok, ${chargeResult.failed} failed, ${chargeResult.skipped} skipped`);
-
-  const downgradeResult = await runDowngradeExpired();
-  console.log(`[daily-maintenance] ✓ downgrade-expired: ${downgradeResult.downgraded} downgraded, ${downgradeResult.failed} failed`);
-
-  const expireGrantsResult = await runExpirePlanGrants();
-  console.log(`[daily-maintenance] ✓ expire-plan-grants: ${expireGrantsResult.expired} expired, ${expireGrantsResult.failed} failed`);
-
-  const reminderResult = await runSubscriptionReminders();
-  console.log(`[daily-maintenance] ✓ subscription-reminders: ${reminderResult.sent} sent, ${reminderResult.skipped} skipped, ${reminderResult.failed} failed`);
-
-  const duration = Date.now() - startTime;
-
-  console.log(`[daily-maintenance] Complete — all tasks finished in ${duration}ms`);
-
-  return NextResponse.json({
-    success: true,
-    duration_ms: duration,
-    tasks: {
-      charge_subscriptions: {
-        processed: chargeResult.processed,
-        succeeded: chargeResult.succeeded,
-        failed: chargeResult.failed,
-        skipped: chargeResult.skipped,
-      },
-      downgrade_expired: {
-        total: downgradeResult.downgraded + downgradeResult.failed,
-        downgraded: downgradeResult.downgraded,
-        failed: downgradeResult.failed,
-      },
-      expire_plan_grants: {
-        total: expireGrantsResult.expired + expireGrantsResult.failed,
-        expired: expireGrantsResult.expired,
-        failed: expireGrantsResult.failed,
-      },
-      subscription_reminders: {
-        total: reminderResult.sent + reminderResult.skipped + reminderResult.failed,
-        sent: reminderResult.sent,
-        skipped: reminderResult.skipped,
-        failed: reminderResult.failed,
-      },
-    },
-    results: [
-      ...chargeResult.results,
-      ...downgradeResult.results,
-      ...expireGrantsResult.results,
-      ...reminderResult.results,
-    ],
-  });
-}
-
-export async function POST(req: NextRequest) {
-  return handleCron(req);
-}
-
-export async function GET(req: NextRequest) {
-  return handleCron(req);
 }

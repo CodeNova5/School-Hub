@@ -308,11 +308,10 @@ function Navbar() {
 
   return (
     <header
-      className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${
-        scrolled
-          ? "bg-black/80 backdrop-blur-xl border-b border-white/[0.07] shadow-lg shadow-black/20"
-          : "bg-transparent"
-      }`}
+      className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${scrolled
+        ? "bg-black/80 backdrop-blur-xl border-b border-white/[0.07] shadow-lg shadow-black/20"
+        : "bg-transparent"
+        }`}
     >
       <div className="mx-auto max-w-6xl px-6 sm:px-10 lg:px-12">
         <div className="flex h-16 items-center justify-between sm:h-[70px]">
@@ -367,9 +366,8 @@ function Navbar() {
 
       {/* Mobile drawer */}
       <div
-        className={`overflow-hidden transition-all duration-250 ease-out md:hidden ${
-          mobileOpen ? "max-h-80 opacity-100" : "max-h-0 opacity-0"
-        }`}
+        className={`overflow-hidden transition-all duration-250 ease-out md:hidden ${mobileOpen ? "max-h-80 opacity-100" : "max-h-0 opacity-0"
+          }`}
         style={{ transitionTimingFunction: "cubic-bezier(0.4,0,0.2,1)" }}
       >
         <div className="border-t border-white/[0.06] bg-black/90 px-6 py-4 backdrop-blur-xl">
@@ -447,9 +445,8 @@ function FeatureSection({
         >
           {/* Text side */}
           <div
-            className={`space-y-6 transition-all duration-[250ms] ease-out ${
-              visible ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
-            } ${reversed ? "lg:order-2" : "lg:order-1"}`}
+            className={`space-y-6 transition-all duration-[250ms] ease-out ${visible ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
+              } ${reversed ? "lg:order-2" : "lg:order-1"}`}
           >
             <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-blue-400">
               <Sparkles className="h-3 w-3" />
@@ -486,9 +483,8 @@ function FeatureSection({
 
           {/* Media side */}
           <div
-            className={`transition-all duration-[250ms] ease-out ${
-              visible ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
-            } ${reversed ? "lg:order-1" : "lg:order-2"}`}
+            className={`transition-all duration-[250ms] ease-out ${visible ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
+              } ${reversed ? "lg:order-1" : "lg:order-2"}`}
             style={{ transitionDelay: "80ms" }}
           >
             {media}
@@ -941,24 +937,13 @@ export default function LandingPage() {
           { icon: Palette, text: "Multiple color themes, custom branding, and mobile-responsive design" },
         ]}
         media={
-          <div className="flex items-end justify-center gap-4">
-            <div className="flex-1">
-              <DarkFrame
-                src="/landing/school-website.png"
-                gradient="from-emerald-800 via-teal-800 to-cyan-900"
-                icon={Globe}
-                label="Generated School Website"
-              />
-            </div>
-            <div className="hidden w-1/3 -mb-4 sm:block">
-              <DarkPhoneFrame
-                src="/landing/school-website.png"
-                gradient="from-emerald-800 to-teal-900"
-                icon={Smartphone}
-                label="Mobile View"
-              />
-            </div>
-          </div>
+          <DarkFrame
+            src="/landing/school-website.png"
+            gradient="from-emerald-800 via-teal-800 to-cyan-900"
+            icon={Globe}
+            label="Generated School Website"
+          />
+
         }
       />
 
@@ -1018,24 +1003,12 @@ export default function LandingPage() {
           { icon: TrendingUp, text: "Real-time attendance analytics with auto-parent notifications" },
         ]}
         media={
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <DarkFrame
-                src="/landing/notifications.png"
-                gradient="from-cyan-900 via-blue-900 to-indigo-900"
-                icon={Bell}
-                label="Notification Center"
-              />
-            </div>
-            <div className="hidden w-1/3 -mb-8 sm:block">
-              <DarkPhoneFrame
-                src="/landing/attendance-qr.png"
-                gradient="from-cyan-900 to-blue-900"
-                icon={QrCode}
-                label="QR Attendance"
-              />
-            </div>
-          </div>
+          <DarkFrame
+            src="/landing/notifications.png"
+            gradient="from-cyan-900 via-blue-900 to-indigo-900"
+            icon={Bell}
+            label="Notification Center"
+          />
         }
       />
 
@@ -1060,27 +1033,6 @@ export default function LandingPage() {
         }
       />
 
-      {/* 6. AI Timetable & Parent Portal */}
-      <FeatureSection
-        reversed
-        badge="AI Timetable & Parent Portal"
-        title="AI-Powered Scheduling & Total Parental Involvement"
-        description="Eliminate timetable clashes with our intelligent scheduling engine. Meanwhile, parents stay fully informed with instant attendance alerts, real-time result display, and downloadable report cards."
-        bullets={[
-          { icon: CalendarCheck, text: "AI timetable generation with automatic clash detection & resolution" },
-          { icon: HeartHandshake, text: "Parent portal: attendance notifications, results, and report cards" },
-          { icon: TrendingUp, text: "Real-time student performance tracking across all assessments" },
-          { icon: FileText, text: "Automated PDF report cards with branding and term-by-term comparison" },
-        ]}
-        media={
-          <DarkFrame
-            src="/landing/timetable.png"
-            gradient="from-violet-900 via-indigo-900 to-blue-900"
-            icon={CalendarCheck}
-            label="AI Timetable & Parent Dashboard"
-          />
-        }
-      />
 
       {/* ═══════════════════════════════════════
           PORTAL CARDS

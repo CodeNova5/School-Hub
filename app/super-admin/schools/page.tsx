@@ -27,6 +27,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Table,
   TableBody,
   TableCell,
@@ -51,6 +59,11 @@ import {
   Shield,
   Zap,
   Gift,
+  MoreHorizontal,
+  Mail,
+  Timer,
+  ArrowDown,
+  Clock,
 } from "lucide-react";
 import type { School as SchoolType, SchoolPlan } from "@/lib/types";
 import { usePlanDisplayInfo, PLAN_KEYS_IN_ORDER } from "@/hooks/use-plan-display-info";
@@ -87,6 +100,9 @@ export default function SchoolsManagementPage() {
     amount: number;
   } | null>(null);
   const [chargePreviewLoading, setChargePreviewLoading] = useState(false);
+
+  // Running maintenance task
+  const [runningMaintenance, setRunningMaintenance] = useState<{ schoolId: string; task: string } | null>(null);
 
   useEffect(() => {
     fetchSchools();
@@ -254,6 +270,68 @@ export default function SchoolsManagementPage() {
     }
   }
 
+  // ── Run a maintenance task for a specific school ───────────────────
+
+  const MAINTENANCE_TASKS = [
+    { id: "charge", label: "Charge Subscription", icon: <Zap className="h-3.5 w-3.5" />, color: "text-blue-600" },
+    { id: "downgrade", label: "Downgrade if Expired", icon: <ArrowDown className="h-3.5 w-3.5" />, color: "text-amber-600" },
+    { id: "expire-grants", label: "Expire Past Grants", icon: <Clock className="h-3.5 w-3.5" />, color: "text-purple-600" },
+    { id: "reminders", label: "Send Renewal Reminder", icon: <Mail className="h-3.5 w-3.5" />, color: "text-green-600" },
+    { id: "grant-reminders", label: "Send Grant Expiry Reminder", icon: <Timer className="h-3.5 w-3.5" />, color: "text-pink-600" },
+  ];
+
+  async function handleMaintenanceTask(schoolId: string, taskId: string) {
+    setRunningMaintenance({ schoolId, task: taskId });
+    try {
+      const res = await fetch("/api/super-admin/maintenance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ task: taskId, school_id: schoolId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Task failed");
+
+      // Show result summary
+      const resultKey = Object.keys(data.results || {})[0];
+      const result = resultKey ? data.results[resultKey] : null;
+      if (result) {
+        const failed = result.failed ?? 0;
+        const succeeded = result.succeeded ?? result.sent ?? result.downgraded ?? result.expired ?? 0;
+        const skipped = result.skipped ?? 0;
+        if (failed > 0) {
+          toast({
+            title: "⚠️ Completed with errors",
+            description: `${succeeded} ok, ${failed} failed, ${skipped} skipped`,
+            variant: "destructive",
+          });
+        } else if (succeeded > 0) {
+          toast({
+            title: "✅ Task completed",
+            description: `${succeeded} operation(s) successful`,
+          });
+        } else {
+          toast({
+            title: "ℹ️ Nothing to do",
+            description: "No eligible records found for this school.",
+          });
+        }
+      } else {
+        toast({
+          title: "✅ Task completed",
+          description: "Maintenance task ran successfully.",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "❌ Task failed",
+        description: err.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setRunningMaintenance(null);
+    }
+  }
+
   const filtered = schools.filter(
     (s) =>
       s.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -374,89 +452,121 @@ export default function SchoolsManagementPage() {
                         >
                           {getPlanInfo(school.plan ?? 'basic').label_short}
                         </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            title="Edit"
-                            onClick={() => openEditDialog(school)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          {school.is_active ? (
+                      </TableCell>                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
                             <Button
                               variant="ghost"
                               size="icon"
-                              title="Suspend"
-                              onClick={() => {
-                                setConfirmSchool(school);
-                                setConfirmAction("suspend");
-                              }}
+                              title="Edit"
+                              onClick={() => openEditDialog(school)}
                             >
-                              <PauseCircle className="h-4 w-4 text-amber-500" />
+                              <Pencil className="h-4 w-4" />
                             </Button>
-                          ) : (
+                            {school.is_active ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title="Suspend"
+                                onClick={() => {
+                                  setConfirmSchool(school);
+                                  setConfirmAction("suspend");
+                                }}
+                              >
+                                <PauseCircle className="h-4 w-4 text-amber-500" />
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title="Activate"
+                                onClick={() => {
+                                  setConfirmSchool(school);
+                                  setConfirmAction("activate");
+                                }}
+                              >
+                                <PlayCircle className="h-4 w-4 text-green-500" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
-                              title="Activate"
-                              onClick={() => {
+                              title="Charge Now"
+                              onClick={async () => {
+                                setChargeResult(null);
+                                setChargePreview(null);
+                                setChargePreviewLoading(true);
                                 setConfirmSchool(school);
-                                setConfirmAction("activate");
-                              }}
-                            >
-                              <PlayCircle className="h-4 w-4 text-green-500" />
-                            </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            title="Charge Now"
-                            onClick={async () => {
-                              setChargeResult(null);
-                              setChargePreview(null);
-                              setChargePreviewLoading(true);
-                              setConfirmSchool(school);
-                              setConfirmAction("charge");
-                              // Fetch subscription preview info
-                              try {
-                                const { data: sub } = await supabase
-                                  .rpc("get_school_subscription", { p_school_id: school.id });
-                                const subscription = Array.isArray(sub) ? sub[0] : sub;
-                                if (subscription) {
-                                  const amount = subscription.billing_interval === "termly"
-                                    ? subscription.termly_price
-                                    : subscription.yearly_price;
-                                  setChargePreview({
-                                    plan_name: subscription.plan_name,
-                                    billing_interval: subscription.billing_interval,
-                                    amount: Number(amount) || 0,
-                                  });
+                                setConfirmAction("charge");
+                                // Fetch subscription preview info
+                                try {
+                                  const { data: sub } = await supabase
+                                    .rpc("get_school_subscription", { p_school_id: school.id });
+                                  const subscription = Array.isArray(sub) ? sub[0] : sub;
+                                  if (subscription) {
+                                    const amount = subscription.billing_interval === "termly"
+                                      ? subscription.termly_price
+                                      : subscription.yearly_price;
+                                    setChargePreview({
+                                      plan_name: subscription.plan_name,
+                                      billing_interval: subscription.billing_interval,
+                                      amount: Number(amount) || 0,
+                                    });
+                                  }
+                                } catch (err) {
+                                  console.error("Failed to fetch subscription preview:", err);
+                                } finally {
+                                  setChargePreviewLoading(false);
                                 }
-                              } catch (err) {
-                                console.error("Failed to fetch subscription preview:", err);
-                              } finally {
-                                setChargePreviewLoading(false);
-                              }
-                            }}
-                          >
-                            <Zap className="h-4 w-4 text-blue-500" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            title="Delete"
-                            onClick={() => {
-                              setConfirmSchool(school);
-                              setConfirmAction("delete");
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          </Button>
-                        </div>
-                      </TableCell>
+                              }}
+                            >
+                              <Zap className="h-4 w-4 text-blue-500" />
+                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  title="More actions"
+                                >
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-56">
+                                <DropdownMenuLabel>Maintenance</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                {MAINTENANCE_TASKS.map((mt) => {
+                                  const isLoading = runningMaintenance?.schoolId === school.id && runningMaintenance?.task === mt.id;
+                                  return (
+                                    <DropdownMenuItem
+                                      key={mt.id}
+                                      onClick={() => handleMaintenanceTask(school.id, mt.id)}
+                                      disabled={isLoading}
+                                      className="gap-2"
+                                    >
+                                      {isLoading ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      ) : (
+                                        <span className={mt.color}>{mt.icon}</span>
+                                      )}
+                                      <span>{isLoading ? "Running..." : mt.label}</span>
+                                    </DropdownMenuItem>
+                                  );
+                                })}
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setConfirmSchool(school);
+                                    setConfirmAction("delete");
+                                  }}
+                                  className="gap-2 text-red-600 focus:text-red-600"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  <span>Delete School</span>
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

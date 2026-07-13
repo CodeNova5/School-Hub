@@ -564,12 +564,11 @@ export async function runGrantExpiryReminders(schoolId?: string): Promise<{
       school_email: row.schools?.email || null,
     }));
   } else {
-    const sixDaysFromNow = new Date();
-    sixDaysFromNow.setDate(sixDaysFromNow.getDate() + 6);
-    const eightDaysFromNow = new Date();
-    eightDaysFromNow.setDate(eightDaysFromNow.getDate() + 8);
+    const now = new Date();
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
 
-    // Find active grants expiring within the next 6-8 days
+    // Find active grants expiring within the next 30 days (broader window for manual tool)
     const { data: expiringGrants } = await supabaseAdmin
       .from("school_plan_grants")
       .select(`
@@ -577,8 +576,8 @@ export async function runGrantExpiryReminders(schoolId?: string): Promise<{
         schools!inner(name, email)
       `)
       .eq("is_active", true)
-      .gte("expires_at", sixDaysFromNow.toISOString())
-      .lte("expires_at", eightDaysFromNow.toISOString());
+      .gte("expires_at", now.toISOString())
+      .lte("expires_at", thirtyDaysFromNow.toISOString());
 
     grants = (expiringGrants ?? []).map((row: any) => ({
       grant_id: row.id,

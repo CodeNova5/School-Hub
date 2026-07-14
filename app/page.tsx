@@ -210,28 +210,39 @@ function DarkFrame({
           <img
             src={src}
             alt={label}
-            className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"}`}
+            className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-500 z-10 ${
+              loaded ? "opacity-100" : "opacity-0"
+            }`}
             onLoad={() => setLoaded(true)}
             onError={() => setErr(true)}
           />
         )}
+        
+        {/* Placeholder displays beneath the image, or permanently if there's an error */}
         {(!src || err || !loaded) && (
           <div
-            className={`absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br ${gradient} p-8`}
+            className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br p-8 bg-[#0a0a0d]"
+            style={{
+              backgroundImage: !src || err ? undefined : `linear-gradient(to bottom right, var(--tw-gradient-stops))`,
+            }}
           >
-            <div className="mb-4 rounded-2xl bg-black/20 p-5 backdrop-blur-sm">
-              <Icon className="h-10 w-10 text-white/80" />
-            </div>
-            <p className="text-center text-sm font-medium text-white/70">{label}</p>
-            <p className="mt-1 font-mono text-center text-[11px] text-white/30">
-              📸 Replace with your screenshot
-            </p>
-            <div className="mt-8 w-full max-w-xs space-y-2.5">
-              <div className="h-2 w-3/4 rounded-full bg-white/10" />
-              <div className="h-2 w-full rounded-full bg-white/[0.06]" />
-              <div className="h-2 w-1/2 rounded-full bg-white/[0.06]" />
-              <div className="mt-4 h-8 w-full rounded-lg bg-white/[0.06]" />
-            </div>
+            {err || !src ? (
+              <>
+                <div className="mb-4 rounded-2xl bg-black/20 p-5 backdrop-blur-sm">
+                  <Icon className="h-10 w-10 text-white/80" />
+                </div>
+                <p className="text-center text-sm font-medium text-white/70">{label}</p>
+                <p className="mt-1 font-mono text-center text-[11px] text-white/30">
+                  📸 Error loading image
+                </p>
+              </>
+            ) : (
+              /* Simple loading spinner instead of solid blocking UI */
+              <div className="flex flex-col items-center justify-center gap-3">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-white/20 border-t-blue-500" />
+                <span className="text-[11px] text-white/30 font-mono">Loading screenshot...</span>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -262,22 +273,29 @@ function DarkPhoneFrame({
             <img
               src={src}
               alt={label}
-              className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"}`}
+              className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-500 z-10 ${
+                loaded ? "opacity-100" : "opacity-0"
+              }`}
               onLoad={() => setLoaded(true)}
               onError={() => setErr(true)}
             />
           )}
+
           {(!src || err || !loaded) && (
-            <div className={`flex h-full flex-col items-center justify-center bg-gradient-to-br ${gradient} p-5`}>
-              <div className="mb-3 rounded-2xl bg-black/20 p-4 backdrop-blur-sm">
-                <Icon className="h-7 w-7 text-white/80" />
-              </div>
-              <p className="text-center text-[11px] font-medium text-white/60">{label}</p>
-              <p className="mt-1 text-center font-mono text-[9px] text-white/25">📸 Add screenshot</p>
-              <div className="mt-5 w-full space-y-2">
-                <div className="h-1.5 w-full rounded-full bg-white/10" />
-                <div className="h-1.5 w-3/4 rounded-full bg-white/[0.06]" />
-              </div>
+            <div className="absolute inset-0 flex flex-col items-center justify-center p-5 bg-[#0a0a0d]">
+              {err || !src ? (
+                <>
+                  <div className="mb-3 rounded-2xl bg-black/20 p-4 backdrop-blur-sm">
+                    <Icon className="h-7 w-7 text-white/80" />
+                  </div>
+                  <p className="text-center text-[11px] font-medium text-white/60">{label}</p>
+                  <p className="mt-1 text-center font-mono text-[9px] text-white/25">📸 Missing image</p>
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-3">
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/20 border-t-blue-500" />
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -285,7 +303,6 @@ function DarkPhoneFrame({
     </div>
   );
 }
-
 /* ═══════════════════════════════════════
    NAVBAR
 ═══════════════════════════════════════ */

@@ -205,17 +205,25 @@ function DarkFrame({
         </div>
       </div>
       {/* Content */}
-      <div className={`relative ${aspectRatio} overflow-hidden`}>
+      <div className={`relative ${aspectRatio} overflow-hidden bg-[#0a0a0d]`}>
+        {/* Loading placeholder - subtle gradient shimmer */}
+        {src && !err && !loaded && (
+          <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent animate-pulse" />
+        )}
+
+        {/* Image */}
         {src && !err && (
           <img
             src={src}
             alt={label}
-            className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"}`}
+            className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-700 ${loaded ? "opacity-100" : "opacity-0"}`}
             onLoad={() => setLoaded(true)}
             onError={() => setErr(true)}
           />
         )}
-        {(!src || err || !loaded) && (
+
+        {/* Error/fallback state */}
+        {(!src || err) && (
           <div
             className={`absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br ${gradient} p-8`}
           >
@@ -258,16 +266,24 @@ function DarkPhoneFrame({
       <div className="relative overflow-hidden rounded-[2.2rem] border-[3px] border-white/10 bg-[#0c0c0f] shadow-[0_20px_60px_rgba(0,0,0,0.8)]">
         <div className="absolute left-1/2 top-0 z-10 h-4 w-24 -translate-x-1/2 rounded-b-xl bg-black" />
         <div className="relative aspect-[9/19.5] overflow-hidden bg-[#0a0a0d]">
+          {/* Loading placeholder */}
+          {src && !err && !loaded && (
+            <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent animate-pulse" />
+          )}
+
+          {/* Image */}
           {src && !err && (
             <img
               src={src}
               alt={label}
-              className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"}`}
+              className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-700 ${loaded ? "opacity-100" : "opacity-0"}`}
               onLoad={() => setLoaded(true)}
               onError={() => setErr(true)}
             />
           )}
-          {(!src || err || !loaded) && (
+
+          {/* Error/fallback state */}
+          {(!src || err) && (
             <div className={`flex h-full flex-col items-center justify-center bg-gradient-to-br ${gradient} p-5`}>
               <div className="mb-3 rounded-2xl bg-black/20 p-4 backdrop-blur-sm">
                 <Icon className="h-7 w-7 text-white/80" />
@@ -938,7 +954,7 @@ export default function LandingPage() {
         ]}
         media={
           <DarkFrame
-            src="/landing/school-website.png"
+            src="/landing/school-website.webp"
             gradient="from-emerald-800 via-teal-800 to-cyan-900"
             icon={Globe}
             label="Generated School Website"
@@ -961,7 +977,7 @@ export default function LandingPage() {
         ]}
         media={
           <DarkFrame
-            src="/landing/ai-chat.png"
+            src="/landing/ai-chat.webp"
             gradient="from-blue-900 via-indigo-900 to-purple-900"
             icon={Bot}
             label={`${APP_NAME} AI Chat Interface`}
@@ -982,7 +998,7 @@ export default function LandingPage() {
         ]}
         media={
           <DarkFrame
-            src="/landing/jamb-cbt.png"
+            src="/landing/jamb-cbt.webp"
             gradient="from-orange-900 via-red-900 to-rose-900"
             icon={GraduationCap}
             label="JAMB CBT Exam Interface"
@@ -1004,7 +1020,7 @@ export default function LandingPage() {
         ]}
         media={
           <DarkFrame
-            src="/landing/notifications.png"
+            src="/landing/notifications.webp"
             gradient="from-cyan-900 via-blue-900 to-indigo-900"
             icon={Bell}
             label="Notification Center"
@@ -1025,7 +1041,7 @@ export default function LandingPage() {
         ]}
         media={
           <DarkFrame
-            src="/landing/finance.png"
+            src="/landing/finance.webp"
             gradient="from-amber-900 via-orange-900 to-yellow-900"
             icon={Wallet}
             label="Finance Dashboard"

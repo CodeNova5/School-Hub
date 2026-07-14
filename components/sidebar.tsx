@@ -170,6 +170,7 @@ export function Sidebar({
   const adminNav: NavItem[] = [
     { href: "/admin", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
     { href: "/admin/ai-assistant", label: "AI Assistant", icon: <Sparkles className="h-5 w-5" /> },
+    { href: "/admin/reports", label: "Report Cards", icon: <FileText className="h-5 w-5" />, permission: "results:read" },
     { href: "/admin/sessions", label: "Sessions & Terms", icon: <Calendar className="h-5 w-5" /> },
     { href: "/admin/classes", label: "Classes", icon: <School className="h-5 w-5" />, permission: "classes:read" },
     { href: "/admin/attendance", label: "Attendance", icon: <ClipboardList className="h-5 w-5" /> },

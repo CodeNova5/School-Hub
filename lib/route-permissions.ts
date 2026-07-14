@@ -48,6 +48,7 @@ const ADMIN_ROUTE_PERMISSIONS: RoutePermissionEntry[] = [
 
   // ── Results ──
   { pattern: "/admin/results", permission: "results:read" },
+  { pattern: "/admin/reports", permission: "results:read" },
   { pattern: "/admin/result-settings", permission: "results:read" },
 
   // ── Timetable ──

@@ -216,9 +216,10 @@ function DarkFrame({
           <img
             src={src}
             alt={label}
-            className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-700 ${loaded ? "opacity-100" : "opacity-0"}`}
+            loading="eager"
+            decoding="async"
             onLoad={() => setLoaded(true)}
-            onError={() => setErr(true)}
+            className="absolute inset-0 h-full w-full object-cover object-top"
           />
         )}
 
@@ -247,60 +248,6 @@ function DarkFrame({
   );
 }
 
-function DarkPhoneFrame({
-  label,
-  gradient,
-  icon: Icon,
-  src,
-}: {
-  label: string;
-  gradient: string;
-  icon: any;
-  src?: string;
-}) {
-  const [loaded, setLoaded] = useState(false);
-  const [err, setErr] = useState(false);
-
-  return (
-    <div className="relative mx-auto w-[200px] sm:w-[230px]">
-      <div className="relative overflow-hidden rounded-[2.2rem] border-[3px] border-white/10 bg-[#0c0c0f] shadow-[0_20px_60px_rgba(0,0,0,0.8)]">
-        <div className="absolute left-1/2 top-0 z-10 h-4 w-24 -translate-x-1/2 rounded-b-xl bg-black" />
-        <div className="relative aspect-[9/19.5] overflow-hidden bg-[#0a0a0d]">
-          {/* Loading placeholder */}
-          {src && !err && !loaded && (
-            <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent animate-pulse" />
-          )}
-
-          {/* Image */}
-          {src && !err && (
-            <img
-              src={src}
-              alt={label}
-              className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-700 ${loaded ? "opacity-100" : "opacity-0"}`}
-              onLoad={() => setLoaded(true)}
-              onError={() => setErr(true)}
-            />
-          )}
-
-          {/* Error/fallback state */}
-          {(!src || err) && (
-            <div className={`flex h-full flex-col items-center justify-center bg-gradient-to-br ${gradient} p-5`}>
-              <div className="mb-3 rounded-2xl bg-black/20 p-4 backdrop-blur-sm">
-                <Icon className="h-7 w-7 text-white/80" />
-              </div>
-              <p className="text-center text-[11px] font-medium text-white/60">{label}</p>
-              <p className="mt-1 text-center font-mono text-[9px] text-white/25">📸 Add screenshot</p>
-              <div className="mt-5 w-full space-y-2">
-                <div className="h-1.5 w-full rounded-full bg-white/10" />
-                <div className="h-1.5 w-3/4 rounded-full bg-white/[0.06]" />
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /* ═══════════════════════════════════════
    NAVBAR

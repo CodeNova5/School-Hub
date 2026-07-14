@@ -461,9 +461,15 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    // Pages: everything except static files and API (handled separately below)
-    "/((?!api|_next/static|_next/image|favicon.ico).*)",
-    // API routes: apply plan enforcement to all API paths
-    "/api/:path*",
+    /*
+     * Match all request paths except for the ones starting with:
+     * - api (API routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico, sitemap.xml, robots.txt (metadata files)
+     * - Any file inside your static "landing" directory
+     * - Any file ending with a common image or asset extension (e.g., .png, .jpg, .svg)
+     */
+    '/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|landing|.*\\..*$).*)',
   ],
-};
+}

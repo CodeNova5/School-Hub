@@ -1,8 +1,13 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Receipt, Printer, FileText, CheckCircle2, Calendar } from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
+import { Receipt, Printer, FileDown, FileText, CheckCircle2, Calendar, Loader2 } from "lucide-react";
+import { generateReceiptPDF, type SchoolInfo } from "@/lib/pdf-export-receipt";
+import { useSchoolContext } from "@/hooks/use-school-context";
 import type { FinanceReceipt } from "./finance-types";
 
 interface ReceiptsTabProps {
@@ -11,6 +16,66 @@ interface ReceiptsTabProps {
 }
 
 export function FinanceReceiptsTab({ receipts, formatMoney }: ReceiptsTabProps) {
+  const { schoolId } = useSchoolContext();
+  const [schoolInfo, setSchoolInfo] = useState<SchoolInfo | null>(null);
+  const [loadingPdf, setLoadingPdf] = useState<string | null>(null);
+
+  // Fetch school info for receipt branding
+  useEffect(() => {
+    if (!schoolId) return;
+    let ignore = false;
+    supabase
+      .from("schools")
+      .select("name, address, phone, logo_url, motto")
+      .eq("id", schoolId)
+      .single()
+      .then((result: { data: { name: string; address: string | null; phone: string | null; logo_url: string | null; motto: string | null } | null }) => {
+        const data = result.data;
+        if (!ignore && data) {
+          setSchoolInfo({
+            name: data.name || "School",
+            address: data.address || undefined,
+            phone: data.phone || undefined,
+            logo_url: data.logo_url || undefined,
+            motto: data.motto || undefined,
+          });
+        }
+      })
+      .catch(() => {
+        // Silently fail — PDF will still work without school info
+      });
+    return () => { ignore = true; };
+  }, [schoolId]);
+
+  const handleDownloadPDF = useCallback(
+    async (receipt: FinanceReceipt) => {
+      if (loadingPdf) return;
+      setLoadingPdf(receipt.id);
+
+      try {
+        await generateReceiptPDF(
+          {
+            receiptNumber: receipt.receipt_number,
+            issuedAt: receipt.issued_at,
+            studentName: `${receipt.students?.first_name || ""} ${receipt.students?.last_name || ""}`.trim() || "Student",
+            studentId: receipt.students?.student_id || undefined,
+            amount: receipt.finance_transactions?.amount || 0,
+            paymentMethod: receipt.finance_transactions?.payment_method || "manual",
+            transactionReference: receipt.finance_transactions?.reference || undefined,
+            status: receipt.finance_transactions?.reference ? "success" : "paid",
+          },
+          schoolInfo || { name: "School" }
+        );
+        toast.success("Receipt PDF downloaded");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to generate receipt PDF");
+      } finally {
+        setLoadingPdf(null);
+      }
+    },
+    [schoolInfo, loadingPdf]
+  );
+
   return (
     <div className="space-y-6 mt-6">
       <Card className="overflow-hidden transition-all duration-200 hover:shadow-md">
@@ -71,15 +136,31 @@ export function FinanceReceiptsTab({ receipts, formatMoney }: ReceiptsTabProps) 
                       <p className="text-base font-bold text-gray-900">
                         {formatMoney(receipt.finance_transactions?.amount || 0)}
                       </p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => window.print()}
-                        className="mt-1.5 gap-1.5 text-xs h-7 px-2.5 transition-all duration-150 hover:bg-gray-100"
-                      >
-                        <Printer className="h-3 w-3" />
-                        Print
-                      </Button>
+                      <div className="flex gap-1.5 mt-1.5 justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDownloadPDF(receipt)}
+                          disabled={loadingPdf === receipt.id}
+                          className="gap-1.5 text-xs h-7 px-2.5 transition-all duration-150 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200"
+                        >
+                          {loadingPdf === receipt.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <FileDown className="h-3 w-3" />
+                          )}
+                          PDF
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.print()}
+                          className="gap-1.5 text-xs h-7 px-2.5 transition-all duration-150 hover:bg-gray-100"
+                        >
+                          <Printer className="h-3 w-3" />
+                          Print
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>

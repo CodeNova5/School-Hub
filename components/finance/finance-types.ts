@@ -1,5 +1,12 @@
 // ── Finance Types (extracted from app/admin/finance/page.tsx) ─────────────
 
+export interface MonthlyTrendItem {
+  month: string;
+  label: string;
+  collected: number;
+  transactions: number;
+}
+
 export interface FinanceOverview {
   stats: {
     totalDue: number;
@@ -12,6 +19,7 @@ export interface FinanceOverview {
   };
   recentTransactions: FinanceTransactionRow[];
   outstandingByClass: Array<{ className: string; outstanding: number }>;
+  monthlyTrend?: MonthlyTrendItem[];
 }
 
 export interface FinanceSettings {

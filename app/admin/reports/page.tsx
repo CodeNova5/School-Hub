@@ -40,8 +40,19 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useSchoolContext } from "@/hooks/use-school-context";
 import { Session, Term, Student, Class } from "@/lib/types";
+import { ResultsPublicationDialog } from "@/components/ResultsPublicationDialog";
 
 /* ── Types ── */
+
+interface SubjectCompletion {
+  subject_class_id: string;
+  subject_name: string;
+  total_students: number;
+  completed_count: number;
+  pending_count: number;
+  completion_percentage: number;
+  has_any_results: boolean;
+}
 
 interface StudentResult {
   student_id: string;
@@ -178,6 +189,8 @@ export default function AdminReportsPage() {
   const [showCumulative, setShowCumulative] = useState(false);
   const [isLastTerm, setIsLastTerm] = useState(false);
   const [showPositionSetting, setShowPositionSetting] = useState(true);
+  const [isPublicationDialogOpen, setIsPublicationDialogOpen] = useState(false);
+  const [subjectCompletion, setSubjectCompletion] = useState<SubjectCompletion[]>([]);
 
   // ── Load initial data ──
 
@@ -280,6 +293,7 @@ export default function AdminReportsPage() {
       const currentStudentIds = students.map(s => s.id);
       if (currentStudentIds.length === 0) {
         setStudentResults([]);
+        setSubjectCompletion([]);
         setLoading(false);
         return;
       }
@@ -287,9 +301,25 @@ export default function AdminReportsPage() {
       const subjectClassIds = await getSubjectClassIds();
       if (subjectClassIds.length === 0) {
         setStudentResults([]);
+        setSubjectCompletion([]);
         setLoading(false);
         return;
       }
+
+      // Also fetch subject names for subject classes
+      const { data: subjectClassesData } = await supabase
+        .from("subject_classes")
+        .select(`
+          id,
+          subjects:subject_id(name)
+        `)
+        .eq("school_id", schoolId)
+        .in("id", subjectClassIds);
+
+      const subjectNameMap = new Map<string, string>();
+      (subjectClassesData || []).forEach((sc: any) => {
+        subjectNameMap.set(sc.id, sc.subjects?.name || "Unknown");
+      });
 
       const [{ data: resultsData }, { data: componentTemplates }, { data: settingsRow }] = await Promise.all([
         supabase
@@ -403,6 +433,50 @@ export default function AdminReportsPage() {
       }).sort((a, b) => b.average_score - a.average_score);
 
       setStudentResults(results);
+
+      // ── Compute per-subject completion ──
+      const subjectCompletionMap = new Map<string, {
+        total: number;
+        completed: number;
+        hasResults: boolean;
+      }>();
+
+      subjectClassIds.forEach(scId => {
+        subjectCompletionMap.set(scId, { total: 0, completed: 0, hasResults: false });
+      });
+
+      resultsData?.forEach((result: any) => {
+        const scId = result.subject_class_id;
+        const entry = subjectCompletionMap.get(scId);
+        if (!entry) return;
+        entry.total++;
+        entry.hasResults = true;
+        if (isResultComplete(result.id)) {
+          entry.completed++;
+        }
+      });
+
+      const totalStudentCount = students.length;
+      const subjectCompletionArray: SubjectCompletion[] = Array.from(subjectCompletionMap.entries())
+        .map(([scId, data]) => {
+          // Students without results for this subject are "pending"
+          const noResultCount = totalStudentCount - data.total;
+          const pending = (data.total - data.completed) + noResultCount;
+          return {
+            subject_class_id: scId,
+            subject_name: subjectNameMap.get(scId) || "Unknown",
+            total_students: totalStudentCount,
+            completed_count: data.completed,
+            pending_count: pending,
+            completion_percentage: totalStudentCount > 0
+              ? Math.round((data.completed / totalStudentCount) * 100)
+              : 0,
+            has_any_results: data.hasResults,
+          };
+        })
+        .sort((a, b) => a.subject_name.localeCompare(b.subject_name));
+
+      setSubjectCompletion(subjectCompletionArray);
     } catch (err) {
       console.error("Error fetching results:", err);
       toast.error("Failed to load results");
@@ -797,6 +871,16 @@ export default function AdminReportsPage() {
                 <Badge variant="outline" className="text-xs font-medium text-slate-500">
                   {students.length} students
                 </Badge>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setIsPublicationDialogOpen(true)}
+                  disabled={!selectedSessionId || !selectedTermId || !selectedClassId}
+                  className="rounded-xl text-xs h-8"
+                >
+                  <Eye className="h-3.5 w-3.5 mr-1" />
+                  Publish Results
+                </Button>
                 {showPositionSetting && (
                   <Button
                     size="sm"
@@ -870,6 +954,85 @@ export default function AdminReportsPage() {
                   color="text-amber-600"
                 />
               </div>
+            )}
+
+            {/* ── Subject Completion Overview ── */}
+            {!loading && subjectCompletion.length > 0 && !showCumulative && (
+              <Card className="border-slate-200 shadow-sm overflow-hidden">
+                <CardHeader className="pb-3 border-b border-slate-100 bg-gradient-to-r from-amber-50 to-orange-50">
+                  <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                    <BookOpen className="h-4 w-4 text-amber-600" />
+                    Subject Result Completion
+                    <Badge variant="outline" className="ml-auto text-xs font-normal text-slate-500">
+                      {subjectCompletion.filter(s => s.completion_percentage === 100).length}/{subjectCompletion.length} complete
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {subjectCompletion.map(subject => {
+                      const isComplete = subject.completion_percentage === 100;
+                      const isStarted = subject.completion_percentage > 0;
+                      return (
+                        <div
+                          key={subject.subject_class_id}
+                          className={`rounded-xl border p-3.5 transition-all hover:shadow-sm ${
+                            isComplete
+                              ? "bg-green-50/60 border-green-200"
+                              : isStarted
+                                ? "bg-amber-50/60 border-amber-200"
+                                : "bg-slate-50 border-slate-200"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="font-semibold text-sm text-slate-800 truncate">{subject.subject_name}</p>
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] font-bold px-1.5 py-0 ${
+                                isComplete
+                                  ? "bg-green-100 text-green-700 border-green-200"
+                                  : isStarted
+                                    ? "bg-amber-100 text-amber-700 border-amber-200"
+                                    : "bg-slate-100 text-slate-500 border-slate-200"
+                              }`}
+                            >
+                              {isComplete ? "Done" : isStarted ? "Pending" : "No data"}
+                            </Badge>
+                          </div>
+
+                          {/* Progress bar */}
+                          <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden mb-2">
+                            <div
+                              className={`h-full rounded-full transition-all duration-500 ${
+                                isComplete
+                                  ? "bg-green-500"
+                                  : isStarted
+                                    ? "bg-amber-400"
+                                    : "bg-slate-300"
+                              }`}
+                              style={{ width: `${subject.completion_percentage}%` }}
+                            />
+                          </div>
+
+                          <div className="flex items-center justify-between text-xs text-slate-500">
+                            <span className="font-medium">
+                              <span className="text-green-600 font-bold">{subject.completed_count}</span>
+                              <span className="text-slate-400"> / {subject.total_students}</span>
+                            </span>
+                            <span>
+                              {subject.pending_count > 0 ? (
+                                <span className="text-amber-600 font-medium">{subject.pending_count} pending</span>
+                              ) : (
+                                <span className="text-green-600 font-medium">All done</span>
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
             )}
 
             {/* Cumulative Banner */}
@@ -1203,6 +1366,20 @@ export default function AdminReportsPage() {
           </>
         )}
       </div>
+
+      {/* Publication Dialog */}
+      <ResultsPublicationDialog
+        isOpen={isPublicationDialogOpen}
+        onClose={() => setIsPublicationDialogOpen(false)}
+        classId={selectedClassId}
+        className={selectedClass?.name || ""}
+        sessionId={selectedSessionId}
+        termId={selectedTermId}
+        schoolId={schoolId}
+        onPublish={() => {
+          fetchResults();
+        }}
+      />
     </DashboardLayout>
   );
 }

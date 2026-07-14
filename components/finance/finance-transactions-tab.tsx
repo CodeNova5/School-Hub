@@ -34,6 +34,11 @@ import {
   RotateCcw,
   Plus,
   ArrowUpRight,
+  Search,
+  TrendingUp,
+  Wallet,
+  Calendar,
+  FilterX,
 } from "lucide-react";
 import type { FinanceBill, FinanceTransactionRow } from "./finance-types";
 
@@ -46,28 +51,46 @@ interface TransactionsTabProps {
   onTabChange?: (tab: string) => void;
 }
 
+const STATUS_OPTIONS = ["all", "success", "failed", "pending", "abandoned"] as const;
+const METHOD_OPTIONS = ["all", "manual", "cash", "bank_transfer", "card", "paystack"] as const;
+
+const METHOD_LABELS: Record<string, string> = {
+  all: "All Methods",
+  manual: "Manual",
+  cash: "Cash",
+  bank_transfer: "Bank Transfer",
+  card: "Card",
+  paystack: "Paystack",
+};
+
 function getStatusBadge(status: string) {
-  const styles: Record<string, string> = {
-    success: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    failed: "bg-red-50 text-red-700 border-red-200",
-    pending: "bg-amber-50 text-amber-700 border-amber-200",
-    abandoned: "bg-gray-50 text-gray-500 border-gray-200",
+  const config: Record<string, { color: string; icon: any }> = {
+    success: { color: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
+    failed: { color: "bg-red-50 text-red-700 border-red-200", icon: XCircle },
+    pending: { color: "bg-amber-50 text-amber-700 border-amber-200", icon: Clock },
+    abandoned: { color: "bg-gray-50 text-gray-500 border-gray-200", icon: XCircle },
   };
+  const c = config[status] || { color: "bg-gray-50 text-gray-600 border-gray-200", icon: Clock };
+  const Icon = c.icon;
   return (
-    <Badge
-      variant="outline"
-      className={`gap-1 text-[10px] ${styles[status] || "bg-gray-50 text-gray-600 border-gray-200"}`}
-    >
-      {status === "success" ? (
-        <CheckCircle2 className="h-3 w-3" />
-      ) : status === "failed" ? (
-        <XCircle className="h-3 w-3" />
-      ) : (
-        <Clock className="h-3 w-3" />
-      )}
-      {status}
+    <Badge variant="outline" className={`gap-1 text-[10px] ${c.color}`}>
+      <Icon className="h-3 w-3" />
+      {status.charAt(0).toUpperCase() + status.slice(1)}
     </Badge>
   );
+}
+
+function getMethodIcon(method: string) {
+  switch (method) {
+    case "card":
+      return <CreditCard className="h-3.5 w-3.5" />;
+    case "bank_transfer":
+      return <Banknote className="h-3.5 w-3.5" />;
+    case "cash":
+      return <Wallet className="h-3.5 w-3.5" />;
+    default:
+      return <Receipt className="h-3.5 w-3.5" />;
+  }
 }
 
 export function FinanceTransactionsTab({
@@ -88,23 +111,62 @@ export function FinanceTransactionsTab({
   const [saving, setSaving] = useState(false);
 
   // ── Filter state ──
+  const [showFilters, setShowFilters] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [methodFilter, setMethodFilter] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [showFilters, setShowFilters] = useState(false);
+
+  const hasActiveFilter = searchQuery.trim() !== "" || statusFilter !== "all" || methodFilter !== "all" || !!dateFrom || !!dateTo;
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter((tx) => {
+      // Student name / reference search
+      if (searchQuery.trim()) {
+        const name = `${tx.students?.first_name || ""} ${tx.students?.last_name || ""}`.toLowerCase();
+        const ref = tx.reference.toLowerCase();
+        const q = searchQuery.trim().toLowerCase();
+        if (!name.includes(q) && !ref.includes(q)) return false;
+      }
+
+      // Status filter
       if (statusFilter !== "all" && tx.status !== statusFilter) return false;
+
+      // Payment method filter
+      if (methodFilter !== "all") {
+        const method = (tx.payment_method || "manual").toLowerCase();
+        if (method !== methodFilter) return false;
+      }
+
+      // Date range
       if (dateFrom && new Date(tx.created_at) < new Date(dateFrom)) return false;
       if (dateTo) {
         const end = new Date(dateTo);
         end.setHours(23, 59, 59, 999);
         if (new Date(tx.created_at) > end) return false;
       }
+
       return true;
     });
-  }, [transactions, statusFilter, dateFrom, dateTo]);
+  }, [transactions, searchQuery, statusFilter, methodFilter, dateFrom, dateTo]);
+
+  const resetFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+    setMethodFilter("all");
+    setDateFrom("");
+    setDateTo("");
+  };
+
+  // ── Summary from filtered data ──
+  const summary = useMemo(() => {
+    const totalAmount = filteredTransactions.reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+    const successCount = filteredTransactions.filter((tx) => tx.status === "success").length;
+    const failedCount = filteredTransactions.filter((tx) => tx.status === "failed").length;
+    const pendingCount = filteredTransactions.filter((tx) => tx.status === "pending").length;
+    return { totalAmount, successCount, failedCount, pendingCount };
+  }, [filteredTransactions]);
 
   const resetForm = () => {
     setForm({ billId: "", studentId: "", amount: "", paymentMethod: "manual" });
@@ -176,6 +238,48 @@ export function FinanceTransactionsTab({
         </Card>
       )}
 
+      {/* Summary bar — always visible when there are transactions */}
+      {transactions.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="bg-white rounded-xl border border-gray-100 p-3.5 flex items-center gap-3 transition-all duration-200 hover:shadow-sm">
+            <div className="p-2 rounded-lg bg-indigo-50">
+              <TrendingUp className="h-4 w-4 text-indigo-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">Total</p>
+              <p className="text-sm font-bold text-gray-900 truncate">{formatMoney(summary.totalAmount)}</p>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-100 p-3.5 flex items-center gap-3 transition-all duration-200 hover:shadow-sm">
+            <div className="p-2 rounded-lg bg-emerald-50">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">Successful</p>
+              <p className="text-sm font-bold text-gray-900">{summary.successCount}</p>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-100 p-3.5 flex items-center gap-3 transition-all duration-200 hover:shadow-sm">
+            <div className="p-2 rounded-lg bg-red-50">
+              <XCircle className="h-4 w-4 text-red-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">Failed</p>
+              <p className="text-sm font-bold text-gray-900">{summary.failedCount}</p>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-100 p-3.5 flex items-center gap-3 transition-all duration-200 hover:shadow-sm">
+            <div className="p-2 rounded-lg bg-amber-50">
+              <Clock className="h-4 w-4 text-amber-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">Pending</p>
+              <p className="text-sm font-bold text-gray-900">{summary.pendingCount}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Transactions List */}
       <Card className="overflow-hidden transition-all duration-200 hover:shadow-md">
         <CardHeader className="border-b border-gray-100 pb-3">
@@ -185,9 +289,9 @@ export function FinanceTransactionsTab({
                 <Banknote className="h-4 w-4 text-gray-600" />
               </div>
               Transactions
-              {transactions.length > 0 && (
+              {filteredTransactions.length > 0 && (
                 <span className="text-[10px] font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full ml-1">
-                  {transactions.length}
+                  {filteredTransactions.length}
                 </span>
               )}
             </CardTitle>
@@ -200,9 +304,7 @@ export function FinanceTransactionsTab({
               >
                 <SlidersHorizontal className="h-3.5 w-3.5" />
                 Filters
-                {(statusFilter !== "all" || dateFrom || dateTo) && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-                )}
+                {hasActiveFilter && <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />}
               </Button>
               <Dialog open={modalOpen} onOpenChange={(open) => { setModalOpen(open); if (!open) resetForm(); }}>
                 <DialogTrigger asChild>
@@ -334,96 +436,198 @@ export function FinanceTransactionsTab({
 
           {/* Filter controls */}
           {showFilters && (
-            <div className="pt-3 space-y-3">
+            <div className="pt-4 space-y-3">
+              {/* Student / Reference search */}
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                <Input
+                  placeholder="Search by student name or reference..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-8 h-8 text-xs"
+                />
+              </div>
+
               {/* Status chips */}
-              <div className="flex flex-wrap gap-1.5">
-                {["all", "success", "failed", "pending", "abandoned"].map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setStatusFilter(s)}
-                    className={`px-2.5 py-1 text-[11px] font-medium rounded-full border transition-all duration-150 ${
-                      statusFilter === s
-                        ? s === "all" ? "bg-gray-900 text-white border-gray-900"
-                          : s === "success" ? "bg-emerald-100 text-emerald-800 border-emerald-300"
-                          : s === "failed" ? "bg-red-100 text-red-800 border-red-300"
-                          : s === "pending" ? "bg-amber-100 text-amber-800 border-amber-300"
-                          : "bg-gray-100 text-gray-700 border-gray-300"
-                        : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700"
-                    }`}
-                  >
-                    {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
-                  </button>
-                ))}
+              <div>
+                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1.5">Status</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {STATUS_OPTIONS.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setStatusFilter(s)}
+                      className={`px-2.5 py-1 text-[11px] font-medium rounded-full border transition-all duration-150 ${
+                        statusFilter === s
+                          ? s === "all" ? "bg-gray-900 text-white border-gray-900"
+                            : s === "success" ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                            : s === "failed" ? "bg-red-100 text-red-800 border-red-300"
+                            : s === "pending" ? "bg-amber-100 text-amber-800 border-amber-300"
+                            : "bg-gray-100 text-gray-700 border-gray-300"
+                          : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700"
+                      }`}
+                    >
+                      {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Payment method chips */}
+              <div>
+                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1.5">Payment Method</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {METHOD_OPTIONS.map((method) => (
+                    <button
+                      key={method}
+                      onClick={() => setMethodFilter(method)}
+                      className={`px-2.5 py-1 text-[11px] font-medium rounded-full border transition-all duration-150 ${
+                        methodFilter === method
+                          ? method === "all"
+                            ? "bg-gray-900 text-white border-gray-900"
+                            : "bg-indigo-100 text-indigo-800 border-indigo-300"
+                          : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700"
+                      }`}
+                    >
+                      {METHOD_LABELS[method] || method}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Date range */}
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-gray-400">From</span>
-                  <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-8 w-[150px] text-xs" />
+              <div>
+                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1.5">Date Range</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] text-gray-400">From</span>
+                    <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-8 w-[150px] text-xs" />
+                  </div>
+                  <span className="text-[11px] text-gray-300">—</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] text-gray-400">To</span>
+                    <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-8 w-[150px] text-xs" />
+                  </div>
                 </div>
-                <span className="text-[11px] text-gray-300">—</span>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-gray-400">To</span>
-                  <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-8 w-[150px] text-xs" />
-                </div>
-                {(statusFilter !== "all" || dateFrom || dateTo) && (
-                  <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs text-gray-400 hover:text-gray-600"
-                    onClick={() => { setStatusFilter("all"); setDateFrom(""); setDateTo(""); }}
-                  >
-                    <RotateCcw className="h-3 w-3" /> Reset
-                  </Button>
-                )}
               </div>
 
-              {transactions.length > 0 && (
+              {/* Filter footer */}
+              <div className="flex items-center justify-between pt-1">
                 <p className="text-[10px] text-gray-400">
                   Showing {filteredTransactions.length} of {transactions.length} transaction{transactions.length !== 1 ? "s" : ""}
                 </p>
-              )}
+                {hasActiveFilter && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 gap-1 text-xs text-gray-400 hover:text-gray-600"
+                    onClick={resetFilters}
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    Reset Filters
+                  </Button>
+                )}
+              </div>
             </div>
           )}
         </CardHeader>
+
         <CardContent className="p-0">
           {filteredTransactions.length > 0 ? (
             <div className="divide-y divide-gray-50">
-              {filteredTransactions.map((tx, idx) => (
-                <div
-                  key={tx.id}
-                  className="grid grid-cols-1 md:grid-cols-5 gap-3 px-5 py-3.5 items-center transition-all duration-150 hover:bg-gray-50 hover:pl-6"
-                  style={{ animationDelay: `${idx * 30}ms` }}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className={`p-1 rounded-md ${tx.status === "success" ? "bg-emerald-100" : tx.status === "failed" ? "bg-red-100" : "bg-amber-100"}`}>
-                      {tx.status === "success" ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                        : tx.status === "failed" ? <XCircle className="h-3.5 w-3.5 text-red-600" />
-                        : <Clock className="h-3.5 w-3.5 text-amber-600" />}
+              {/* Table header */}
+              <div className="hidden md:grid md:grid-cols-12 gap-3 px-5 py-2.5 bg-gray-50/80 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                <div className="col-span-3">Student</div>
+                <div className="col-span-2">Reference</div>
+                <div className="col-span-2 text-right">Amount</div>
+                <div className="col-span-2 text-center">Method</div>
+                <div className="col-span-2">Date</div>
+                <div className="col-span-1 text-right">Status</div>
+              </div>
+
+              {filteredTransactions.map((tx) => {
+                const date = new Date(tx.created_at);
+                const dateStr = date.toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" });
+                const timeStr = date.toLocaleTimeString("en-NG", { hour: "2-digit", minute: "2-digit" });
+
+                return (
+                  <div
+                    key={tx.id}
+                    className="md:grid md:grid-cols-12 gap-3 px-5 py-3.5 flex flex-col md:flex-row md:items-center transition-all duration-150 hover:bg-gray-50 hover:pl-6"
+                  >
+                    {/* Student */}
+                    <div className="col-span-3 flex items-center gap-2.5 min-w-0">
+                      <div className={`p-1.5 rounded-lg shrink-0 ${
+                        tx.status === "success" ? "bg-emerald-100" : tx.status === "failed" ? "bg-red-100" : "bg-amber-100"
+                      }`}>
+                        {tx.status === "success" ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                        ) : tx.status === "failed" ? (
+                          <XCircle className="h-3.5 w-3.5 text-red-600" />
+                        ) : (
+                          <Clock className="h-3.5 w-3.5 text-amber-600" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {tx.students?.first_name} {tx.students?.last_name}
+                        </p>
+                        <p className="text-[10px] text-gray-400 truncate md:hidden">{tx.reference}</p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{tx.students?.first_name} {tx.students?.last_name}</p>
-                      <p className="text-[10px] text-gray-400 truncate">{tx.reference}</p>
+
+                    {/* Reference (desktop) */}
+                    <div className="col-span-2 text-xs text-gray-500 font-mono truncate hidden md:block">{tx.reference}</div>
+
+                    {/* Amount */}
+                    <div className="col-span-2 text-sm font-bold text-gray-900 text-right md:text-right">
+                      {formatMoney(tx.amount)}
+                    </div>
+
+                    {/* Method */}
+                    <div className="col-span-2 flex justify-center md:justify-center mt-1 md:mt-0">
+                      <span className="inline-flex items-center gap-1 text-[11px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full capitalize">
+                        {getMethodIcon(tx.payment_method)}
+                        {tx.payment_method === "bank_transfer" ? "Bank Transfer" : tx.payment_method}
+                      </span>
+                    </div>
+
+                    {/* Date */}
+                    <div className="col-span-2 text-[11px] text-gray-400 flex items-center gap-1 mt-1 md:mt-0">
+                      <Calendar className="h-3 w-3 shrink-0 text-gray-300" />
+                      <span className="truncate">{dateStr}</span>
+                      <span className="text-[10px] text-gray-300 hidden sm:inline">{timeStr}</span>
+                    </div>
+
+                    {/* Status */}
+                    <div className="col-span-1 text-right mt-1 md:mt-0">
+                      {getStatusBadge(tx.status)}
                     </div>
                   </div>
-                  <div className="text-sm text-gray-500 truncate">{tx.reference}</div>
-                  <div className="text-sm font-semibold text-gray-900">{formatMoney(tx.amount)}</div>
-                  <div className="text-sm text-gray-500 capitalize">
-                    <span className="inline-flex items-center gap-1 text-xs bg-gray-100 px-1.5 py-0.5 rounded-full">
-                      {tx.payment_method === "bank_transfer" ? "Bank Transfer" : tx.payment_method}
-                    </span>
-                  </div>
-                  <div>{getStatusBadge(tx.status)}</div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
-            <div className="py-12 text-center">
+            <div className="py-14 text-center">
               <Receipt className="h-10 w-10 text-gray-300 mx-auto mb-3" />
               <p className="text-sm font-medium text-gray-500">
-                {transactions.length === 0 ? "No transactions recorded" : "No transactions match filters"}
+                {transactions.length === 0 ? "No transactions recorded" : "No transactions match your filters"}
               </p>
               <p className="text-xs text-gray-400 mt-1">
-                {transactions.length === 0 ? "Click \"Record Payment\" above to get started" : "Try adjusting your filter criteria"}
+                {transactions.length === 0
+                  ? 'Click "Record Payment" above to get started'
+                  : "Try adjusting your search or filter criteria"}
               </p>
+              {transactions.length > 0 && hasActiveFilter && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-4 gap-1.5 text-xs"
+                  onClick={resetFilters}
+                >
+                  <FilterX className="h-3.5 w-3.5" />
+                  Clear All Filters
+                </Button>
+              )}
             </div>
           )}
         </CardContent>

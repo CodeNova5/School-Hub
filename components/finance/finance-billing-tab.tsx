@@ -48,6 +48,9 @@ import {
   ArrowUpRight,
   PencilLine,
   Trash2,
+  School,
+  Sparkles,
+  UserPlus,
 } from "lucide-react";
 import type { FinanceBill, FeeTemplate, StudentOption, ClassOption } from "./finance-types";
 
@@ -104,6 +107,17 @@ export function FinanceBillingTab({
   const [deleteConfirm, setDeleteConfirm] = useState<FinanceBill | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // ── Bulk billing state ──
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [bulkForm, setBulkForm] = useState({
+    classId: "",
+    feeTemplateId: "",
+    billingCycle: "per_term" as "per_term" | "per_session" | "one_time",
+    dueDate: "",
+  });
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkResult, setBulkResult] = useState<{ created: number; skipped: number; message: string } | null>(null);
+
   const feeTemplateLookup = useMemo(() => {
     const lookup = new Map<string, FeeTemplate>();
     fees.forEach((fee) => lookup.set(fee.id, fee));
@@ -152,6 +166,94 @@ export function FinanceBillingTab({
   const hasActiveFilter = statusFilter !== "all" || searchQuery.trim() || classFilter !== "all" || !!dueDateFrom || !!dueDateTo;
 
   // ── Pagination state ──
+  // Get student count per class for bulk billing summary
+  const studentsByClass = useMemo(() => {
+    const map = new Map<string, StudentOption[]>();
+    students.forEach((s) => {
+      const cid = s.class_id || "";
+      if (!map.has(cid)) map.set(cid, []);
+      map.get(cid)!.push(s);
+    });
+    return map;
+  }, [students]);
+
+  // Resolve the effective amount for a fee template on a specific class
+  const getFeeAmountForClass = (feeTemplateId: string, classId: string): number => {
+    const fee = feeTemplateLookup.get(feeTemplateId);
+    if (!fee) return 0;
+    const classOverride = (fee.finance_fee_template_classes || []).find(
+      (c) => c.class_id === classId
+    );
+    return classOverride ? Number(classOverride.class_amount) : Number(fee.amount);
+  };
+
+  const selectedBulkFee = bulkForm.feeTemplateId ? feeTemplateLookup.get(bulkForm.feeTemplateId) : null;
+  const selectedClassStudents = bulkForm.classId ? studentsByClass.get(bulkForm.classId) || [] : [];
+  const effectiveAmount = bulkForm.feeTemplateId && bulkForm.classId
+    ? getFeeAmountForClass(bulkForm.feeTemplateId, bulkForm.classId)
+    : 0;
+  const bulkTotal = effectiveAmount * selectedClassStudents.length;
+
+  const resetBulkForm = () => {
+    setBulkForm({ classId: "", feeTemplateId: "", billingCycle: "per_term", dueDate: "" });
+    setBulkResult(null);
+  };
+
+  const handleBulkSubmit = async () => {
+    if (!bulkForm.classId) {
+      onError("Please select a class");
+      return;
+    }
+    if (!bulkForm.feeTemplateId) {
+      onError("Please select a fee template");
+      return;
+    }
+    if (selectedClassStudents.length === 0) {
+      onError("No active students found in this class");
+      return;
+    }
+    if (effectiveAmount <= 0) {
+      onError("Fee template has no valid amount for this class");
+      return;
+    }
+
+    setBulkSaving(true);
+    setBulkResult(null);
+
+    try {
+      const res = await fetch("/api/admin/finance/billing/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          classId: bulkForm.classId,
+          feeTemplateId: bulkForm.feeTemplateId,
+          billingCycle: bulkForm.billingCycle,
+          dueDate: bulkForm.dueDate || null,
+        }),
+      });
+
+      const payload = (await res.json()) as {
+        success?: boolean;
+        data?: { created: number; skipped: number; message: string };
+        error?: string;
+      };
+
+      if (!res.ok || !payload.success) {
+        throw new Error(payload.error || "Failed to create bills");
+      }
+
+      setBulkResult(payload.data!);
+
+      if (payload.data!.created > 0) {
+        await onRefresh();
+      }
+    } catch (err: unknown) {
+      onError(err instanceof Error ? err.message : "Failed to create class bills");
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -321,6 +423,229 @@ export function FinanceBillingTab({
               )}
             </CardTitle>
             <div className="flex items-center gap-2">
+              {/* Bill Entire Class button */}
+              <Dialog open={bulkModalOpen} onOpenChange={(open) => { setBulkModalOpen(open); if (!open) resetBulkForm(); }}>
+                <DialogTrigger asChild>
+                  <Button
+                    size="sm"
+                    className="gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-700"
+                    disabled={fees.length === 0 || classes.length === 0}
+                  >
+                    <School className="h-3.5 w-3.5" />
+                    Bill Entire Class
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2 text-base">
+                      <div className="p-1 rounded-lg bg-indigo-100">
+                        <Sparkles className="h-4 w-4 text-indigo-600" />
+                      </div>
+                      Bill Entire Class
+                    </DialogTitle>
+                    <DialogDescription>
+                      Create bills for all active students in a class at once.
+                      Students who already have active bills for this cycle will be skipped.
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="space-y-4 pt-2">
+                    {/* Class selector */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium text-gray-600">Class</Label>
+                      <Select
+                        value={bulkForm.classId}
+                        onValueChange={(value) => setBulkForm((prev) => ({ ...prev, classId: value }))}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select a class..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {classes.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              <span className="flex items-center gap-2">
+                                <School className="h-3.5 w-3.5 text-gray-400" />
+                                {c.name}
+                                <span className="text-[10px] text-gray-400 ml-auto">
+                                  {studentsByClass.get(c.id)?.length || 0} students
+                                </span>
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {bulkForm.classId && (
+                        <p className="text-[10px] text-gray-400 flex items-center gap-1">
+                          <UserPlus className="h-3 w-3" />
+                          {selectedClassStudents.length} active student{selectedClassStudents.length !== 1 ? "s" : ""} in this class
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Fee template selector */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium text-gray-600">Fee Template</Label>
+                      <Select
+                        value={bulkForm.feeTemplateId}
+                        onValueChange={(value) => {
+                          const fee = feeTemplateLookup.get(value);
+                          setBulkForm((prev) => ({
+                            ...prev,
+                            feeTemplateId: value,
+                            billingCycle: (fee?.frequency as "per_term" | "per_session" | "one_time") || prev.billingCycle,
+                          }));
+                        }}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select a fee template..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {fees.map((fee) => {
+                            const amountForClass = bulkForm.classId
+                              ? getFeeAmountForClass(fee.id, bulkForm.classId)
+                              : Number(fee.amount);
+                            return (
+                              <SelectItem key={fee.id} value={fee.id}>
+                                <span className="flex items-center gap-2">
+                                  <Layers className="h-3.5 w-3.5 text-gray-400" />
+                                  {fee.name}
+                                  <span className="text-[10px] font-mono text-gray-500 ml-auto">
+                                    {formatMoney(amountForClass)}
+                                  </span>
+                                </span>
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                      {selectedBulkFee && bulkForm.classId && effectiveAmount > 0 && (
+                        <p className="text-[10px] text-gray-400">
+                          Per student: <span className="font-semibold text-gray-700">{formatMoney(effectiveAmount)}</span>
+                          {selectedBulkFee.finance_fee_template_classes?.some(
+                            (c) => c.class_id === bulkForm.classId
+                          ) && (
+                            <span className="ml-1 text-indigo-500">(class-specific pricing)</span>
+                          )}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Billing cycle + Due date */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium text-gray-600">Billing Cycle</Label>
+                        <Select
+                          value={bulkForm.billingCycle}
+                          onValueChange={(value) =>
+                            setBulkForm((prev) => ({
+                              ...prev,
+                              billingCycle: value as "per_term" | "per_session" | "one_time",
+                            }))
+                          }
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Frequency" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="per_term">Per Term</SelectItem>
+                            <SelectItem value="per_session">Per Session</SelectItem>
+                            <SelectItem value="one_time">One-time</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium text-gray-600">Due Date</Label>
+                        <Input
+                          type="date"
+                          value={bulkForm.dueDate}
+                          onChange={(e) => setBulkForm((prev) => ({ ...prev, dueDate: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Summary Card */}
+                    {bulkForm.classId && selectedBulkFee && selectedClassStudents.length > 0 && (
+                      <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-4 space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-500">Students to bill</span>
+                          <span className="font-semibold text-gray-900">{selectedClassStudents.length}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-500">Fee per student</span>
+                          <span className="font-semibold text-gray-900">{formatMoney(effectiveAmount)}</span>
+                        </div>
+                        <div className="border-t border-indigo-100 pt-2 flex items-center justify-between text-xs">
+                          <span className="text-gray-500 font-medium">Total bill value</span>
+                          <span className="font-bold text-indigo-700 text-sm">{formatMoney(bulkTotal)}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Result banner */}
+                    {bulkResult && (
+                      <div
+                        className={`p-3 rounded-lg border text-sm ${
+                          bulkResult.created > 0
+                            ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                            : "bg-amber-50 border-amber-200 text-amber-800"
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          {bulkResult.created > 0 ? (
+                            <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
+                          ) : (
+                            <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                          )}
+                          <div>
+                            <p className="font-medium text-xs">
+                              {bulkResult.created > 0
+                                ? `Created ${bulkResult.created} bill${bulkResult.created !== 1 ? "s" : ""} successfully!`
+                                : "No new bills created"}
+                            </p>
+                            <p className="text-[10px] mt-0.5 opacity-80">{bulkResult.message}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+                    {bulkResult?.created ? (
+                      <Button onClick={() => { setBulkModalOpen(false); resetBulkForm(); }}>
+                        Done
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          variant="outline"
+                          onClick={() => { setBulkModalOpen(false); resetBulkForm(); }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          className="gap-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white"
+                          onClick={handleBulkSubmit}
+                          disabled={bulkSaving || !bulkForm.classId || !bulkForm.feeTemplateId || selectedClassStudents.length === 0}
+                        >
+                          {bulkSaving ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Creating Bills...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="h-4 w-4" />
+                              Create {selectedClassStudents.length} Bill{selectedClassStudents.length !== 1 ? "s" : ""}
+                            </>
+                          )}
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
+
               <Button
                 variant="ghost"
                 size="sm"
@@ -333,6 +658,7 @@ export function FinanceBillingTab({
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                 )}
               </Button>
+
               <Dialog open={modalOpen} onOpenChange={(open) => { setModalOpen(open); if (!open) resetForm(); }}>
                 <DialogTrigger asChild>
                   <Button size="sm" className="gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700" onClick={openCreate}>

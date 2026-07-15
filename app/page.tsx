@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   GraduationCap,
   CheckCircle2,
@@ -784,59 +785,16 @@ export default function LandingPage() {
               </span>
             </div>
 
-            {/* Dashboard placeholder content */}
-            <div className="relative flex min-h-[45vh] sm:min-h-[55vh] flex-col items-center justify-center bg-gradient-to-br from-blue-900/20 via-indigo-900/10 to-purple-900/20 px-6 py-10">
-              {/* Grid pattern */}
-              <div
-                className="pointer-events-none absolute inset-0 opacity-[0.04]"
-                style={{
-                  backgroundImage: `radial-gradient(circle at 1px 1px, #fff 1px, transparent 0)`,
-                  backgroundSize: "40px 40px",
-                }}
+            {/* Dashboard image */}
+            <div className="relative min-h-[45vh] bg-[#08090b] sm:min-h-[55vh]">
+              <Image
+                src="/landing/hero.webp"
+                alt="School Hub dashboard preview"
+                fill
+                priority
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 90vw, 1024px"
+                className="object-cover object-top"
               />
-              <div className="relative z-10 mb-6 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-xl shadow-blue-500/30">
-                  <BarChart3 className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <p className="text-[15px] font-semibold text-white/80">Admin Dashboard Overview</p>
-                  <p className="font-mono text-[11px] text-white/30">
-                    📸 Replace with your dashboard screenshot
-                  </p>
-                </div>
-              </div>
-              {/* Mock stat row */}
-              <div className="relative z-10 grid w-full max-w-xl grid-cols-3 gap-4">
-                {[
-                  { label: "Total Students", val: "2,481", color: "from-blue-500/20 to-blue-500/5" },
-                  { label: "Active Teachers", val: "142", color: "from-indigo-500/20 to-indigo-500/5" },
-                  { label: "Pending Fees", val: "₦4.2M", color: "from-violet-500/20 to-violet-500/5" },
-                ].map((s) => (
-                  <div
-                    key={s.label}
-                    className={`rounded-xl border border-white/[0.07] bg-gradient-to-br ${s.color} p-4 text-center`}
-                  >
-                    <div className="font-mono text-xl font-bold text-white/80">{s.val}</div>
-                    <div className="mt-0.5 text-[10px] text-white/35">{s.label}</div>
-                  </div>
-                ))}
-              </div>
-              {/* Mock chart bar */}
-              <div className="relative z-10 mt-8 w-full max-w-xl space-y-2">
-                {[0.85, 0.6, 0.92, 0.45, 0.7].map((w, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <span className="w-16 text-right font-mono text-[9px] text-white/20">
-                      Term {i + 1}
-                    </span>
-                    <div className="flex-1 rounded-full bg-white/[0.05]">
-                      <div
-                        className="h-2 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"
-                        style={{ width: `${w * 100}%`, opacity: 0.6 + w * 0.3 }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
         </div>

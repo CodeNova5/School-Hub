@@ -130,6 +130,12 @@ const FEATURE_BENEFITS: Partial<Record<PlanFeature, string[]>> = {
     "Alumni event management",
     "Networking tools",
   ],
+  inventory_management: [
+    "Track assets, consumables, and saleable items",
+    "Check-in/check-out workflow with serial numbers",
+    "Low-stock alerts and automated notifications",
+    "Full transaction audit ledger",
+  ],
   audit_trail: [
     "Track all admin actions",
     "Detailed change logs",

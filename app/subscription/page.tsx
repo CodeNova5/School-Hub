@@ -1,12 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { usePlanDisplayInfo, PLAN_KEYS_IN_ORDER } from "@/hooks/use-plan-display-info";
 import { APP_NAME, getCopyrightText } from "@/data";
 import {
-  Check,
-  X,
   Zap,
   Shield,
   Star,
@@ -29,9 +27,26 @@ import {
   Award,
   ChevronDown,
   Package,
+  CheckCircle2,
+  Minus,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -51,6 +66,7 @@ const planIcons: Record<string, any> = {
 interface DisplayFeature {
   key: string;
   label: string;
+  description: string;
   category: string;
   icon: any;
   pro: boolean;
@@ -59,38 +75,262 @@ interface DisplayFeature {
 
 const ALL_DISPLAY_FEATURES: DisplayFeature[] = [
   // Core (all plans)
-  { key: "core_subjects", label: "Curriculum & Subjects", category: "Core", icon: BookOpen, pro: false, premium: false },
-  { key: "core_students", label: "Student Management", category: "Core", icon: Users, pro: false, premium: false },
-  { key: "core_timetable", label: "Timetable Scheduling", category: "Core", icon: Calendar, pro: false, premium: false },
-  { key: "core_attendance", label: "Attendance Tracking", category: "Core", icon: BarChart3, pro: false, premium: false },
-  { key: "core_results", label: "Results & Report Cards", category: "Core", icon: Award, pro: false, premium: false },
-  { key: "core_classes", label: "Class & Level Management", category: "Core", icon: Building2, pro: false, premium: false },
+  {
+    key: "core_subjects",
+    label: "Curriculum & Subjects",
+    category: "Core",
+    icon: BookOpen,
+    pro: false,
+    premium: false,
+    description: "Manage subjects, curriculum mapping, and class assignments",
+  },
+  {
+    key: "core_students",
+    label: "Student Management",
+    category: "Core",
+    icon: Users,
+    pro: false,
+    premium: false,
+    description: "Complete student profiles, attendance, and academic records",
+  },
+  {
+    key: "core_timetable",
+    label: "Timetable Scheduling",
+    category: "Core",
+    icon: Calendar,
+    pro: false,
+    premium: false,
+    description: "Create and manage class timetables with ease",
+  },
+  {
+    key: "core_attendance",
+    label: "Attendance Tracking",
+    category: "Core",
+    icon: BarChart3,
+    pro: false,
+    premium: false,
+    description: "Daily attendance marking with insightful reports",
+  },
+  {
+    key: "core_results",
+    label: "Results & Report Cards",
+    category: "Core",
+    icon: Award,
+    pro: false,
+    premium: false,
+    description: "Compute results, generate report cards, and track performance",
+  },
+  {
+    key: "core_classes",
+    label: "Class & Level Management",
+    category: "Core",
+    icon: Building2,
+    pro: false,
+    premium: false,
+    description: "Organize classes, streams, departments, and education levels",
+  },
 
   // Pro
-  { key: "finance", label: "Finance & Fee Management", category: "Pro", icon: CreditCard, pro: true, premium: true },
-  { key: "payroll", label: "Staff Payroll", category: "Pro", icon: Users, pro: true, premium: true },
-  { key: "notifications", label: "SMS & Email Notifications", category: "Pro", icon: Bell, pro: true, premium: true },
-  { key: "subject_analytics", label: "Subject Performance Analytics", category: "Pro", icon: BarChart3, pro: true, premium: true },
-  { key: "parents_guardians", label: "Parent/Guardian Portal", category: "Pro", icon: Users, pro: true, premium: true },
-  { key: "student_id_cards", label: "Student ID Cards", category: "Pro", icon: Award, pro: true, premium: true },
-  { key: "teacher_id_cards", label: "Teacher ID Cards", category: "Pro", icon: Award, pro: true, premium: true },
-  { key: "assignments", label: "Assignment Management", category: "Pro", icon: BookOpen, pro: true, premium: true },
-  { key: "calendar", label: "School Calendar & Events", category: "Pro", icon: Calendar, pro: true, premium: true },
-  { key: "families", label: "Family Account Linking", category: "Pro", icon: Users, pro: true, premium: true },
-  { key: "inventory_management", label: "Inventory Management", category: "Pro", icon: Package, pro: true, premium: true },
+  {
+    key: "finance",
+    label: "Finance & Fee Management",
+    category: "Pro",
+    icon: CreditCard,
+    pro: true,
+    premium: false,
+    description: "Generate invoices, manage payments, and track fee collections",
+  },
+  {
+    key: "payroll",
+    label: "Staff Payroll",
+    category: "Pro",
+    icon: Users,
+    pro: true,
+    premium: false,
+    description: "Manage teacher salaries, payments, and payroll records",
+  },
+  {
+    key: "notifications",
+    label: "SMS & Email Notifications",
+    category: "Pro",
+    icon: Bell,
+    pro: true,
+    premium: false,
+    description: "Send bulk SMS and email alerts to parents and staff",
+  },
+  {
+    key: "subject_analytics",
+    label: "Subject Performance Analytics",
+    category: "Pro",
+    icon: BarChart3,
+    pro: true,
+    premium: false,
+    description: "Deep insights into subject-wise student performance trends",
+  },
+  {
+    key: "parents_guardians",
+    label: "Parent/Guardian Portal",
+    category: "Pro",
+    icon: Users,
+    pro: true,
+    premium: false,
+    description: "Dedicated portal for parents to monitor their child's progress",
+  },
+  {
+    key: "student_id_cards",
+    label: "Student ID Cards",
+    category: "Pro",
+    icon: Award,
+    pro: true,
+    premium: false,
+    description: "Generate and print professional student identification cards",
+  },
+  {
+    key: "teacher_id_cards",
+    label: "Teacher ID Cards",
+    category: "Pro",
+    icon: Award,
+    pro: true,
+    premium: false,
+    description: "Generate and print professional staff identification cards",
+  },
+  {
+    key: "assignments",
+    label: "Assignment Management",
+    category: "Pro",
+    icon: BookOpen,
+    pro: true,
+    premium: false,
+    description: "Create, distribute, and grade digital assignments",
+  },
+  {
+    key: "calendar",
+    label: "School Calendar & Events",
+    category: "Pro",
+    icon: Calendar,
+    pro: true,
+    premium: false,
+    description: "Plan and manage school events, holidays, and activities",
+  },
+  {
+    key: "families",
+    label: "Family Account Linking",
+    category: "Pro",
+    icon: Users,
+    pro: true,
+    premium: false,
+    description: "Link multiple students to a single family account",
+  },
+  {
+    key: "inventory_management",
+    label: "Inventory Management",
+    category: "Pro",
+    icon: Package,
+    pro: true,
+    premium: false,
+    description: "Track school assets, supplies, and equipment inventory",
+  },
 
   // Premium
-  { key: "ai_assistant", label: "AI Teaching Assistant", category: "Premium", icon: Brain, pro: false, premium: true },
-  { key: "website_builder", label: "School Website Builder", category: "Premium", icon: Globe, pro: false, premium: true },
-  { key: "question_bank", label: "Question Bank & Exams", category: "Premium", icon: BookOpen, pro: false, premium: true },
-  { key: "jamb_cbt", label: "JAMB CBT Simulator", category: "Premium", icon: Monitor, pro: false, premium: true },
-  { key: "live_classes", label: "Live Virtual Classes", category: "Premium", icon: Monitor, pro: false, premium: true },
-  { key: "lesson_notes", label: "Digital Lesson Notes", category: "Premium", icon: BookOpen, pro: false, premium: true },
-  { key: "admissions", label: "Online Admissions", category: "Premium", icon: GraduationCap, pro: false, premium: true },
-  { key: "alumni", label: "Alumni Management", category: "Premium", icon: Users, pro: false, premium: true },
-  { key: "audit_trail", label: "Audit Trail & Logs", category: "Premium", icon: Shield, pro: false, premium: true },
-  { key: "website_builder_custom", label: "Custom Website Domain", category: "Premium", icon: Globe, pro: false, premium: true },
-  { key: "whatsapp", label: "WhatsApp Integration", category: "Premium", icon: MessageSquare, pro: false, premium: true },
+  {
+    key: "ai_assistant",
+    label: "AI Teaching Assistant",
+    category: "Premium",
+    icon: Brain,
+    pro: false,
+    premium: true,
+    description: "AI-powered tools for lesson planning and content generation",
+  },
+  {
+    key: "website_builder",
+    label: "School Website Builder",
+    category: "Premium",
+    icon: Globe,
+    pro: false,
+    premium: true,
+    description: "Build and host your school's professional website",
+  },
+  {
+    key: "question_bank",
+    label: "Question Bank & Exams",
+    category: "Premium",
+    icon: BookOpen,
+    pro: false,
+    premium: true,
+    description: "Comprehensive question bank and online examination system",
+  },
+  {
+    key: "jamb_cbt",
+    label: "JAMB CBT Simulator",
+    category: "Premium",
+    icon: Monitor,
+    pro: false,
+    premium: true,
+    description: "JAMB CBT practice exams with realistic simulation",
+  },
+  {
+    key: "live_classes",
+    label: "Live Virtual Classes",
+    category: "Premium",
+    icon: Monitor,
+    pro: false,
+    premium: true,
+    description: "Conduct live online classes with integrated video conferencing",
+  },
+  {
+    key: "lesson_notes",
+    label: "Digital Lesson Notes",
+    category: "Premium",
+    icon: BookOpen,
+    pro: false,
+    premium: true,
+    description: "Create and share digital lesson notes with students",
+  },
+  {
+    key: "admissions",
+    label: "Online Admissions",
+    category: "Premium",
+    icon: GraduationCap,
+    pro: false,
+    premium: true,
+    description: "End-to-end online admission application and management",
+  },
+  {
+    key: "alumni",
+    label: "Alumni Management",
+    category: "Premium",
+    icon: Users,
+    pro: false,
+    premium: true,
+    description: "Manage alumni network, events, and engagement",
+  },
+  {
+    key: "audit_trail",
+    label: "Audit Trail & Logs",
+    category: "Premium",
+    icon: Shield,
+    pro: false,
+    premium: true,
+    description: "Complete audit logs for compliance and security",
+  },
+  {
+    key: "website_builder_custom",
+    label: "Custom Website Domain",
+    category: "Premium",
+    icon: Globe,
+    pro: false,
+    premium: true,
+    description: "Connect a custom domain to your school website",
+  },
+  {
+    key: "whatsapp",
+    label: "WhatsApp Integration",
+    category: "Premium",
+    icon: MessageSquare,
+    pro: false,
+    premium: true,
+    description: "Communicate with parents via WhatsApp messaging",
+  },
 ];
 
 // ── FAQ ──────────────────────────────────────────────────────────────────
@@ -128,23 +368,25 @@ function PricingSkeleton() {
   return (
     <div className="min-h-screen bg-white">
       <div className="max-w-6xl mx-auto px-4 py-20 sm:px-6 lg:px-8">
-        <div className="space-y-6 text-center mb-14 animate-pulse">
-          <div className="h-6 w-48 bg-gray-200 rounded-full mx-auto" />
-          <div className="h-10 w-80 bg-gray-200 rounded-lg mx-auto" />
-          <div className="h-4 w-96 bg-gray-200 rounded-lg mx-auto" />
+        <div className="space-y-6 text-center mb-14">
+          <Skeleton className="h-6 w-48 rounded-full mx-auto" />
+          <Skeleton className="h-10 w-80 rounded-lg mx-auto" />
+          <Skeleton className="h-4 w-96 rounded-lg mx-auto" />
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="animate-pulse space-y-6 p-8 rounded-2xl border border-gray-100 bg-white">
-              <div className="h-6 w-24 bg-gray-200 rounded-lg" />
-              <div className="h-4 w-40 bg-gray-200 rounded-lg" />
-              <div className="h-10 w-32 bg-gray-200 rounded-lg" />
-              <div className="space-y-3 pt-4">
+            <Card key={i} className="overflow-hidden">
+              <CardHeader className="space-y-4">
+                <Skeleton className="h-6 w-24 rounded-lg" />
+                <Skeleton className="h-4 w-40 rounded-lg" />
+                <Skeleton className="h-10 w-32 rounded-lg" />
+              </CardHeader>
+              <CardContent className="space-y-3">
                 {Array.from({ length: 6 }).map((_, j) => (
-                  <div key={j} className="h-5 w-full bg-gray-100 rounded" />
+                  <Skeleton key={j} className="h-5 w-full" />
                 ))}
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       </div>
@@ -160,15 +402,50 @@ export default function SubscriptionPage() {
   const [billingInterval, setBillingInterval] = useState<"termly" | "yearly">("termly");
   const [mounted, setMounted] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [visibleSections, setVisibleSections] = useState<Set<string>>(new Set());
+  const sectionRefs = useRef<Map<string, HTMLElement>>(new Map());
 
   useEffect(() => {
     const timer = setTimeout(() => setMounted(true), 80);
     return () => clearTimeout(timer);
   }, []);
 
+  // Scroll-triggered intersection observer
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const id = entry.target.getAttribute("data-section-id");
+            if (id) {
+              setVisibleSections((prev) => new Set(prev).add(id));
+            }
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+
+    sectionRefs.current.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [mounted]);
+
+  const registerSection = useCallback((id: string, el: HTMLElement | null) => {
+    if (el) {
+      sectionRefs.current.set(id, el);
+    } else {
+      sectionRefs.current.delete(id);
+    }
+  }, []);
+
+  const isSectionVisible = (id: string) => visibleSections.has(id);
+
   if (plansLoading) return <PricingSkeleton />;
 
   return (
+    <TooltipProvider delayDuration={200}>
     <div className="min-h-screen bg-white">
       {/* ── Hero ── */}
       <section className="relative pt-24 sm:pt-28 pb-16 sm:pb-20 overflow-hidden">
@@ -257,7 +534,11 @@ export default function SubscriptionPage() {
       </section>
 
       {/* ── Plan Cards ── */}
-      <section className="pb-16 sm:pb-20 -mt-4">
+      <section
+        ref={(el) => registerSection("plans", el)}
+        data-section-id="plans"
+        className="pb-16 sm:pb-20 -mt-4"
+      >
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
             {PLAN_KEYS_IN_ORDER.map((key, index) => {
@@ -272,13 +553,17 @@ export default function SubscriptionPage() {
                 : info.yearly_price;
 
               const allFeatures = ALL_DISPLAY_FEATURES;
+              const coreFeatures = allFeatures.filter((f) => !f.pro && !f.premium);
+              const planFeatures = allFeatures.filter(
+                (f) => isBasic ? (!f.pro && !f.premium) : isPro ? !f.premium : true
+              );
 
               return (
-                <div
+                <Card
                   key={key}
-                  className={`relative flex flex-col rounded-2xl border bg-white transition-all duration-500 ${
+                  className={`relative flex flex-col transition-all duration-500 overflow-hidden ${
                     mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
-                  } ${isPro ? "border-blue-200 shadow-xl shadow-blue-100 scale-[1.02] lg:scale-105" : "border-gray-200 shadow-sm hover:shadow-lg"} ${isPro ? "" : "hover:scale-[1.01]"}`}
+                  } ${isPro ? "border-blue-200 shadow-xl shadow-blue-100 scale-[1.02] lg:scale-105 ring-1 ring-blue-100" : "border-gray-200 shadow-sm hover:shadow-lg"} ${isPro ? "" : "hover:scale-[1.01]"}`}
                   style={{ transitionDelay: `${200 + index * 120}ms` }}
                 >
                   {/* Popular Badge */}
@@ -291,8 +576,23 @@ export default function SubscriptionPage() {
                     </div>
                   )}
 
-                  {/* Card Content */}
-                  <div className="p-6 sm:p-8 flex flex-col flex-1">
+                  {/* Feature count badge */}
+                  {!isBasic && (
+                    <div className="absolute top-4 right-4 z-10">
+                      <Badge
+                        variant="secondary"
+                        className={`text-[10px] font-medium px-2 py-0.5 ${
+                          isPro
+                            ? "bg-blue-50 text-blue-700 border-blue-200"
+                            : "bg-purple-50 text-purple-700 border-purple-200"
+                        }`}
+                      >
+                        +{planFeatures.length - coreFeatures.length} features
+                      </Badge>
+                    </div>
+                  )}
+
+                  <CardHeader className="p-6 sm:p-8 pb-0">
                     {/* Icon & Name */}
                     <div className="flex items-center gap-3 mb-4">
                       <div
@@ -315,42 +615,42 @@ export default function SubscriptionPage() {
                         />
                       </div>
                       <div>
-                        <h3 className="text-lg font-bold text-gray-900">{info.label_short}</h3>
-                        <p className="text-xs text-gray-500">{isBasic ? "Free forever" : isPro ? "For growing schools" : "For school groups"}</p>
+                        <CardTitle className="text-lg">{info.label_short}</CardTitle>
+                        <p className="text-xs text-muted-foreground">
+                          {isBasic ? "Free forever" : isPro ? "For growing schools" : "For school groups"}
+                        </p>
                       </div>
                     </div>
 
                     {/* Price */}
-                    <div className="mb-6">
-                      {price === 0 ? (
+                    {price === 0 ? (
+                      <div className="flex items-baseline gap-1 mb-6">
+                        <span className="text-4xl font-bold text-foreground">Free</span>
+                        <span className="text-sm text-muted-foreground ml-1">/term</span>
+                      </div>
+                    ) : (
+                      <div className="mb-6">
                         <div className="flex items-baseline gap-1">
-                          <span className="text-4xl font-bold text-gray-900">Free</span>
-                          <span className="text-sm text-gray-400 ml-1">/term</span>
+                          <span className="text-3xl sm:text-4xl font-bold text-foreground">
+                            {formatPrice(price)}
+                          </span>
+                          <span className="text-sm text-muted-foreground">
+                            /{billingInterval === "termly" ? "term" : "yr"}
+                          </span>
                         </div>
-                      ) : (
-                        <div>
-                          <div className="flex items-baseline gap-1">
-                            <span className="text-3xl sm:text-4xl font-bold text-gray-900">
-                              {formatPrice(price)}
-                            </span>
-                            <span className="text-sm text-gray-400">
-                              /{billingInterval === "termly" ? "term" : "yr"}
-                            </span>
-                          </div>
-                          {billingInterval === "yearly" && info.monthly_price > 0 && (
-                            <p className="text-xs text-emerald-600 mt-1">
-                              {formatPrice(info.monthly_price)}/mo billed annually —
-                              <span className="font-semibold"> save {Math.round((1 - info.yearly_price / (info.termly_price * 3)) * 100)}%</span>
-                            </p>
-                          )}
-                          {billingInterval === "termly" && info.yearly_price > 0 && (
-                            <p className="text-xs text-gray-400 mt-1">
-                              3 terms per year · No holiday charges
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                        {billingInterval === "yearly" && info.monthly_price > 0 && (
+                          <p className="text-xs text-emerald-600 mt-1">
+                            {formatPrice(info.monthly_price)}/mo billed annually —
+                            <span className="font-semibold"> save {Math.round((1 - info.yearly_price / (info.termly_price * 3)) * 100)}%</span>
+                          </p>
+                        )}
+                        {billingInterval === "termly" && info.yearly_price > 0 && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            3 terms per year · No holiday charges
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     {/* CTA */}
                     <Link
@@ -358,7 +658,7 @@ export default function SubscriptionPage() {
                       className="block mb-6"
                     >
                       <Button
-                        className={`w-full h-11 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                        className={`w-full h-11 rounded-xl text-sm font-semibold transition-all duration-300 group ${
                           isPro
                             ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-200 hover:shadow-xl hover:shadow-blue-300"
                             : isPremium
@@ -366,61 +666,83 @@ export default function SubscriptionPage() {
                             : "bg-gray-900 hover:bg-gray-800 text-white"
                         }`}
                       >
-                        {isBasic ? "Get Started Free" : "Start Free Trial"}
-                        <ArrowRight className="ml-2 h-4 w-4" />
+                        <span className="flex items-center">
+                          {isBasic ? "Get Started Free" : "Start Free Trial"}
+                          <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />
+                        </span>
                       </Button>
                     </Link>
+                  </CardHeader>
 
-                    {/* Feature List */}
-                    <div className="border-t border-gray-100 pt-6 flex-1">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-4">
-                        {isBasic
-                          ? "Core Features — All Free"
+                  <Separator />
+
+                  <CardContent className="p-6 sm:p-8 flex-1">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">
+                      {isBasic
+                        ? "Core Features — All Free"
+                        : isPro
+                        ? "Everything in Free, plus:"
+                        : "Everything in Pro, plus:"}
+                    </p>
+
+                    <ul className="space-y-3">
+                      {allFeatures.map((feature) => {
+                        const enabled = isBasic
+                          ? !feature.pro && !feature.premium
                           : isPro
-                          ? "Everything in Free, plus:"
-                          : "Everything in Pro, plus:"}
-                      </p>
-
-                      <ul className="space-y-3">
-                        {allFeatures.map((feature) => {
-                          const enabled = isBasic
-                            ? !feature.pro && !feature.premium
-                            : isPro
-                            ? !feature.premium
-                            : true;
-                          return (
-                            <li
-                              key={feature.key}
-                              className={`flex items-start gap-3 text-sm ${
-                                enabled ? "text-gray-700" : "text-gray-400"
-                              }`}
-                            >
-                              {enabled ? (
-                                <span className="flex-shrink-0 mt-0.5">
-                                  {isPro && !feature.pro && !feature.premium ? (
-                                    <Check className="h-4 w-4 text-emerald-500" />
-                                  ) : isPremium && !feature.premium ? (
-                                    <Check className="h-4 w-4 text-emerald-500" />
-                                  ) : (
-                                    <Check className="h-4 w-4 text-blue-500" />
-                                  )}
-                                </span>
-                              ) : (
-                                <span className="flex-shrink-0 mt-0.5 text-gray-300">
-                                  <X className="h-4 w-4" />
-                                </span>
-                              )}
-                              <span className="flex items-center gap-2">
-                                <feature.icon className="h-3.5 w-3.5 text-gray-400" />
-                                <span>{feature.label}</span>
-                              </span>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </div>
-                  </div>
-                </div>
+                          ? !feature.premium
+                          : true;
+                        return (
+                          <li
+                            key={feature.key}
+                            className={`flex items-start gap-3 text-sm transition-colors duration-200 ${
+                              enabled
+                                ? "text-foreground"
+                                : "text-muted-foreground/50"
+                            }`}
+                          >
+                            {enabled ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="flex-shrink-0 mt-0.5 cursor-help">
+                                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="right" className="max-w-[220px]">
+                                  <p className="text-xs">{feature.description}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="flex-shrink-0 mt-0.5 cursor-help">
+                                    <Minus className="h-4 w-4 text-muted-foreground/30" />
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="right" className="max-w-[220px]">
+                                  <p className="text-xs">
+                                    Available on{" "}
+                                    {feature.premium
+                                      ? "Premium plan"
+                                      : "Pro or Premium plan"}
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                            <span className="flex items-center gap-2">
+                              <feature.icon
+                                className={`h-3.5 w-3.5 ${
+                                  enabled ? "text-muted-foreground" : "text-muted-foreground/30"
+                                }`}
+                              />
+                              <span>{feature.label}</span>
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </CardContent>
+                </Card>
               );
             })}
           </div>
@@ -428,9 +750,22 @@ export default function SubscriptionPage() {
       </section>
 
       {/* ── Feature Comparison Table ── */}
-      <section className="py-16 sm:py-20 bg-gradient-to-b from-gray-50 to-white border-y border-gray-100">
+      <section
+        ref={(el) => registerSection("comparison", el)}
+        data-section-id="comparison"
+        className={`py-16 sm:py-20 bg-gradient-to-b from-gray-50 to-white border-y border-gray-100 transition-all duration-700 ${
+          isSectionVisible("comparison") ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
+        }`}
+      >
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
+            <Badge
+              variant="outline"
+              className="mb-4 px-4 py-1.5 border-gray-200 text-gray-600 bg-gray-50 text-xs font-medium"
+            >
+              <BarChart3 className="h-3.5 w-3.5 mr-1.5" />
+              Feature breakdown
+            </Badge>
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-3">
               Compare Plans in Detail
             </h2>
@@ -449,7 +784,11 @@ export default function SubscriptionPage() {
                 <div key={key} className="bg-white p-4 text-center">
                   <span
                     className={`text-sm font-bold ${
-                      key === "basic" ? "text-gray-900" : key === "pro" ? "text-blue-600" : "text-purple-600"
+                      key === "basic"
+                        ? "text-gray-900"
+                        : key === "pro"
+                        ? "text-blue-600"
+                        : "text-purple-600"
                     }`}
                   >
                     {getPlanInfo(key).label_short}
@@ -470,7 +809,10 @@ export default function SubscriptionPage() {
                 <div key={section.category}>
                   {/* Category Header */}
                   <div className="grid grid-cols-4 gap-px bg-gray-100">
-                    <div className="bg-gray-50 p-3">
+                    <div className="bg-gray-50 p-3 flex items-center gap-2">
+                      {section.category === "Core" && <Building2 className="h-3.5 w-3.5 text-gray-500" />}
+                      {section.category === "Pro" && <TrendingUp className="h-3.5 w-3.5 text-blue-500" />}
+                      {section.category === "Premium" && <Sparkles className="h-3.5 w-3.5 text-purple-500" />}
                       <span className="text-xs font-semibold uppercase tracking-wider text-gray-600">
                         {section.category}
                       </span>
@@ -486,10 +828,22 @@ export default function SubscriptionPage() {
 
                   {/* Feature Rows */}
                   {section.features.map((feature) => (
-                    <div key={feature.key} className="grid grid-cols-4 gap-px bg-gray-100">
+                    <div
+                      key={feature.key}
+                      className="grid grid-cols-4 gap-px bg-gray-100 transition-colors duration-150 hover:bg-gray-50/80"
+                    >
                       <div className="bg-white p-3.5 flex items-center gap-2">
-                        <feature.icon className="h-3.5 w-3.5 text-gray-400" />
-                        <span className="text-sm text-gray-700">{feature.label}</span>
+                        <feature.icon className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="text-sm text-gray-700 cursor-help border-b border-dotted border-gray-300">
+                              {feature.label}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-[220px]">
+                            <p className="text-xs">{feature.description}</p>
+                          </TooltipContent>
+                        </Tooltip>
                       </div>
                       {(["basic", "pro", "premium"] as const).map((planKey) => {
                         const enabled = planKey === "basic"
@@ -498,11 +852,14 @@ export default function SubscriptionPage() {
                           ? !feature.premium
                           : true;
                         return (
-                          <div key={planKey} className="bg-white p-3.5 text-center">
+                          <div
+                            key={planKey}
+                            className="bg-white p-3.5 text-center transition-colors duration-150"
+                          >
                             {enabled ? (
-                              <Check className="h-4 w-4 text-emerald-500 mx-auto" />
+                              <CheckCircle2 className="h-4 w-4 text-emerald-500 mx-auto" />
                             ) : (
-                              <X className="h-4 w-4 text-gray-300 mx-auto" />
+                              <Minus className="h-4 w-4 text-gray-200 mx-auto" />
                             )}
                           </div>
                         );
@@ -517,10 +874,19 @@ export default function SubscriptionPage() {
       </section>
 
       {/* ── FAQ ── */}
-      <section className="py-16 sm:py-20">
+      <section
+        ref={(el) => registerSection("faq", el)}
+        data-section-id="faq"
+        className={`py-16 sm:py-20 transition-all duration-700 ${
+          isSectionVisible("faq") ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
+        }`}
+      >
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <Badge variant="outline" className="mb-4 px-4 py-1.5 border-gray-200 text-gray-600 bg-gray-50 text-xs font-medium">
+            <Badge
+              variant="outline"
+              className="mb-4 px-4 py-1.5 border-gray-200 text-gray-600 bg-gray-50 text-xs font-medium"
+            >
               <HelpCircle className="h-3.5 w-3.5 mr-1.5" />
               Got questions?
             </Badge>
@@ -536,16 +902,18 @@ export default function SubscriptionPage() {
             {FAQS.map((faq, i) => (
               <div
                 key={i}
-                className="rounded-xl border border-gray-200 bg-white overflow-hidden transition-all duration-200"
+                className="rounded-xl border border-gray-200 bg-white overflow-hidden transition-all duration-200 hover:border-gray-300"
               >
                 <button
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                  className="flex items-center justify-between w-full p-4 sm:p-5 text-left"
+                  className="flex items-center justify-between w-full p-4 sm:p-5 text-left group"
                 >
-                  <span className="text-sm font-semibold text-gray-900 pr-4">{faq.q}</span>
+                  <span className="text-sm font-semibold text-gray-900 pr-4 group-hover:text-blue-600 transition-colors duration-200">
+                    {faq.q}
+                  </span>
                   <ChevronDown
-                    className={`h-4 w-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${
-                      openFaq === i ? "rotate-180" : ""
+                    className={`h-4 w-4 text-gray-400 flex-shrink-0 transition-all duration-300 ${
+                      openFaq === i ? "rotate-180 text-blue-500" : ""
                     }`}
                   />
                 </button>
@@ -554,7 +922,8 @@ export default function SubscriptionPage() {
                     openFaq === i ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
                   }`}
                 >
-                  <p className="px-4 sm:px-5 pb-4 sm:pb-5 text-sm text-gray-500 leading-relaxed">
+                  <Separator />
+                  <p className="px-4 sm:px-5 py-4 sm:py-5 text-sm text-gray-500 leading-relaxed">
                     {faq.a}
                   </p>
                 </div>
@@ -564,7 +933,7 @@ export default function SubscriptionPage() {
         </div>
       </section>
 
-      {/* ── CTA ── */}
+      {/* ── Bottom CTA ── */}
       <section className="py-16 sm:py-20 bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 relative overflow-hidden">
         <div
           className="absolute inset-0 opacity-[0.04]"
@@ -577,7 +946,7 @@ export default function SubscriptionPage() {
         <div className="absolute -bottom-40 -left-40 w-[500px] h-[500px] rounded-full bg-gradient-to-tr from-emerald-500/10 to-cyan-500/10 blur-3xl" />
 
         <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 border border-white/10 mb-6">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 border border-white/10 mb-6 backdrop-blur-sm">
             <Sparkles className="h-3.5 w-3.5 text-blue-300" />
             <span className="text-xs font-medium text-blue-200">No hidden fees, no surprises</span>
           </div>
@@ -590,15 +959,15 @@ export default function SubscriptionPage() {
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link href="/register">
-              <Button className="h-12 px-8 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 transition-all duration-300">
+              <Button className="h-12 px-8 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 transition-all duration-300 group">
                 Get Started Free
-                <ArrowRight className="ml-2 h-4 w-4" />
+                <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />
               </Button>
             </Link>
             <Link href="#features">
               <Button
                 variant="outline"
-                className="h-12 px-8 rounded-xl text-sm font-semibold border-white/10 text-gray-300 hover:bg-white/5 hover:text-white"
+                className="h-12 px-8 rounded-xl text-sm font-semibold border-white/10 text-gray-300 hover:bg-white/5 hover:text-white hover:border-white/20"
               >
                 Talk to Sales
                 <ChevronRight className="ml-2 h-4 w-4" />
@@ -620,15 +989,18 @@ export default function SubscriptionPage() {
             </div>
             <div className="flex items-center gap-6">
               <Link href="/privacy" className="text-xs text-gray-500 hover:text-gray-700 transition-colors">Privacy Policy</Link>
-              <Link href="#" className="text-xs text-gray-500 hover:text-gray-700 transition-colors">Terms of Service</Link>
-              <Link href="#" className="text-xs text-gray-500 hover:text-gray-700 transition-colors">Contact Support</Link>
+              <Link href="#" className="text-xs text-gray-500 hover:text-gray-700 transition-colors">
+                Terms of Service
+              </Link>
+              <Link href="#" className="text-xs text-gray-500 hover:text-gray-700 transition-colors">
+                Contact Support
+              </Link>
             </div>
-            <p className="text-xs text-gray-400">
-              {getCopyrightText()}
-            </p>
+            <p className="text-xs text-gray-400">{getCopyrightText()}</p>
           </div>
         </div>
       </footer>
     </div>
+    </TooltipProvider>
   );
 }

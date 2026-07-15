@@ -28,6 +28,7 @@ import {
   MessageSquare,
   Award,
   ChevronDown,
+  Package,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -76,6 +77,7 @@ const ALL_DISPLAY_FEATURES: DisplayFeature[] = [
   { key: "assignments", label: "Assignment Management", category: "Pro", icon: BookOpen, pro: true, premium: true },
   { key: "calendar", label: "School Calendar & Events", category: "Pro", icon: Calendar, pro: true, premium: true },
   { key: "families", label: "Family Account Linking", category: "Pro", icon: Users, pro: true, premium: true },
+  { key: "inventory_management", label: "Inventory Management", category: "Pro", icon: Package, pro: true, premium: true },
 
   // Premium
   { key: "ai_assistant", label: "AI Teaching Assistant", category: "Premium", icon: Brain, pro: false, premium: true },

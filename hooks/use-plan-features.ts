@@ -37,6 +37,7 @@ const ALL_PAID_FEATURES = [
   'finance', 'payroll', 'notifications', 'calendar', 'families',
   'assignments', 'subject_analytics', 'parents_guardians',
   'student_id_cards', 'teacher_id_cards',
+  'inventory_management',
   'ai_assistant', 'website_builder', 'jamb_cbt', 'question_bank',
   'live_classes', 'lesson_notes', 'admissions', 'alumni', 'audit_trail',
 ];
@@ -46,10 +47,12 @@ const PRO_FEATURES = new Set([
   'finance', 'payroll', 'notifications', 'calendar', 'families',
   'assignments', 'subject_analytics', 'parents_guardians',
   'student_id_cards', 'teacher_id_cards',
+  'inventory_management',
 ]);
 
 // Hardcoded fallback: premium features
 const PREMIUM_FEATURES = new Set([
+  'inventory_management',
   'ai_assistant', 'website_builder', 'jamb_cbt', 'question_bank',
   'live_classes', 'lesson_notes', 'admissions', 'alumni', 'audit_trail',
 ]);

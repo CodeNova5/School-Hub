@@ -18,6 +18,8 @@ export type PlanFeature =
   | 'parents_guardians'
   | 'student_id_cards'
   | 'teacher_id_cards'
+  // Pro features (also available on Premium)
+  | 'inventory_management'
   // Premium features
   | 'ai_assistant'
   | 'website_builder'

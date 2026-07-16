@@ -130,14 +130,14 @@ function getCategoryConfig(category: string) {
 
 function StatusDotBadge({ status }: { status: string }) {
   const config: Record<string, { dot: string; bg: string; text: string; label: string }> = {
-    paid: { dot: "bg-emerald-500", bg: "bg-emerald-500/10", text: "text-emerald-400", label: "Paid" },
-    partial: { dot: "bg-amber-500", bg: "bg-amber-500/10", text: "text-amber-400", label: "Partial" },
-    pending: { dot: "bg-blue-500", bg: "bg-blue-500/10", text: "text-blue-400", label: "Pending" },
-    overdue: { dot: "bg-rose-500", bg: "bg-rose-500/10", text: "text-rose-400", label: "Overdue" },
-    waived: { dot: "bg-zinc-500", bg: "bg-zinc-500/10", text: "text-zinc-400", label: "Waived" },
-    cancelled: { dot: "bg-zinc-500", bg: "bg-zinc-500/10", text: "text-zinc-400", label: "Cancelled" },
+    paid: { dot: "bg-emerald-500", bg: "bg-emerald-50", text: "text-emerald-600", label: "Paid" },
+    partial: { dot: "bg-amber-500", bg: "bg-amber-50", text: "text-amber-600", label: "Partial" },
+    pending: { dot: "bg-blue-500", bg: "bg-blue-50", text: "text-blue-600", label: "Pending" },
+    overdue: { dot: "bg-rose-500", bg: "bg-rose-50", text: "text-rose-600", label: "Overdue" },
+    waived: { dot: "bg-gray-500", bg: "bg-gray-50", text: "text-gray-500", label: "Waived" },
+    cancelled: { dot: "bg-gray-500", bg: "bg-gray-50", text: "text-gray-500", label: "Cancelled" },
   };
-  const cfg = config[status] || { dot: "bg-zinc-500", bg: "bg-zinc-500/10", text: "text-zinc-400", label: status };
+  const cfg = config[status] || { dot: "bg-gray-500", bg: "bg-gray-50", text: "text-gray-500", label: status };
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${cfg.bg} ${cfg.text} border border-transparent`}>
       <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} ${status === "overdue" ? "animate-pulse" : ""}`} />
@@ -166,7 +166,7 @@ function FeeTemplateCard({
   const hasOverrides = fee.finance_fee_template_classes && fee.finance_fee_template_classes.length > 0;
 
   return (
-    <div className="group relative rounded-xl border border-zinc-800 bg-zinc-900/80 p-5 transition-all duration-300 hover:border-zinc-700 hover:-translate-y-0.5 hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)]">
+    <div className="group relative rounded-xl border border-gray-200 bg-white p-5 transition-all duration-300 hover:border-gray-300 hover:-translate-y-0.5 hover:shadow-lg">
       {/* Gradient accent */}
       <div className={`absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r ${cat.color} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
 
@@ -176,21 +176,21 @@ function FeeTemplateCard({
             <CatIcon className="h-4.5 w-4.5 text-white" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-zinc-100 truncate">{fee.name}</p>
-            <p className="text-[11px] text-zinc-500">{FREQUENCY_LABELS[fee.frequency] || fee.frequency}</p>
+            <p className="text-sm font-semibold text-gray-900 truncate">{fee.name}</p>
+            <p className="text-[11px] text-gray-500">{FREQUENCY_LABELS[fee.frequency] || fee.frequency}</p>
           </div>
         </div>
         <div className="flex items-start gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
           <button
             onClick={() => onEdit(fee)}
-            className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-500 hover:text-amber-400 transition-colors"
+            className="p-1.5 rounded-md hover:bg-gray-100 text-gray-400 hover:text-amber-600 transition-colors"
             title="Edit fee"
           >
             <PencilLine className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={() => onDelete(fee)}
-            className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-500 hover:text-red-400 transition-colors"
+            className="p-1.5 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"
             title="Delete fee"
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -199,27 +199,27 @@ function FeeTemplateCard({
       </div>
 
       <div className="flex items-baseline gap-1.5 mb-2">
-        <span className="text-xl font-extrabold tracking-tight text-zinc-100">{formatMoney(fee.amount)}</span>
-        <span className="text-[10px] text-zinc-600">base</span>
+        <span className="text-xl font-extrabold tracking-tight text-gray-900">{formatMoney(fee.amount)}</span>
+        <span className="text-[10px] text-gray-400">base</span>
       </div>
 
       {fee.description && (
-        <p className="text-[11px] text-zinc-600 mb-2 line-clamp-1">{fee.description}</p>
+        <p className="text-[11px] text-gray-400 mb-2 line-clamp-1">{fee.description}</p>
       )}
 
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full bg-opacity-20 text-zinc-400 bg-zinc-800 border border-zinc-700`}>
+        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200`}>
           {fee.category}
         </span>
         <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
           fee.is_active
-            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-            : "bg-zinc-800 text-zinc-500 border border-zinc-700"
+            ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
+            : "bg-gray-100 text-gray-500 border border-gray-200"
         }`}>
           {fee.is_active ? "Active" : "Inactive"}
         </span>
         {hasOverrides && (
-          <span className="text-[10px] text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">
+          <span className="text-[10px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200">
             {fee.finance_fee_template_classes!.length} class override{fee.finance_fee_template_classes!.length !== 1 ? "s" : ""}
           </span>
         )}
@@ -227,13 +227,13 @@ function FeeTemplateCard({
 
       {/* Class overrides list */}
       {hasOverrides && (
-        <div className="mt-3 pt-3 border-t border-zinc-800 flex flex-wrap gap-1.5">
+        <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-1.5">
           {fee.finance_fee_template_classes!.map((entry, i) => (
             <span
               key={i}
-              className="inline-flex items-center gap-1 text-[10px] text-zinc-500 bg-zinc-800/50 border border-zinc-700/50 px-1.5 py-0.5 rounded-md"
+              className="inline-flex items-center gap-1 text-[10px] text-gray-500 bg-gray-50 border border-gray-200 px-1.5 py-0.5 rounded-md"
             >
-              <CheckCircle2 className="h-2.5 w-2.5 text-indigo-400" />
+              <CheckCircle2 className="h-2.5 w-2.5 text-indigo-500" />
               {entry.classes?.name || "Class"}: {formatMoney(entry.class_amount)}
             </span>
           ))}
@@ -372,19 +372,19 @@ function FeeTemplateModal({
           Add Fee
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto bg-zinc-900 border-zinc-800 text-zinc-100">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto bg-white border-gray-200">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base text-zinc-100">
-            <div className={`p-1 rounded-lg ${isEditing ? "bg-amber-500/10" : "bg-indigo-500/10"}`}>
+          <DialogTitle className="flex items-center gap-2 text-base text-gray-900">
+            <div className={`p-1 rounded-lg ${isEditing ? "bg-amber-100" : "bg-indigo-100"}`}>
               {isEditing ? (
-                <PencilLine className="h-4 w-4 text-amber-400" />
+                <PencilLine className="h-4 w-4 text-amber-600" />
               ) : (
-                <Plus className="h-4 w-4 text-indigo-400" />
+                <Plus className="h-4 w-4 text-indigo-600" />
               )}
             </div>
             {isEditing ? "Edit Fee Template" : "Create Fee Template"}
           </DialogTitle>
-          <DialogDescription className="text-zinc-500">
+          <DialogDescription className="text-gray-500">
             {isEditing
               ? "Update the fee structure and per-class pricing."
               : "Configure the fee structure and set per-class pricing."}
@@ -395,21 +395,21 @@ function FeeTemplateModal({
           {/* Fee details */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-xs font-medium text-zinc-400">Fee Name</Label>
+              <Label className="text-xs font-medium text-gray-600">Fee Name</Label>
               <Input
                 placeholder="e.g., Tuition Fee"
                 value={form.name}
                 onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-                className="bg-zinc-800 border-zinc-700 text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500"
+                className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-indigo-500"
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-zinc-400">Category</Label>
+              <Label className="text-xs font-medium text-gray-600">Category</Label>
               <Select value={form.category} onValueChange={(v) => setForm((prev) => ({ ...prev, category: v }))}>
-                <SelectTrigger className="bg-zinc-800 border-zinc-700 text-zinc-100">
+                <SelectTrigger className="bg-white border-gray-300 text-gray-900">
                   <SelectValue placeholder="Category" />
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-800 border-zinc-700 text-zinc-100">
+                <SelectContent className="bg-white border-gray-200 text-gray-900">
                   {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => (
                     <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
                   ))}
@@ -417,12 +417,12 @@ function FeeTemplateModal({
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-zinc-400">Frequency</Label>
+              <Label className="text-xs font-medium text-gray-600">Frequency</Label>
               <Select value={form.frequency} onValueChange={(v) => setForm((prev) => ({ ...prev, frequency: v }))}>
-                <SelectTrigger className="bg-zinc-800 border-zinc-700 text-zinc-100">
+                <SelectTrigger className="bg-white border-gray-300 text-gray-900">
                   <SelectValue placeholder="Frequency" />
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-800 border-zinc-700 text-zinc-100">
+                <SelectContent className="bg-white border-gray-200 text-gray-900">
                   <SelectItem value="per_term">Per Term</SelectItem>
                   <SelectItem value="per_session">Per Session</SelectItem>
                   <SelectItem value="one_time">One-time</SelectItem>
@@ -432,43 +432,43 @@ function FeeTemplateModal({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-zinc-400">Description (optional)</Label>
+            <Label className="text-xs font-medium text-gray-600">Description (optional)</Label>
             <Input
               placeholder="Brief description of this fee"
               value={form.description}
               onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
-              className="bg-zinc-800 border-zinc-700 text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500"
+              className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-indigo-500"
             />
           </div>
 
           {/* Base amount */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-zinc-400">Base amount</Label>
+            <Label className="text-xs font-medium text-gray-600">Base amount</Label>
             <div className="relative max-w-[200px]">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-zinc-500">₦</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">₦</span>
               <Input
-                className="pl-7 bg-zinc-800 border-zinc-700 text-zinc-100 focus:border-indigo-500"
+                className="pl-7 bg-white border-gray-300 text-gray-900 focus:border-indigo-500"
                 placeholder="0.00"
                 type="number"
                 value={form.amount}
                 onChange={(e) => setForm((prev) => ({ ...prev, amount: e.target.value }))}
               />
             </div>
-            <p className="text-[10px] text-zinc-600">Default amount. Override per class below.</p>
+            <p className="text-[10px] text-gray-400">Default amount. Override per class below.</p>
           </div>
 
           {/* Class-specific amounts */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <Label className="text-xs font-medium text-zinc-400">Per-class fee amounts</Label>
+              <Label className="text-xs font-medium text-gray-600">Per-class fee amounts</Label>
               <div className="flex items-center gap-1.5">
                 {hasClassOverrides && (
-                  <span className="text-[10px] text-zinc-500">{classOverrideCount} class{classOverrideCount !== 1 ? "es" : ""} overridden</span>
+                  <span className="text-[10px] text-gray-400">{classOverrideCount} class{classOverrideCount !== 1 ? "es" : ""} overridden</span>
                 )}
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-7 gap-1 text-xs text-zinc-400 border-zinc-700 hover:bg-zinc-800"
+                  className="h-7 gap-1 text-xs text-gray-500 border-gray-300 hover:bg-gray-50"
                   onClick={handleFillAllClasses}
                   disabled={!form.amount || Number.isNaN(Number(form.amount))}
                 >
@@ -479,7 +479,7 @@ function FeeTemplateModal({
             </div>
 
             {classes.length > 0 ? (
-              <div className="rounded-lg border border-zinc-800 divide-y divide-zinc-800">
+              <div className="rounded-lg border border-gray-200 divide-y divide-gray-100">
                 {classes.map((item) => {
                   const hasValue = classAmounts[item.id] !== undefined && classAmounts[item.id] !== "" && !Number.isNaN(Number(classAmounts[item.id]));
                   const isSameAsBase = hasValue && Number(classAmounts[item.id]) === Number(form.amount);
@@ -487,16 +487,16 @@ function FeeTemplateModal({
                     <div
                       key={item.id}
                       className={`flex items-center gap-3 px-3 py-2.5 transition-colors duration-150 ${
-                        hasValue && !isSameAsBase ? "bg-indigo-500/5" : "hover:bg-zinc-800/50"
+                        hasValue && !isSameAsBase ? "bg-indigo-50/50" : "hover:bg-gray-50"
                       }`}
                     >
-                      <GripVertical className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
-                      <span className="text-sm font-medium text-zinc-200 flex-1 min-w-0 truncate">{item.name}</span>
+                      <GripVertical className="h-3.5 w-3.5 text-gray-300 shrink-0" />
+                      <span className="text-sm font-medium text-gray-700 flex-1 min-w-0 truncate">{item.name}</span>
                       <div className="relative">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-zinc-500">₦</span>
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400">₦</span>
                         <Input
-                          className={`w-32 pl-5 h-8 text-xs bg-zinc-800 border-zinc-700 ${
-                            isSameAsBase ? "text-zinc-500" : hasValue ? "border-indigo-500/50 text-zinc-100 font-medium" : "text-zinc-400"
+                          className={`w-32 pl-5 h-8 text-xs bg-white border-gray-300 ${
+                            isSameAsBase ? "text-gray-500" : hasValue ? "border-indigo-400 text-gray-900 font-medium" : "text-gray-400"
                           }`}
                           type="number"
                           placeholder={form.amount || "Amount"}
@@ -512,12 +512,12 @@ function FeeTemplateModal({
                           }}
                         />
                       </div>
-                      {hasValue && !isSameAsBase && <CheckCircle2 className="h-3.5 w-3.5 text-indigo-400 shrink-0" />}
-                      {isSameAsBase && <span className="text-[10px] text-zinc-600 shrink-0">Base</span>}
+                      {hasValue && !isSameAsBase && <CheckCircle2 className="h-3.5 w-3.5 text-indigo-500 shrink-0" />}
+                      {isSameAsBase && <span className="text-[10px] text-gray-400 shrink-0">Base</span>}
                       {hasValue && (
                         <button
                           onClick={() => setClassAmounts((prev) => { const n = { ...prev }; delete n[item.id]; return n; })}
-                          className="p-0.5 rounded hover:bg-zinc-700 text-zinc-600 hover:text-zinc-300 transition-colors shrink-0"
+                          className="p-0.5 rounded hover:bg-gray-200 text-gray-300 hover:text-gray-500 transition-colors shrink-0"
                         >
                           <X className="h-3 w-3" />
                         </button>
@@ -527,16 +527,16 @@ function FeeTemplateModal({
                 })}
               </div>
             ) : (
-              <div className="p-3 rounded-lg bg-zinc-800/50 border border-dashed border-zinc-700 text-center">
-                <Layers className="h-4 w-4 text-zinc-600 mx-auto mb-1" />
-                <p className="text-xs text-zinc-500">No classes found. Add classes first.</p>
+              <div className="p-3 rounded-lg bg-gray-50 border border-dashed border-gray-200 text-center">
+                <Layers className="h-4 w-4 text-gray-300 mx-auto mb-1" />
+                <p className="text-xs text-gray-500">No classes found. Add classes first.</p>
               </div>
             )}
           </div>
 
           {hasClassOverrides && (
-            <div className="p-3 rounded-lg bg-zinc-800/50 border border-zinc-800 text-xs text-zinc-500">
-              <span className="font-medium text-zinc-300">Summary:</span>{" "}
+            <div className="p-3 rounded-lg bg-gray-50 border border-gray-200 text-xs text-gray-500">
+              <span className="font-medium text-gray-700">Summary:</span>{" "}
               {classes.filter((c) => {
                 const v = classAmounts[c.id];
                 return v !== undefined && v !== "" && !Number.isNaN(Number(v));
@@ -552,8 +552,8 @@ function FeeTemplateModal({
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
-          <Button variant="outline" onClick={() => { onOpenChange(false); resetForm(); }} className="border-zinc-700 text-zinc-300 hover:bg-zinc-800">
+        <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+          <Button variant="outline" onClick={() => { onOpenChange(false); resetForm(); }} className="border-gray-300 text-gray-600 hover:bg-gray-50">
             Cancel
           </Button>
           <Button
@@ -713,15 +713,15 @@ function BillSchoolModal({
           Bill School
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto bg-zinc-900 border-zinc-800 text-zinc-100">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base text-zinc-100">
-            <div className="p-1 rounded-lg bg-indigo-500/10">
-              <Sparkles className="h-4 w-4 text-indigo-400" />
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <div className="p-1 rounded-lg bg-indigo-100">
+              <Sparkles className="h-4 w-4 text-indigo-600" />
             </div>
             Bill Entire School
           </DialogTitle>
-          <DialogDescription className="text-zinc-500">
+          <DialogDescription>
             Create bills for all active students across every class using a single fee template.
             Students already billed for this cycle will be skipped.
           </DialogDescription>
@@ -730,7 +730,7 @@ function BillSchoolModal({
         <div className="space-y-4 pt-2">
           {/* Fee template selector */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-zinc-400">Fee Template</Label>
+            <Label className="text-xs font-medium text-gray-600">Fee Template</Label>
             <Select
               value={form.feeTemplateId}
               onValueChange={(value) => {
@@ -742,16 +742,16 @@ function BillSchoolModal({
                 }));
               }}
             >
-              <SelectTrigger className="bg-zinc-800 border-zinc-700 text-zinc-100">
+              <SelectTrigger className="bg-white border-gray-300 text-gray-900">
                 <SelectValue placeholder="Select a fee template..." />
               </SelectTrigger>
-              <SelectContent className="bg-zinc-800 border-zinc-700 text-zinc-100">
+              <SelectContent className="bg-white border-gray-200 text-gray-900">
                 {fees.map((fee) => (
                   <SelectItem key={fee.id} value={fee.id}>
                     <span className="flex items-center gap-2">
-                      <Layers className="h-3.5 w-3.5 text-zinc-500" />
+                      <Layers className="h-3.5 w-3.5 text-gray-400" />
                       {fee.name}
-                      <span className="text-[10px] font-mono text-zinc-500 ml-auto">{formatMoney(fee.amount)}</span>
+                      <span className="text-[10px] font-mono text-gray-500 ml-auto">{formatMoney(fee.amount)}</span>
                     </span>
                   </SelectItem>
                 ))}
@@ -790,35 +790,35 @@ function BillSchoolModal({
 
           {/* Per-class breakdown */}
           {selectedFee && classBreakdown.length > 0 && (
-            <div className="rounded-xl border border-zinc-700/50 bg-zinc-800/50 p-4 space-y-3">
-              <p className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
-                <Users className="h-3.5 w-3.5 text-indigo-400" />
+            <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-4 space-y-3">
+              <p className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5 text-indigo-500" />
                 Billing Breakdown by Class
               </p>
-              <div className="divide-y divide-zinc-700/50">
+              <div className="divide-y divide-indigo-100">
                 {classBreakdown.map((entry) => (
                   <div key={entry.classId} className="flex items-center justify-between py-2 text-xs">
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-indigo-500/50 shrink-0" />
-                      <span className="text-zinc-300">{entry.className}</span>
-                      <span className="text-zinc-600">({entry.studentCount} students)</span>
+                      <span className="text-gray-700">{entry.className}</span>
+                      <span className="text-gray-400">({entry.studentCount} students)</span>
                     </div>
                     <div className="text-right">
-                      <span className="text-zinc-400">{formatMoney(entry.feeAmount)}</span>
-                      <span className="text-zinc-600 mx-1">×</span>
-                      <span className="text-zinc-300 font-semibold">{formatMoney(entry.subtotal)}</span>
+                      <span className="text-gray-500">{formatMoney(entry.feeAmount)}</span>
+                      <span className="text-gray-300 mx-1">×</span>
+                      <span className="text-gray-800 font-semibold">{formatMoney(entry.subtotal)}</span>
                     </div>
                   </div>
                 ))}
               </div>
-              <div className="border-t border-zinc-700 pt-2 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs text-zinc-400">
+              <div className="border-t border-indigo-100 pt-2 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs text-gray-500">
                   <UserPlus className="h-3.5 w-3.5" />
                   <span>{totalStudents} student{totalStudents !== 1 ? "s" : ""}</span>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] text-zinc-500">Total</span>
-                  <p className="text-sm font-bold text-indigo-400">{formatMoney(totalAmount)}</p>
+                  <span className="text-[10px] text-gray-400">Total</span>
+                  <p className="text-sm font-bold text-indigo-600">{formatMoney(totalAmount)}</p>
                 </div>
               </div>
             </div>
@@ -828,13 +828,13 @@ function BillSchoolModal({
           {result && (
             <div className={`p-3 rounded-lg border text-sm ${
               result.created > 0
-                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-300"
-                : "bg-amber-500/10 border-amber-500/20 text-amber-300"
+                ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                : "bg-amber-50 border-amber-200 text-amber-800"
             }`}>
               <div className="flex items-start gap-2">
                 {result.created > 0
-                  ? <CheckCircle2 className="h-4 w-4 text-emerald-400 mt-0.5 shrink-0" />
-                  : <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />}
+                  ? <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
+                  : <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />}
                 <div>
                   <p className="font-medium text-xs">
                     {result.created > 0
@@ -848,14 +848,14 @@ function BillSchoolModal({
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
+        <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
           {result?.created ? (
             <Button onClick={() => { onOpenChange(false); resetForm(); }} className="bg-indigo-600 hover:bg-indigo-700 text-white">
               Done
             </Button>
           ) : (
             <>
-              <Button variant="outline" onClick={() => { onOpenChange(false); resetForm(); }} className="border-zinc-700 text-zinc-300 hover:bg-zinc-800">
+              <Button variant="outline" onClick={() => { onOpenChange(false); resetForm(); }} className="border-gray-300 text-gray-600 hover:bg-gray-50">
                 Cancel
               </Button>
               <Button

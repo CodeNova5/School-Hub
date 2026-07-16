@@ -408,7 +408,14 @@ export default function AdminFinancePage() {
             </div>
 
             <TabsContent value="overview">
-              <FinanceOverviewTab overview={overview} formatMoney={formatMoney} />
+              <FinanceOverviewTab
+              overview={overview}
+              bills={bills}
+              students={students}
+              fees={fees}
+              classes={classes}
+              formatMoney={formatMoney}
+            />
             </TabsContent>
 
             <TabsContent value="transactions">

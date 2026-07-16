@@ -415,6 +415,7 @@ export default function AdminFinancePage() {
               fees={fees}
               classes={classes}
               formatMoney={formatMoney}
+              onTabChange={(tab) => setActiveTab(tab as TabKey)}
             />
             </TabsContent>
 

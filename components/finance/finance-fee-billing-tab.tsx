@@ -55,6 +55,7 @@ import {
   ArrowUpRight,
   History,
 } from "lucide-react";
+import { StatusDotBadge } from "./finance-ui";
 import type { FeeTemplate, ClassOption, StudentOption, FinanceBill } from "./finance-types";
 
 /* ─── Types ─────────────────────────────────────────── */
@@ -124,26 +125,6 @@ function buildInitialClassAmounts(fee?: FeeTemplate | null): Record<string, stri
 
 function getCategoryConfig(category: string) {
   return CATEGORY_CONFIG[category] || CATEGORY_CONFIG.custom;
-}
-
-/* ─── Status Badge with Dot ─────────────────────────── */
-
-function StatusDotBadge({ status }: { status: string }) {
-  const config: Record<string, { dot: string; bg: string; text: string; label: string }> = {
-    paid: { dot: "bg-emerald-500", bg: "bg-emerald-50", text: "text-emerald-600", label: "Paid" },
-    partial: { dot: "bg-amber-500", bg: "bg-amber-50", text: "text-amber-600", label: "Partial" },
-    pending: { dot: "bg-blue-500", bg: "bg-blue-50", text: "text-blue-600", label: "Pending" },
-    overdue: { dot: "bg-rose-500", bg: "bg-rose-50", text: "text-rose-600", label: "Overdue" },
-    waived: { dot: "bg-gray-500", bg: "bg-gray-50", text: "text-gray-500", label: "Waived" },
-    cancelled: { dot: "bg-gray-500", bg: "bg-gray-50", text: "text-gray-500", label: "Cancelled" },
-  };
-  const cfg = config[status] || { dot: "bg-gray-500", bg: "bg-gray-50", text: "text-gray-500", label: status };
-  return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${cfg.bg} ${cfg.text} border border-transparent`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} ${status === "overdue" ? "animate-pulse" : ""}`} />
-      {cfg.label}
-    </span>
-  );
 }
 
 /* ───────────────────────────────────────────────────── */

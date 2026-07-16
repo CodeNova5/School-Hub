@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="School Bursary Management System - Manage student fees, billing, and payments efficiently.">
+    <title>EduFinance — School Bursary System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* ===== CSS RESET & VARIABLES ===== */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg-primary: #09090b;
+            --bg-secondary: #0f0f12;
+            --bg-card: #18181b;
+            --bg-card-hover: #1f1f23;
+            --bg-elevated: #27272a;
+            --bg-muted: #1a1a1e;
+            --border-color: #27272a;
+            --border-focus: #6366f1;
+            --border-subtle: #1e1e22;
+            --text-primary: #fafafa;
+            --text-secondary: #a1a1aa;
+            --text-muted: #71717a;
+            --text-dim: #52525b;
+            --accent-indigo: #6366f1;
+            --accent-indigo-hover: #818cf8;
+            --accent-indigo-muted: rgba(99, 102, 241, 0.12);
+            --accent-indigo-subtle: rgba(99, 102, 241, 0.06);
+            --status-paid: #22c55e;
+            --status-paid-bg: rgba(34, 197, 94, 0.1);
+            --status-paid-border: rgba(34, 197, 94, 0.2);
+            --status-partial: #f59e0b;
+            --status-partial-bg: rgba(245, 158, 11, 0.1);
+            --status-partial-border: rgba(245, 158, 11, 0.2);
+            --status-unpaid: #ef4444;
+            --status-unpaid-bg: rgba(239, 68, 68, 0.1);
+            --status-unpaid-border: rgba(239, 68, 68, 0.2);
+            --status-overdue: #f43f5e;
+            --status-overdue-bg: rgba(244, 63, 94, 0.1);
+            --status-overdue-border: rgba(244, 63, 94, 0.2);
+            --radius-sm: 6px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --radius-xl: 16px;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+            --shadow-lg: 0 8px 30px rgba(0,0,0,0.5);
+            --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        /* ===== SCROLLBAR ===== */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+        /* ===== LAYOUT ===== */
+        .app-container {
+            max-width: 1440px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+        /* ===== HEADER / NAVBAR ===== */
+        .navbar {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(9, 9, 11, 0.8);
+            backdrop-filter: blur(16px) saturate(180%);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 0 24px;
+        }
+        .navbar-inner {
+            max-width: 1440px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 64px;
+        }
+        .navbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+        }
+        .navbar-logo {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--accent-indigo), #a855f7);
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 16px;
+            color: white;
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+        }
+        .navbar-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: -0.02em;
+        }
+        .navbar-subtitle {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+        .navbar-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .navbar-term {
+            padding: 6px 14px;
+            background: var(--accent-indigo-muted);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--accent-indigo-hover);
+        }
+        .navbar-avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 13px;
+            color: white;
+            cursor: pointer;
+            transition: box-shadow var(--transition-fast);
+        }
+        .navbar-avatar:hover {
+            box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--accent-indigo);
+        }
+        /* ===== PAGE HEADER ===== */
+        .page-header {
+            padding: 32px 0 24px;
+        }
+        .page-header h1 {
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+        }
+        .page-header p {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+        /* ===== STATS CARDS ===== */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 20px 22px;
+            transition: all var(--transition-normal);
+            position: relative;
+            overflow: hidden;
+        }
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            opacity: 0;
+            transition: opacity var(--transition-normal);
+        }
+        .stat-card:hover {
+            border-color: var(--border-focus);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+        .stat-card:hover::before { opacity: 1; }
+        .stat-card.total-billed::before { background: linear-gradient(90deg, #6366f1, #8b5cf6); }
+        .stat-card.total-collected::before { background: linear-gradient(90deg, #22c55e, #10b981); }
+        .stat-card.outstanding::before { background: linear-gradient(90deg, #f59e0b, #f97316); }
+        .stat-card.overdue::before { background: linear-gradient(90deg, #ef4444, #f43f5e); }
+        .stat-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 14px;
+            font-size: 18px;
+        }
+        .stat-card.total-billed .stat-icon { background: var(--accent-indigo-muted); color: var(--accent-indigo-hover); }
+        .stat-card.total-collected .stat-icon { background: var(--status-paid-bg); color: var(--status-paid); }
+        .stat-card.outstanding .stat-icon { background: var(--status-partial-bg); color: var(--status-partial); }
+        .stat-card.overdue .stat-icon { background: var(--status-overdue-bg); color: var(--status-overdue); }
+        .stat-label {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 6px;
+        }
+        .stat-value {
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--text-primary);
+            letter-spacing: -0.03em;
+            line-height: 1.1;
+        }
+        .stat-detail {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .stat-detail .trend-up { color: var(--status-paid); }
+        .stat-detail .trend-down { color: var(--status-unpaid); }
+        /* ===== FILTER BAR ===== */
+        .filter-bar {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 16px 20px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .filter-bar-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+        .filter-bar-label svg { opacity: 0.6; }
+        .filter-divider {
+            width: 1px;
+            height: 28px;
+            background: var(--border-color);
+        }
+        .search-input-wrapper {
+            position: relative;
+            flex: 1;
+            min-width: 200px;
+        }
+        .search-input-wrapper svg {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-dim);
+        }
+        .search-input {
+            width: 100%;
+            padding: 8px 12px 8px 36px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            font-size: 13px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color var(--transition-fast);
+        }
+        .search-input::placeholder { color: var(--text-dim); }
+        .search-input:focus { border-color: var(--accent-indigo); box-shadow: 0 0 0 3px var(--accent-indigo-muted); }
+        .filter-select {
+            padding: 8px 32px 8px 12px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            font-size: 13px;
+            font-family: inherit;
+            outline: none;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            min-width: 140px;
+            transition: border-color var(--transition-fast);
+        }
+        .filter-select:focus { border-color: var(--accent-indigo); box-shadow: 0 0 0 3px var(--accent-indigo-muted); }
+        .filter-btn-reset {
+            padding: 8px 14px;
+            background: transparent;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-family: inherit;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .filter-btn-reset:hover { background: var(--bg-elevated); color: var(--text-primary); }
+        .active-filter-count {
+            background: var(--accent-indigo);
+            color: white;
+            font-size: 10px;
+            font-weight: 700;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        /* ===== CLASS GROUP ===== */
+        .class-group {
+            margin-bottom: 24px;
+            animation: fadeInUp 0.4s ease-out both;
+        }
+        .class-group:nth-child(2) { animation-delay: 0.05s; }
+        .class-group:nth-child(3) { animation-delay: 0.1s; }
+        .class-group:nth-child(4) { animation-delay: 0.15s; }
+        .class-group:nth-child(5) { animation-delay: 0.2s; }
+        .class-group:nth-child(6) { animation-delay: 0.25s; }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .class-group-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+            cursor: pointer;
+            user-select: none;
+            transition: background var(--transition-fast);
+        }
+        .class-group-header:hover { background: var(--bg-card-hover); }
+        .class-group.collapsed .class-group-header {
+            border-radius: var(--radius-lg);
+        }
+        .class-group-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .class-chevron {
+            color: var(--text-dim);
+            transition: transform var(--transition-normal);
+            display: flex;
+        }
+        .class-group.collapsed .class-chevron { transform: rotate(-90deg); }
+        .class-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .class-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .class-name {
+            font-weight: 700;
+            font-size: 14px;
+            color: var(--text-primary);
+        }
+        .class-student-count {
+            font-size: 12px;
+            color: var(--text-muted);
+            background: var(--bg-elevated);
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+        .class-group-stats {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .class-group-stat {
+            text-align: right;
+        }
+        .class-group-stat-label {
+            font-size: 10px;
+            font-weight: 500;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .class-group-stat-value {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .class-group-stat-value.collected { color: var(--status-paid); }
+        .class-group-stat-value.outstanding { color: var(--status-partial); }
+        /* ===== STUDENT TABLE ===== */
+        .class-group-body {
+            border: 1px solid var(--border-color);
+            border-top: none;
+            border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+            overflow: hidden;
+        }
+        .class-group.collapsed .class-group-body { display: none; }
+        .student-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .student-table thead {
+            background: var(--bg-muted);
+        }
+        .student-table th {
+            padding: 10px 16px;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            text-align: left;
+            border-bottom: 1px solid var(--border-subtle);
+            white-space: nowrap;
+        }
+        .student-table th:last-child { text-align: right; }
+        .student-table td {
+            padding: 12px 16px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-subtle);
+            white-space: nowrap;
+        }
+        .student-table td:last-child { text-align: right; }
+        .student-table tbody tr {
+            transition: background var(--transition-fast);
+        }
+        .student-table tbody tr:hover {
+            background: var(--bg-card-hover);
+        }
+        .student-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        .student-name-cell {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .student-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 12px;
+            color: white;
+            flex-shrink: 0;
+        }
+        .student-name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .student-id {
+            font-size: 11px;
+            color: var(--text-dim);
+            font-family: 'SF Mono', 'Consolas', monospace;
+        }
+        /* ===== STATUS BADGE ===== */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.01em;
+        }
+        .status-badge .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+        .status-badge.paid {
+            background: var(--status-paid-bg);
+            color: var(--status-paid);
+            border: 1px solid var(--status-paid-border);
+        }
+        .status-badge.paid .dot { background: var(--status-paid); }
+        .status-badge.partial {
+            background: var(--status-partial-bg);
+            color: var(--status-partial);
+            border: 1px solid var(--status-partial-border);
+        }
+        .status-badge.partial .dot { background: var(--status-partial); }
+        .status-badge.unpaid {
+            background: var(--status-unpaid-bg);
+            color: var(--status-unpaid);
+            border: 1px solid var(--status-unpaid-border);
+        }
+        .status-badge.unpaid .dot { background: var(--status-unpaid); }
+        .status-badge.overdue {
+            background: var(--status-overdue-bg);
+            color: var(--status-overdue);
+            border: 1px solid var(--status-overdue-border);
+        }
+        .status-badge.overdue .dot {
+            background: var(--status-overdue);
+            animation: pulse-dot 1.5s ease-in-out infinite;
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        /* ===== FEE PILLS ===== */
+        .fee-pills {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+        .fee-pill {
+            font-size: 10px;
+            font-weight: 500;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: var(--bg-elevated);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-subtle);
+        }
+        /* ===== PROGRESS BAR ===== */
+        .progress-bar-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 120px;
+        }
+        .progress-bar {
+            flex: 1;
+            height: 6px;
+            background: var(--bg-elevated);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .progress-bar-fill.full { background: linear-gradient(90deg, #22c55e, #10b981); }
+        .progress-bar-fill.mid { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+        .progress-bar-fill.low { background: linear-gradient(90deg, #ef4444, #f97316); }
+        .progress-pct {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            min-width: 32px;
+            text-align: right;
+        }
+        /* ===== ACTION BUTTONS ===== */
+        .action-btn {
+            width: 30px;
+            height: 30px;
+            border-radius: var(--radius-sm);
+            border: 1px solid transparent;
+            background: transparent;
+            color: var(--text-dim);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition-fast);
+        }
+        .action-btn:hover {
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+            border-color: var(--border-color);
+        }
+        .actions-cell {
+            display: flex;
+            gap: 4px;
+            justify-content: flex-end;
+        }
+        /* ===== EMPTY STATE ===== */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+        .empty-state svg {
+            margin-bottom: 16px;
+            opacity: 0.3;
+        }
+        .empty-state h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+        .empty-state p {
+            font-size: 13px;
+        }
+        /* ===== FOOTER ===== */
+        .footer {
+            padding: 24px 0 32px;
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-dim);
+            border-top: 1px solid var(--border-subtle);
+            margin-top: 40px;
+        }
+        /* ===== TOOLTIP ===== */
+        .tooltip-wrapper {
+            position: relative;
+        }
+        .tooltip-wrapper .tooltip-text {
+            visibility: hidden;
+            opacity: 0;
+            position: absolute;
+            bottom: calc(100% + 6px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: var(--radius-sm);
+            white-space: nowrap;
+            pointer-events: none;
+            transition: opacity var(--transition-fast);
+            z-index: 50;
+            border: 1px solid var(--border-color);
+        }
+        .tooltip-wrapper:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 1100px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: 1fr; }
+            .filter-bar { flex-direction: column; align-items: stretch; }
+            .filter-divider { display: none; }
+            .search-input-wrapper { min-width: unset; }
+            .student-table { font-size: 12px; }
+            .class-group-stats { display: none; }
+            .hide-mobile { display: none !important; }
+        }
+        /* ===== MODAL OVERLAY ===== */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(4px);
+            z-index: 200;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-overlay.active {
+            display: flex;
+            animation: fadeIn 0.2s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-xl);
+            width: 90%;
+            max-width: 520px;
+            box-shadow: var(--shadow-lg);
+            animation: modalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes modalSlideUp {
+            from { opacity: 0; transform: translateY(20px) scale(0.97); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .modal-header h2 {
+            font-size: 16px;
+            font-weight: 700;
+        }
+        .modal-close {
+            width: 28px;
+            height: 28px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition-fast);
+        }
+        .modal-close:hover { background: var(--bg-elevated); color: var(--text-primary); }
+        .modal-body {
+            padding: 24px;
+        }
+        .modal-detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 13px;
+        }
+        .modal-detail-row:last-child { border-bottom: none; }
+        .modal-detail-label { color: var(--text-muted); }
+        .modal-detail-value { color: var(--text-primary); font-weight: 600; }
+        .modal-fees-list {
+            margin-top: 16px;
+        }
+        .modal-fee-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 14px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+        .modal-fee-name { color: var(--text-secondary); }
+        .modal-fee-amount { font-weight: 700; color: var(--text-primary); }
+        .modal-fee-status { font-size: 11px; margin-left: 8px; }
+        /* ===== COLLECTION RATE BAR (in stats) ===== */
+        .collection-rate-bar {
+            width: 100%;
+            height: 4px;
+            background: var(--bg-elevated);
+            border-radius: 2px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        .collection-rate-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-indigo), #8b5cf6);
+            border-radius: 2px;
+            transition: width 1s ease-out;
+        }
+    </style>
+</head>
+<body>
+    <!-- NAVBAR -->
+    <nav class="navbar">
+        <div class="navbar-inner">
+            <a href="#" class="navbar-brand">
+                <div class="navbar-logo">EF</div>
+                <div>
+                    <div class="navbar-title">EduFinance</div>
+                    <div class="navbar-subtitle">Bursary Management</div>
+                </div>
+            </a>
+            <div class="navbar-right">
+                <span class="navbar-term">📅 Term 2 · 2025/2026</span>
+                <div class="navbar-avatar" title="Bursar Admin">BA</div>
+            </div>
+        </div>
+    </nav>
+    <div class="app-container">
+        <!-- PAGE HEADER -->
+        <div class="page-header">
+            <h1>Fee Management Dashboard</h1>
+            <p>Track student billing, payments, and outstanding balances across all classes.</p>
+        </div>
+        <!-- STATS CARDS -->
+        <div class="stats-grid" id="statsGrid"></div>
+        <!-- FILTER BAR -->
+        <div class="filter-bar" id="filterBar">
+            <div class="filter-bar-label">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                Filters
+            </div>
+            <div class="filter-divider"></div>
+            <div class="search-input-wrapper">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <input type="text" class="search-input" id="searchInput" placeholder="Search student name or ID...">
+            </div>
+            <select class="filter-select" id="filterClass">
+                <option value="">All Classes</option>
+            </select>
+            <select class="filter-select" id="filterTemplate">
+                <option value="">All Fee Types</option>
+            </select>
+            <select class="filter-select" id="filterStatus">
+                <option value="">All Statuses</option>
+                <option value="paid">Paid</option>
+                <option value="partial">Partial</option>
+                <option value="unpaid">Unpaid</option>
+                <option value="overdue">Overdue</option>
+            </select>
+            <button class="filter-btn-reset" id="resetFilters">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                Reset
+            </button>
+        </div>
+        <!-- STUDENT LIST (Grouped by class) -->
+        <div id="classGroups"></div>
+        <!-- FOOTER -->
+        <div class="footer">
+            EduFinance Bursary System © 2026 · Powered by EduFinance · Last synced: <span id="lastSync"></span>
+        </div>
+    </div>
+    <!-- STUDENT DETAIL MODAL -->
+    <div class="modal-overlay" id="studentModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Student Details</h2>
+                <button class="modal-close" id="modalClose">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+        </div>
+    </div>
+    <script>
+    // ===== MOCK DATA =====
+    const FEE_TEMPLATES = [
+        { id: 'tuition', name: 'Tuition Fees', amount: 75000 },
+        { id: 'exam', name: 'Exam Fees', amount: 15000 },
+        { id: 'uniform', name: 'Uniform Fees', amount: 12000 },
+        { id: 'lab', name: 'Lab & Science Fees', amount: 8000 },
+        { id: 'sports', name: 'Sports & Activities', amount: 5000 },
+        { id: 'ict', name: 'ICT Levy', amount: 6000 },
+    ];
+    const CLASS_COLORS = {
+        'JSS 1': '#6366f1',
+        'JSS 2': '#8b5cf6',
+        'JSS 3': '#a855f7',
+        'SS 1':  '#ec4899',
+        'SS 2':  '#f43f5e',
+        'SS 3':  '#f97316',
+    };
+    const CLASSES = Object.keys(CLASS_COLORS);
+    const FIRST_NAMES = ['Adebayo', 'Chidinma', 'Emeka', 'Fatima', 'Grace', 'Ibrahim', 'Joy', 'Kelechi', 'Ladi', 'Musa', 'Ngozi', 'Oluwaseun', 'Peter', 'Rashida', 'Samuel', 'Tolu', 'Uchenna', 'Victoria', 'Wale', 'Yusuf', 'Amina', 'Bukola', 'Chidi', 'Damilola', 'Ese', 'Folake', 'Gbenga', 'Halima', 'Ifeoma', 'James'];
+    const LAST_NAMES = ['Adeyemi', 'Balogun', 'Chukwu', 'Dikko', 'Eze', 'Fashola', 'Garba', 'Hussain', 'Igwe', 'Johnson', 'Kalu', 'Lawal', 'Mohammed', 'Nwosu', 'Okonkwo', 'Peters', 'Quadri', 'Rabiu', 'Sanusi', 'Taiwo', 'Uche', 'Victor', 'Williams', 'Xavier', 'Yakubu', 'Zubair', 'Abiodun', 'Bashir', 'Chibuzor', 'Dare'];
+    const AVATAR_COLORS = ['#6366f1','#8b5cf6','#a855f7','#ec4899','#f43f5e','#f97316','#22c55e','#14b8a6','#06b6d4','#3b82f6'];
+    function generateStudents() {
+        const students = [];
+        let idCounter = 1001;
+        CLASSES.forEach(cls => {
+            const count = 8 + Math.floor(Math.random() * 5); // 8-12 students per class
+            for (let i = 0; i < count; i++) {
+                const firstName = FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)];
+                const lastName = LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)];
+                // Assign 3-5 random fee templates to each student
+                const numFees = 3 + Math.floor(Math.random() * 3);
+                const shuffled = [...FEE_TEMPLATES].sort(() => 0.5 - Math.random());
+                const assignedFees = shuffled.slice(0, numFees);
+                const totalBilled = assignedFees.reduce((s, f) => s + f.amount, 0);
+                // Randomize payments
+                const paymentRatio = Math.random();
+                let amountPaid;
+                if (paymentRatio < 0.3) amountPaid = totalBilled; // 30% fully paid
+                else if (paymentRatio < 0.5) amountPaid = 0; // 20% unpaid
+                else amountPaid = Math.floor(totalBilled * (0.2 + Math.random() * 0.7)); // partial
+                const balance = totalBilled - amountPaid;
+                let status;
+                if (amountPaid >= totalBilled) status = 'paid';
+                else if (amountPaid === 0 && Math.random() < 0.4) status = 'overdue';
+                else if (amountPaid === 0) status = 'unpaid';
+                else if (amountPaid > 0 && amountPaid < totalBilled * 0.5 && Math.random() < 0.3) status = 'overdue';
+                else status = 'partial';
+                const paymentPct = Math.round((amountPaid / totalBilled) * 100);
+                students.push({
+                    id: `STU-${idCounter++}`,
+                    firstName,
+                    lastName,
+                    fullName: `${firstName} ${lastName}`,
+                    className: cls,
+                    fees: assignedFees.map(f => ({
+                        ...f,
+                        paid: status === 'paid' ? f.amount : Math.floor(f.amount * (amountPaid / totalBilled)),
+                    })),
+                    totalBilled,
+                    amountPaid,
+                    balance,
+                    status,
+                    paymentPct,
+                    avatarColor: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
+                    lastPaymentDate: status !== 'unpaid' ? randomDate() : null,
+                });
+            }
+        });
+        return students;
+    }
+    function randomDate() {
+        const start = new Date(2026, 0, 1);
+        const end = new Date(2026, 6, 15);
+        const d = new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
+        return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+    const ALL_STUDENTS = generateStudents();
+    // ===== FORMAT CURRENCY =====
+    function formatCurrency(amount) {
+        return '₦' + amount.toLocaleString('en-NG');
+    }
+    // ===== RENDER STATS =====
+    function renderStats(students) {
+        const totalBilled = students.reduce((s, st) => s + st.totalBilled, 0);
+        const totalCollected = students.reduce((s, st) => s + st.amountPaid, 0);
+        const totalOutstanding = students.reduce((s, st) => s + st.balance, 0);
+        const overdueStudents = students.filter(s => s.status === 'overdue');
+        const overdueAmount = overdueStudents.reduce((s, st) => s + st.balance, 0);
+        const collectionRate = totalBilled > 0 ? Math.round((totalCollected / totalBilled) * 100) : 0;
+        const paidCount = students.filter(s => s.status === 'paid').length;
+        document.getElementById('statsGrid').innerHTML = `
+            <div class="stat-card total-billed">
+                <div class="stat-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 17a5 5 0 0 0 10 0c0-2.76-2.5-5-5-3l-1-1"/><path d="M12 17a5 5 0 0 0 10 0c0-2.76-2.5-5-5-3l-1-1"/><path d="M7 7a5 5 0 0 0 10 0c0-2.76-2.5-5-5-3l-1-1"/></svg>
+                </div>
+                <div class="stat-label">Total Billed</div>
+                <div class="stat-value">${formatCurrency(totalBilled)}</div>
+                <div class="stat-detail">${students.length} students across ${new Set(students.map(s=>s.className)).size} classes</div>
+            </div>
+            <div class="stat-card total-collected">
+                <div class="stat-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg>
+                </div>
+                <div class="stat-label">Total Collected</div>
+                <div class="stat-value">${formatCurrency(totalCollected)}</div>
+                <div class="stat-detail"><span class="trend-up">↑</span> ${collectionRate}% collection rate · ${paidCount} fully paid</div>
+                <div class="collection-rate-bar"><div class="collection-rate-fill" style="width:${collectionRate}%"></div></div>
+            </div>
+            <div class="stat-card outstanding">
+                <div class="stat-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                </div>
+                <div class="stat-label">Outstanding</div>
+                <div class="stat-value">${formatCurrency(totalOutstanding)}</div>
+                <div class="stat-detail">${students.filter(s => s.status === 'partial' || s.status === 'unpaid').length} students with balance</div>
+            </div>
+            <div class="stat-card overdue">
+                <div class="stat-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                </div>
+                <div class="stat-label">Overdue</div>
+                <div class="stat-value">${formatCurrency(overdueAmount)}</div>
+                <div class="stat-detail"><span class="trend-down">⚠</span> ${overdueStudents.length} students overdue</div>
+            </div>
+        `;
+    }
+    // ===== RENDER CLASS GROUPS =====
+    function renderClassGroups(students) {
+        const container = document.getElementById('classGroups');
+        const grouped = {};
+        students.forEach(st => {
+            if (!grouped[st.className]) grouped[st.className] = [];
+            grouped[st.className].push(st);
+        });
+        if (Object.keys(grouped).length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    <h3>No students found</h3>
+                    <p>Try adjusting your filters or search query.</p>
+                </div>
+            `;
+            return;
+        }
+        // Sort classes in order
+        const classOrder = CLASSES;
+        const sortedKeys = Object.keys(grouped).sort((a, b) => classOrder.indexOf(a) - classOrder.indexOf(b));
+        container.innerHTML = sortedKeys.map(cls => {
+            const studs = grouped[cls];
+            const classBilled = studs.reduce((s, st) => s + st.totalBilled, 0);
+            const classCollected = studs.reduce((s, st) => s + st.amountPaid, 0);
+            const classOutstanding = classBilled - classCollected;
+            const classPct = classBilled > 0 ? Math.round((classCollected / classBilled) * 100) : 0;
+            const color = CLASS_COLORS[cls] || '#6366f1';
+            return `
+            <div class="class-group" data-class="${cls}">
+                <div class="class-group-header" onclick="toggleClass(this)">
+                    <div class="class-group-left">
+                        <span class="class-chevron">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                        </span>
+                        <div class="class-badge">
+                            <span class="class-dot" style="background:${color}"></span>
+                            <span class="class-name">${cls}</span>
+                        </div>
+                        <span class="class-student-count">${studs.length} student${studs.length !== 1 ? 's' : ''}</span>
+                    </div>
+                    <div class="class-group-stats">
+                        <div class="class-group-stat">
+                            <div class="class-group-stat-label">Billed</div>
+                            <div class="class-group-stat-value">${formatCurrency(classBilled)}</div>
+                        </div>
+                        <div class="class-group-stat">
+                            <div class="class-group-stat-label">Collected</div>
+                            <div class="class-group-stat-value collected">${formatCurrency(classCollected)}</div>
+                        </div>
+                        <div class="class-group-stat">
+                            <div class="class-group-stat-label">Outstanding</div>
+                            <div class="class-group-stat-value outstanding">${formatCurrency(classOutstanding)}</div>
+                        </div>
+                        <div class="class-group-stat hide-mobile">
+                            <div class="class-group-stat-label">Rate</div>
+                            <div class="class-group-stat-value">${classPct}%</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="class-group-body">
+                    <table class="student-table">
+                        <thead>
+                            <tr>
+                                <th>Student</th>
+                                <th class="hide-mobile">Fee Types</th>
+                                <th>Billed</th>
+                                <th>Paid</th>
+                                <th class="hide-mobile">Balance</th>
+                                <th>Progress</th>
+                                <th>Status</th>
+                                <th style="text-align:right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${studs.map(st => renderStudentRow(st)).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>`;
+        }).join('');
+    }
+    function renderStudentRow(st) {
+        const initials = st.firstName[0] + st.lastName[0];
+        const progressClass = st.paymentPct >= 100 ? 'full' : st.paymentPct >= 50 ? 'mid' : 'low';
+        const statusLabel = st.status.charAt(0).toUpperCase() + st.status.slice(1);
+        return `
+        <tr>
+            <td>
+                <div class="student-name-cell">
+                    <div class="student-avatar" style="background:${st.avatarColor}">${initials}</div>
+                    <div>
+                        <div class="student-name">${st.fullName}</div>
+                        <div class="student-id">${st.id}</div>
+                    </div>
+                </div>
+            </td>
+            <td class="hide-mobile">
+                <div class="fee-pills">
+                    ${st.fees.map(f => `<span class="fee-pill">${f.name.replace(' Fees','').replace(' & Activities','')}</span>`).join('')}
+                </div>
+            </td>
+            <td style="font-weight:600;color:var(--text-primary)">${formatCurrency(st.totalBilled)}</td>
+            <td style="color:var(--status-paid);font-weight:600">${formatCurrency(st.amountPaid)}</td>
+            <td class="hide-mobile" style="color:${st.balance > 0 ? 'var(--status-partial)' : 'var(--text-dim)'};font-weight:600">${formatCurrency(st.balance)}</td>
+            <td>
+                <div class="progress-bar-wrapper">
+                    <div class="progress-bar">
+                        <div class="progress-bar-fill ${progressClass}" style="width:${st.paymentPct}%"></div>
+                    </div>
+                    <span class="progress-pct">${st.paymentPct}%</span>
+                </div>
+            </td>
+            <td>
+                <span class="status-badge ${st.status}">
+                    <span class="dot"></span>
+                    ${statusLabel}
+                </span>
+            </td>
+            <td>
+                <div class="actions-cell">
+                    <div class="tooltip-wrapper">
+                        <button class="action-btn" onclick="showStudentModal('${st.id}')">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                        <span class="tooltip-text">View Details</span>
+                    </div>
+                    <div class="tooltip-wrapper">
+                        <button class="action-btn" onclick="printReceipt('${st.id}')">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>
+                        </button>
+                        <span class="tooltip-text">Print Receipt</span>
+                    </div>
+                </div>
+            </td>
+        </tr>`;
+    }
+    // ===== TOGGLE CLASS GROUP =====
+    function toggleClass(header) {
+        header.closest('.class-group').classList.toggle('collapsed');
+    }
+    // ===== STUDENT MODAL =====
+    function showStudentModal(studentId) {
+        const st = ALL_STUDENTS.find(s => s.id === studentId);
+        if (!st) return;
+        const statusLabel = st.status.charAt(0).toUpperCase() + st.status.slice(1);
+        document.getElementById('modalTitle').textContent = st.fullName;
+        document.getElementById('modalBody').innerHTML = `
+            <div class="modal-detail-row">
+                <span class="modal-detail-label">Student ID</span>
+                <span class="modal-detail-value" style="font-family:monospace">${st.id}</span>
+            </div>
+            <div class="modal-detail-row">
+                <span class="modal-detail-label">Class</span>
+                <span class="modal-detail-value">${st.className}</span>
+            </div>
+            <div class="modal-detail-row">
+                <span class="modal-detail-label">Status</span>
+                <span class="status-badge ${st.status}" style="font-size:12px"><span class="dot"></span>${statusLabel}</span>
+            </div>
+            <div class="modal-detail-row">
+                <span class="modal-detail-label">Total Billed</span>
+                <span class="modal-detail-value">${formatCurrency(st.totalBilled)}</span>
+            </div>
+            <div class="modal-detail-row">
+                <span class="modal-detail-label">Amount Paid</span>
+                <span class="modal-detail-value" style="color:var(--status-paid)">${formatCurrency(st.amountPaid)}</span>
+            </div>
+            <div class="modal-detail-row">
+                <span class="modal-detail-label">Balance</span>
+                <span class="modal-detail-value" style="color:${st.balance > 0 ? 'var(--status-partial)' : 'var(--text-dim)'}">${formatCurrency(st.balance)}</span>
+            </div>
+            ${st.lastPaymentDate ? `<div class="modal-detail-row"><span class="modal-detail-label">Last Payment</span><span class="modal-detail-value">${st.lastPaymentDate}</span></div>` : ''}
+            <h3 style="font-size:13px;font-weight:700;margin-top:20px;margin-bottom:10px;color:var(--text-secondary)">Fee Breakdown</h3>
+            <div class="modal-fees-list">
+                ${st.fees.map(f => {
+                    const feePaid = f.paid >= f.amount;
+                    const feePartial = f.paid > 0 && f.paid < f.amount;
+                    const feeStatus = feePaid ? 'paid' : feePartial ? 'partial' : 'unpaid';
+                    const feeStatusLabel = feePaid ? 'Paid' : feePartial ? 'Partial' : 'Unpaid';
+                    return `
+                    <div class="modal-fee-item">
+                        <span class="modal-fee-name">${f.name}</span>
+                        <div style="display:flex;align-items:center">
+                            <span class="modal-fee-amount">${formatCurrency(f.amount)}</span>
+                            <span class="status-badge ${feeStatus} modal-fee-status"><span class="dot"></span>${feeStatusLabel}</span>
+                        </div>
+                    </div>`;
+                }).join('')}
+            </div>
+        `;
+        document.getElementById('studentModal').classList.add('active');
+    }
+    function printReceipt(studentId) {
+        const st = ALL_STUDENTS.find(s => s.id === studentId);
+        if (!st) return;
+        alert(`Receipt for ${st.fullName} (${st.id})\nClass: ${st.className}\nTotal Billed: ${formatCurrency(st.totalBilled)}\nAmount Paid: ${formatCurrency(st.amountPaid)}\nBalance: ${formatCurrency(st.balance)}\n\n(This would open a print-ready receipt in a production system)`);
+    }
+    // Close modal
+    document.getElementById('modalClose').addEventListener('click', () => {
+        document.getElementById('studentModal').classList.remove('active');
+    });
+    document.getElementById('studentModal').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) {
+            document.getElementById('studentModal').classList.remove('active');
+        }
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') document.getElementById('studentModal').classList.remove('active');
+    });
+    // ===== FILTERING =====
+    function getFilteredStudents() {
+        const searchVal = document.getElementById('searchInput').value.toLowerCase().trim();
+        const classVal = document.getElementById('filterClass').value;
+        const templateVal = document.getElementById('filterTemplate').value;
+        const statusVal = document.getElementById('filterStatus').value;
+        return ALL_STUDENTS.filter(st => {
+            if (searchVal && !st.fullName.toLowerCase().includes(searchVal) && !st.id.toLowerCase().includes(searchVal)) return false;
+            if (classVal && st.className !== classVal) return false;
+            if (templateVal && !st.fees.some(f => f.id === templateVal)) return false;
+            if (statusVal && st.status !== statusVal) return false;
+            return true;
+        });
+    }
+    function applyFilters() {
+        const filtered = getFilteredStudents();
+        renderStats(filtered);
+        renderClassGroups(filtered);
+    }
+    // Populate class filter
+    function populateFilters() {
+        const classSelect = document.getElementById('filterClass');
+        CLASSES.forEach(cls => {
+            const opt = document.createElement('option');
+            opt.value = cls;
+            opt.textContent = cls;
+            classSelect.appendChild(opt);
+        });
+        const templateSelect = document.getElementById('filterTemplate');
+        FEE_TEMPLATES.forEach(ft => {
+            const opt = document.createElement('option');
+            opt.value = ft.id;
+            opt.textContent = ft.name;
+            templateSelect.appendChild(opt);
+        });
+    }
+    // Event listeners
+    document.getElementById('searchInput').addEventListener('input', debounce(applyFilters, 200));
+    document.getElementById('filterClass').addEventListener('change', applyFilters);
+    document.getElementById('filterTemplate').addEventListener('change', applyFilters);
+    document.getElementById('filterStatus').addEventListener('change', applyFilters);
+    document.getElementById('resetFilters').addEventListener('click', () => {
+        document.getElementById('searchInput').value = '';
+        document.getElementById('filterClass').value = '';
+        document.getElementById('filterTemplate').value = '';
+        document.getElementById('filterStatus').value = '';
+        applyFilters();
+    });
+    function debounce(fn, delay) {
+        let timer;
+        return function (...args) {
+            clearTimeout(timer);
+            timer = setTimeout(() => fn.apply(this, args), delay);
+        };
+    }
+    // ===== LAST SYNC =====
+    document.getElementById('lastSync').textContent = new Date().toLocaleString('en-GB', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+    });
+    // ===== INIT =====
+    populateFilters();
+    applyFilters();
+    </script>
+</body>
+</html>

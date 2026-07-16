@@ -64,6 +64,7 @@ import type {
   StudentOption,
   ClassOption,
 } from "./finance-types";
+import type { SessionRecord, TermRecord } from "@/hooks/use-session-term-filters";
 
 /* ── Props ─────────────────────────────────────────── */
 
@@ -75,6 +76,13 @@ interface OverviewTabProps {
   classes: ClassOption[];
   formatMoney: (value: number) => string;
   onTabChange?: (tab: string) => void;
+  // Session/Term filters
+  sessions: SessionRecord[];
+  terms: TermRecord[];
+  selectedSession: string;
+  selectedTerm: string;
+  onSessionChange: (value: string) => void;
+  onTermChange: (value: string) => void;
 }
 
 /* ── Helpers ───────────────────────────────────────── */
@@ -201,9 +209,23 @@ export function FinanceOverviewTab({
   classes,
   formatMoney,
   onTabChange,
+  sessions,
+  terms,
+  selectedSession,
+  selectedTerm,
+  onSessionChange,
+  onTermChange,
 }: OverviewTabProps) {
-  // ── Derived data ──
-  const studentBillMap = useMemo(() => buildStudentBillMap(bills, students, classes), [bills, students, classes]);
+  // ── Filter bills: exclude one_time when session/term is active ──
+  const hasSessionTermSelected = selectedSession !== "" || selectedTerm !== "";
+  const filteredBills = useMemo(() => {
+    if (!hasSessionTermSelected) return bills;
+    // Exclude one-time payments when viewing by session/term
+    return bills.filter((b) => b.billing_cycle !== "one_time");
+  }, [bills, hasSessionTermSelected]);
+
+  // ── Derived data (uses filteredBills instead of raw bills) ──
+  const studentBillMap = useMemo(() => buildStudentBillMap(filteredBills, students, classes), [filteredBills, students, classes]);
 
   // Build a class-to-students map from the bill summaries
   const classGroups = useMemo(() => {
@@ -254,17 +276,17 @@ export function FinanceOverviewTab({
     }));
   }, [studentBillMap, students, classes]);
 
-  // ── Stats from overview ──
+  // ── Stats from overview (uses filteredBills for fallback) ──
   const stats = useMemo(() => {
     if (!overview?.stats) {
-      // Compute from bills directly
-      const totalBilled = bills.reduce((s, b) => s + Number(b.total_amount || 0), 0);
-      const totalCollected = bills.reduce((s, b) => s + Number(b.amount_paid || 0), 0);
-      const totalOutstanding = bills.reduce((s, b) => s + Number(b.balance_amount || 0), 0);
-      const overdueCount = bills.filter((b) => b.status === "overdue").length;
-      const paidCount = bills.filter((b) => b.status === "paid").length;
-      const partialCount = bills.filter((b) => b.status === "partial").length;
-      const totalBills = bills.length;
+      // Compute from filtered bills directly
+      const totalBilled = filteredBills.reduce((s, b) => s + Number(b.total_amount || 0), 0);
+      const totalCollected = filteredBills.reduce((s, b) => s + Number(b.amount_paid || 0), 0);
+      const totalOutstanding = filteredBills.reduce((s, b) => s + Number(b.balance_amount || 0), 0);
+      const overdueCount = filteredBills.filter((b) => b.status === "overdue").length;
+      const paidCount = filteredBills.filter((b) => b.status === "paid").length;
+      const partialCount = filteredBills.filter((b) => b.status === "partial").length;
+      const totalBills = filteredBills.length;
 
       return { totalBilled, totalCollected, totalOutstanding, overdueCount, totalBills, paidCount, partialCount };
     }
@@ -274,12 +296,12 @@ export function FinanceOverviewTab({
       totalBilled: s.totalDue,
       totalCollected: s.totalCollected,
       totalOutstanding: s.totalOutstanding,
-      overdueCount: s.overdueCount || bills.filter((b) => b.status === "overdue").length,
+      overdueCount: s.overdueCount || filteredBills.filter((b) => b.status === "overdue").length,
       totalBills: s.totalBills,
       paidCount: s.paidCount,
       partialCount: s.partialCount,
     };
-  }, [overview, bills]);
+  }, [overview, filteredBills]);
 
   const collectionRate = stats.totalBilled > 0
     ? Math.round((stats.totalCollected / stats.totalBilled) * 100)
@@ -291,7 +313,7 @@ export function FinanceOverviewTab({
   const [statusFilter, setStatusFilter] = useState("all");
   const [feeTypeFilter, setFeeTypeFilter] = useState("all");
 
-  const hasActiveFilter = searchQuery.trim() !== "" || classFilter !== "all" || statusFilter !== "all" || feeTypeFilter !== "all";
+  const hasActiveFilter = searchQuery.trim() !== "" || classFilter !== "all" || statusFilter !== "all" || feeTypeFilter !== "all" || hasSessionTermSelected;
 
   const filteredClassGroups = useMemo(() => {
     return classGroups
@@ -321,6 +343,8 @@ export function FinanceOverviewTab({
     setClassFilter("all");
     setStatusFilter("all");
     setFeeTypeFilter("all");
+    if (selectedSession) onSessionChange("");
+    if (selectedTerm) onTermChange("");
   };
 
   // ── Expanded class groups ──
@@ -341,11 +365,11 @@ export function FinanceOverviewTab({
   // ── Fee template lookup for filter ──
   const uniqueFeeTitles = useMemo(() => {
     const titles = new Set<string>();
-    bills.forEach((b) => {
+    filteredBills.forEach((b) => {
       b.finance_bill_items?.forEach((item) => titles.add(item.title));
     });
     return Array.from(titles).sort();
-  }, [bills]);
+  }, [filteredBills]);
 
   const uniqueStatuses = useMemo(() => {
     const statuses = new Set<string>();
@@ -766,6 +790,54 @@ export function FinanceOverviewTab({
                 {uniqueFeeTitles.map((t) => (
                   <SelectItem key={t} value={t}>{t}</SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+
+            <div className="w-px h-6 bg-gray-200 shrink-0" />
+
+            {/* Session Filter */}
+            <Select value={selectedSession} onValueChange={onSessionChange}>
+              <SelectTrigger className="h-8 text-xs border-gray-200 bg-white text-gray-700 w-[150px]">
+                <SelectValue placeholder="All Sessions" />
+              </SelectTrigger>
+              <SelectContent className="bg-white border-gray-200 text-gray-700 max-h-60">
+                <SelectItem value="">All Sessions</SelectItem>
+                {sessions.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    <span className="flex items-center gap-2">
+                      {s.name}
+                      {s.is_current && (
+                        <span className="text-[9px] font-semibold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-full">Current</span>
+                      )}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Term Filter */}
+            <Select
+              value={selectedTerm}
+              onValueChange={onTermChange}
+              disabled={!selectedSession}
+            >
+              <SelectTrigger className="h-8 text-xs border-gray-200 bg-white text-gray-700 w-[150px]">
+                <SelectValue placeholder={selectedSession ? "All Terms" : "Select session first"} />
+              </SelectTrigger>
+              <SelectContent className="bg-white border-gray-200 text-gray-700 max-h-60">
+                <SelectItem value="">All Terms</SelectItem>
+                {terms
+                  .filter((t) => t.session_id === selectedSession)
+                  .map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      <span className="flex items-center gap-2">
+                        {t.name}
+                        {t.is_current && (
+                          <span className="text-[9px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">Current</span>
+                        )}
+                      </span>
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
 

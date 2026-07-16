@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { exportToCSV } from "@/lib/student-utils";
 import { supabase } from "@/lib/supabase";
 import { useSchoolContext } from "@/hooks/use-school-context";
+import { useSessionTermFilters } from "@/hooks/use-session-term-filters";
 import { FinanceOverviewTab } from "@/components/finance/finance-overview-tab";
 import { FinanceTransactionsTab } from "@/components/finance/finance-transactions-tab";
 import { FinanceFeeBillingTab } from "@/components/finance/finance-fee-billing-tab";
@@ -176,6 +177,16 @@ export default function AdminFinancePage() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
 
+  const {
+    sessions,
+    terms,
+    selectedSession,
+    selectedTerm,
+    handleSessionChange,
+    handleTermChange,
+    filtersReady: sessionTermReady,
+  } = useSessionTermFilters(schoolId);
+
   const [overview, setOverview] = useState<FinanceOverview | null>(null);
   const [settings, setSettings] = useState<FinanceSettings>({});
   const [fees, setFees] = useState<FeeTemplate[]>([]);
@@ -247,10 +258,10 @@ export default function AdminFinancePage() {
   }, [schoolId]);
 
   useEffect(() => {
-    if (!schoolLoading && schoolId) {
+    if (!schoolLoading && schoolId && sessionTermReady) {
       loadFinanceData();
     }
-  }, [loadFinanceData, schoolId, schoolLoading]);
+  }, [loadFinanceData, schoolId, schoolLoading, sessionTermReady]);
 
   const currency = settings.default_currency || "NGN";
 
@@ -385,7 +396,7 @@ export default function AdminFinancePage() {
         )}
 
         {/* ── Loading State ── */}
-        {loading || schoolLoading ? (
+        {loading || schoolLoading || !sessionTermReady ? (
           <FinanceSkeleton />
         ) : isFirstTime ? (
           <FinanceEmptyState onTabChange={setActiveTab} />
@@ -409,14 +420,20 @@ export default function AdminFinancePage() {
 
             <TabsContent value="overview">
               <FinanceOverviewTab
-              overview={overview}
-              bills={bills}
-              students={students}
-              fees={fees}
-              classes={classes}
-              formatMoney={formatMoney}
-              onTabChange={(tab) => setActiveTab(tab as TabKey)}
-            />
+                overview={overview}
+                bills={bills}
+                students={students}
+                fees={fees}
+                classes={classes}
+                formatMoney={formatMoney}
+                onTabChange={(tab) => setActiveTab(tab as TabKey)}
+                sessions={sessions}
+                terms={terms}
+                selectedSession={selectedSession}
+                selectedTerm={selectedTerm}
+                onSessionChange={handleSessionChange}
+                onTermChange={handleTermChange}
+              />
             </TabsContent>
 
             <TabsContent value="transactions">

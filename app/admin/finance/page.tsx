@@ -11,8 +11,7 @@ import { supabase } from "@/lib/supabase";
 import { useSchoolContext } from "@/hooks/use-school-context";
 import { FinanceOverviewTab } from "@/components/finance/finance-overview-tab";
 import { FinanceTransactionsTab } from "@/components/finance/finance-transactions-tab";
-import { FinanceFeesTab } from "@/components/finance/finance-fees-tab";
-import { FinanceBillingTab } from "@/components/finance/finance-billing-tab";
+import { FinanceFeeBillingTab } from "@/components/finance/finance-fee-billing-tab";
 import { FinanceReceiptsTab } from "@/components/finance/finance-receipts-tab";
 import { FinanceSettingsTab } from "@/components/finance/finance-settings-tab";
 import type {
@@ -43,15 +42,15 @@ import {
   Settings,
   FileText,
   Sparkles,
+  Tags,
 } from "lucide-react";
 
-type TabKey = "overview" | "transactions" | "fees" | "billing" | "receipts" | "settings";
+type TabKey = "overview" | "transactions" | "fees-billing" | "receipts" | "settings";
 
 const TAB_CONFIG: { key: TabKey; label: string; icon: any }[] = [
   { key: "overview", label: "Overview", icon: TrendingUp },
   { key: "transactions", label: "Payments", icon: CreditCard },
-  { key: "fees", label: "Fees", icon: Layers },
-  { key: "billing", label: "Billing", icon: Users },
+  { key: "fees-billing", label: "Fees & Billing", icon: Tags },
   { key: "receipts", label: "Receipts", icon: FileText },
   { key: "settings", label: "Settings", icon: Settings },
 ];
@@ -117,7 +116,7 @@ function FinanceEmptyState({ onTabChange }: { onTabChange: (tab: TabKey) => void
       icon: Users,
       label: "3. Bill Students",
       desc: "Generate bills for students based on their class and fee templates.",
-      tab: "billing" as TabKey,
+      tab: "fees-billing" as TabKey,
       color: "text-emerald-600",
       bg: "bg-emerald-50",
     },
@@ -423,26 +422,15 @@ export default function AdminFinancePage() {
               />
             </TabsContent>
 
-            <TabsContent value="fees">
-              <FinanceFeesTab
+            <TabsContent value="fees-billing">
+              <FinanceFeeBillingTab
                 fees={fees}
                 classes={classes}
-                formatMoney={formatMoney}
-                onRefresh={loadFinanceData}
-                onError={setError}
-              />
-            </TabsContent>
-
-            <TabsContent value="billing">
-              <FinanceBillingTab
-                bills={bills}
                 students={students}
-                fees={fees}
-                classes={classes}
+                bills={bills}
                 formatMoney={formatMoney}
                 onRefresh={loadFinanceData}
                 onError={setError}
-                onTabChange={(tab) => setActiveTab(tab as TabKey)}
               />
             </TabsContent>
 

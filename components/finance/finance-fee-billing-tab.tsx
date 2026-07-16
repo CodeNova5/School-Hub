@@ -762,15 +762,15 @@ function BillSchoolModal({
           {/* Billing cycle + Due date */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-zinc-400">Billing Cycle</Label>
+              <Label className="text-xs font-medium text-gray-600">Billing Cycle</Label>
               <Select
                 value={form.billingCycle}
                 onValueChange={(value) => setForm((prev) => ({ ...prev, billingCycle: value }))}
               >
-                <SelectTrigger className="bg-zinc-800 border-zinc-700 text-zinc-100">
+                <SelectTrigger className="bg-white border-gray-300 text-gray-900">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-800 border-zinc-700 text-zinc-100">
+                <SelectContent className="bg-white border-gray-200 text-gray-900">
                   <SelectItem value="per_term">Per Term</SelectItem>
                   <SelectItem value="per_session">Per Session</SelectItem>
                   <SelectItem value="one_time">One-time</SelectItem>
@@ -778,12 +778,12 @@ function BillSchoolModal({
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-zinc-400">Due Date</Label>
+              <Label className="text-xs font-medium text-gray-600">Due Date</Label>
               <Input
                 type="date"
                 value={form.dueDate}
                 onChange={(e) => setForm((prev) => ({ ...prev, dueDate: e.target.value }))}
-                className="bg-zinc-800 border-zinc-700 text-zinc-100 focus:border-indigo-500"
+                className="bg-white border-gray-300 text-gray-900 focus:border-indigo-500"
               />
             </div>
           </div>
@@ -978,15 +978,15 @@ function BillStudentModal({
           Bill Student
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto bg-zinc-900 border-zinc-800 text-zinc-100">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base text-zinc-100">
-            <div className="p-1 rounded-lg bg-emerald-500/10">
-              <GraduationCap className="h-4 w-4 text-emerald-400" />
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <div className="p-1 rounded-lg bg-emerald-100">
+              <GraduationCap className="h-4 w-4 text-emerald-600" />
             </div>
             Bill Individual Student
           </DialogTitle>
-          <DialogDescription className="text-zinc-500">
+          <DialogDescription>
             Issue a bill to a single student. The amount auto-adjusts based on the student&apos;s class and fee template.
           </DialogDescription>
         </DialogHeader>
@@ -994,7 +994,7 @@ function BillStudentModal({
         <div className="space-y-4 pt-2">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-zinc-400">Student</Label>
+              <Label className="text-xs font-medium text-gray-600">Student</Label>
               <SearchableSelect
                 value={form.studentId}
                 onValueChange={(value) => setForm((prev) => ({ ...prev, studentId: value }))}
@@ -1006,11 +1006,11 @@ function BillStudentModal({
                   label: `${s.first_name} ${s.last_name} (${s.student_id})`,
                   searchTerms: `${s.first_name} ${s.last_name} ${s.student_id}`,
                 }))}
-                className="bg-zinc-800 border-zinc-700 text-zinc-100"
+                className="bg-white border-gray-300 text-gray-900"
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-zinc-400">Fee Template</Label>
+              <Label className="text-xs font-medium text-gray-600">Fee Template</Label>
               <SearchableSelect
                 value={form.feeTemplateId}
                 onValueChange={(value) => {
@@ -1029,22 +1029,22 @@ function BillStudentModal({
                   label: `${fee.name} — ${formatMoney(fee.amount)}`,
                   searchTerms: `${fee.name} ${fee.category}`,
                 }))}
-                className="bg-zinc-800 border-zinc-700 text-zinc-100"
+                className="bg-white border-gray-300 text-gray-900"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-zinc-400">Billing Cycle</Label>
+              <Label className="text-xs font-medium text-gray-600">Billing Cycle</Label>
               <Select
                 value={form.billingCycle}
                 onValueChange={(value) => setForm((prev) => ({ ...prev, billingCycle: value }))}
               >
-                <SelectTrigger className="bg-zinc-800 border-zinc-700 text-zinc-100">
+                <SelectTrigger className="bg-white border-gray-300 text-gray-900">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-800 border-zinc-700 text-zinc-100">
+                <SelectContent className="bg-white border-gray-200 text-gray-900">
                   <SelectItem value="per_term">Per Term</SelectItem>
                   <SelectItem value="per_session">Per Session</SelectItem>
                   <SelectItem value="one_time">One-time</SelectItem>
@@ -1052,38 +1052,38 @@ function BillStudentModal({
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-zinc-400">Due Date</Label>
+              <Label className="text-xs font-medium text-gray-600">Due Date</Label>
               <Input
                 type="date"
                 value={form.dueDate}
                 onChange={(e) => setForm((prev) => ({ ...prev, dueDate: e.target.value }))}
-                className="bg-zinc-800 border-zinc-700 text-zinc-100 focus:border-indigo-500"
+                className="bg-white border-gray-300 text-gray-900 focus:border-indigo-500"
               />
             </div>
           </div>
 
           {/* Student info + amount preview */}
           {selectedStudent && selectedFee && (
-            <div className="rounded-xl border border-zinc-700/50 bg-zinc-800/50 p-4 space-y-2">
+            <div className="rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-4 space-y-2">
               <div className="flex items-center gap-2 text-sm">
-                <Users className="h-4 w-4 text-zinc-500" />
-                <span className="text-zinc-300 font-medium">{selectedStudent.first_name} {selectedStudent.last_name}</span>
-                <span className="text-zinc-600 text-xs">{selectedStudent.student_id}</span>
+                <Users className="h-4 w-4 text-gray-500" />
+                <span className="text-gray-800 font-medium">{selectedStudent.first_name} {selectedStudent.last_name}</span>
+                <span className="text-gray-400 text-xs">{selectedStudent.student_id}</span>
               </div>
               {studentClassName && (
-                <div className="flex items-center gap-2 text-xs text-zinc-500">
+                <div className="flex items-center gap-2 text-xs text-gray-500">
                   <GraduationCap className="h-3.5 w-3.5" />
-                  <span>Class: <span className="text-zinc-300 font-medium">{studentClassName}</span></span>
+                  <span>Class: <span className="text-gray-700 font-medium">{studentClassName}</span></span>
                 </div>
               )}
-              <div className="border-t border-zinc-700/50 pt-2 flex items-center justify-between">
-                <span className="text-xs text-zinc-500">
+              <div className="border-t border-emerald-100 pt-2 flex items-center justify-between">
+                <span className="text-xs text-gray-500">
                   {selectedFee.name} — {selectedFee.frequency === "per_term" ? "Per Term" : selectedFee.frequency === "per_session" ? "Per Session" : "One-time"}
                 </span>
-                <span className="text-lg font-bold text-emerald-400">{formatMoney(effectiveAmount)}</span>
+                <span className="text-lg font-bold text-emerald-600">{formatMoney(effectiveAmount)}</span>
               </div>
               {selectedStudent.class_id && selectedFee.finance_fee_template_classes?.some((c) => c.class_id === selectedStudent.class_id) && (
-                <p className="text-[10px] text-indigo-400 flex items-center gap-1">
+                <p className="text-[10px] text-indigo-600 flex items-center gap-1">
                   <CheckCircle2 className="h-3 w-3" /> Class-specific pricing applied
                 </p>
               )}
@@ -1091,8 +1091,8 @@ function BillStudentModal({
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
-          <Button variant="outline" onClick={() => { onOpenChange(false); resetForm(); }} className="border-zinc-700 text-zinc-300 hover:bg-zinc-800">
+        <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+          <Button variant="outline" onClick={() => { onOpenChange(false); resetForm(); }} className="border-gray-300 text-gray-600 hover:bg-gray-50">
             Cancel
           </Button>
           <Button
@@ -1126,43 +1126,43 @@ function RecentDispatchLog({ bills, formatMoney }: { bills: FinanceBill[]; forma
   if (recent.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 overflow-hidden transition-all duration-300">
-      <div className="px-5 py-4 border-b border-zinc-800">
+    <div className="rounded-xl border border-gray-200 bg-white overflow-hidden transition-all duration-300">
+      <div className="px-5 py-4 border-b border-gray-100">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-zinc-800 flex items-center justify-center">
-            <History className="h-3.5 w-3.5 text-zinc-400" />
+          <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center">
+            <History className="h-3.5 w-3.5 text-gray-500" />
           </div>
-          <p className="text-sm font-semibold text-zinc-100">Recent Dispatch History</p>
-          <span className="text-[10px] text-zinc-600 bg-zinc-800 px-1.5 py-0.5 rounded-full ml-1">Last 20</span>
+          <p className="text-sm font-semibold text-gray-900">Recent Dispatch History</p>
+          <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full ml-1">Last 20</span>
         </div>
       </div>
-      <div className="divide-y divide-zinc-800/50">
+      <div className="divide-y divide-gray-100">
         {recent.map((bill) => {
           const paidPercent = bill.total_amount > 0 ? Math.round((bill.amount_paid / bill.total_amount) * 100) : 0;
           const isFullyPaid = bill.status === "paid" || paidPercent >= 100;
           const isOverdue = bill.status === "overdue";
           return (
-            <div key={bill.id} className="flex items-center justify-between px-5 py-3 transition-all duration-150 hover:bg-zinc-800/40">
+            <div key={bill.id} className="flex items-center justify-between px-5 py-3 transition-all duration-150 hover:bg-gray-50">
               <div className="flex items-center gap-3 min-w-0">
                 <div className={`p-1.5 rounded-lg shrink-0 ${
-                  isFullyPaid ? "bg-emerald-500/10" : isOverdue ? "bg-rose-500/10" : "bg-amber-500/10"
+                  isFullyPaid ? "bg-emerald-50" : isOverdue ? "bg-rose-50" : "bg-amber-50"
                 }`}>
-                  {isFullyPaid ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                    : isOverdue ? <AlertTriangle className="h-3.5 w-3.5 text-rose-400" />
-                    : <Clock className="h-3.5 w-3.5 text-amber-400" />}
+                  {isFullyPaid ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                    : isOverdue ? <AlertTriangle className="h-3.5 w-3.5 text-rose-600" />
+                    : <Clock className="h-3.5 w-3.5 text-amber-600" />}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-zinc-200 truncate">
+                  <p className="text-sm font-medium text-gray-900 truncate">
                     {bill.students?.first_name} {bill.students?.last_name}
                   </p>
-                  <p className="text-xs text-zinc-600">
+                  <p className="text-xs text-gray-500">
                     {bill.due_date ? new Date(bill.due_date).toLocaleDateString("en-NG", { day: "numeric", month: "short" }) : "No due date"}
                     {" · "}{formatMoney(bill.total_amount)}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <div className="w-16 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                <div className="w-16 h-1.5 rounded-full bg-gray-100 overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${
                       isFullyPaid ? "bg-emerald-500" : isOverdue ? "bg-rose-500" : "bg-amber-500"
@@ -1233,8 +1233,8 @@ export function FinanceFeeBillingTab({
               <Layers className="h-4 w-4 text-indigo-400" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-zinc-100">Fee Template Catalog</p>
-              <p className="text-[11px] text-zinc-600">Define fee structures with per-class pricing</p>
+              <p className="text-sm font-semibold text-gray-900">Fee Template Catalog</p>
+              <p className="text-[11px] text-gray-500">Define fee structures with per-class pricing</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -1265,10 +1265,10 @@ export function FinanceFeeBillingTab({
             ))}
           </div>
         ) : (
-          <div className="rounded-xl border border-dashed border-zinc-800 bg-zinc-900/40 py-14 text-center">
-            <Tag className="h-10 w-10 text-zinc-700 mx-auto mb-3" />
-            <p className="text-sm font-medium text-zinc-500">No fee templates created</p>
-            <p className="text-xs text-zinc-600 mt-1 mb-4">Create your first fee template to start billing students</p>
+          <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 py-14 text-center">
+            <Tag className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+            <p className="text-sm font-medium text-gray-500">No fee templates created</p>
+            <p className="text-xs text-gray-400 mt-1 mb-4">Create your first fee template to start billing students</p>
             <Button
               size="sm"
               className="gap-1.5 text-xs bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 text-white"
@@ -1290,8 +1290,8 @@ export function FinanceFeeBillingTab({
                 <Sparkles className="h-4 w-4 text-emerald-400" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-zinc-100">Bill Dispatch</p>
-                <p className="text-[11px] text-zinc-600">Apply fees to students — school-wide or individual</p>
+                <p className="text-sm font-semibold text-gray-900">Bill Dispatch</p>
+                <p className="text-[11px] text-gray-500">Apply fees to students — school-wide or individual</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -1324,22 +1324,22 @@ export function FinanceFeeBillingTab({
             {/* Bill School Card */}
             <div
               onClick={() => setBillSchoolOpen(true)}
-              className="group relative rounded-xl border border-zinc-800 bg-zinc-900/80 p-5 transition-all duration-300 hover:border-indigo-700 hover:-translate-y-0.5 hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)] cursor-pointer"
+              className="group relative rounded-xl border border-gray-200 bg-white p-5 transition-all duration-300 hover:border-indigo-300 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer"
             >
               <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-indigo-500 to-blue-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500/20 to-blue-500/20 flex items-center justify-center shrink-0">
-                  <School className="h-6 w-6 text-indigo-400" />
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 flex items-center justify-center shrink-0">
+                  <School className="h-6 w-6 text-indigo-600" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-base font-bold text-zinc-100 group-hover:text-indigo-400 transition-colors">Bill School</p>
-                  <p className="text-xs text-zinc-500 mt-1">
+                  <p className="text-base font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">Bill School</p>
+                  <p className="text-xs text-gray-500 mt-1">
                     Apply a fee template to all students across every class. Per-class pricing is automatically applied.
                   </p>
-                  <div className="flex items-center gap-2 mt-3 text-xs text-zinc-500">
+                  <div className="flex items-center gap-2 mt-3 text-xs text-gray-500">
                     <Users className="h-3.5 w-3.5" />
                     <span>{students.length} active students</span>
-                    <ArrowUpRight className="h-3.5 w-3.5 text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <ArrowUpRight className="h-3.5 w-3.5 text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                 </div>
               </div>
@@ -1348,22 +1348,22 @@ export function FinanceFeeBillingTab({
             {/* Bill Student Card */}
             <div
               onClick={() => setBillStudentOpen(true)}
-              className="group relative rounded-xl border border-zinc-800 bg-zinc-900/80 p-5 transition-all duration-300 hover:border-emerald-700 hover:-translate-y-0.5 hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)] cursor-pointer"
+              className="group relative rounded-xl border border-gray-200 bg-white p-5 transition-all duration-300 hover:border-emerald-300 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer"
             >
               <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-emerald-500 to-teal-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center shrink-0">
-                  <UserPlus className="h-6 w-6 text-emerald-400" />
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 flex items-center justify-center shrink-0">
+                  <UserPlus className="h-6 w-6 text-emerald-600" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-base font-bold text-zinc-100 group-hover:text-emerald-400 transition-colors">Bill Student</p>
-                  <p className="text-xs text-zinc-500 mt-1">
+                  <p className="text-base font-bold text-gray-900 group-hover:text-emerald-600 transition-colors">Bill Student</p>
+                  <p className="text-xs text-gray-500 mt-1">
                     Issue a bill to a single student. Useful for late enrollees, custom charges, or one-off fees.
                   </p>
-                  <div className="flex items-center gap-2 mt-3 text-xs text-zinc-500">
+                  <div className="flex items-center gap-2 mt-3 text-xs text-gray-500">
                     <GraduationCap className="h-3.5 w-3.5" />
                     <span>Individual billing with class-specific pricing</span>
-                    <ArrowUpRight className="h-3.5 w-3.5 text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <ArrowUpRight className="h-3.5 w-3.5 text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                 </div>
               </div>
@@ -1377,19 +1377,19 @@ export function FinanceFeeBillingTab({
 
       {/* Delete confirmation dialog */}
       <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}>
-        <AlertDialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+        <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-zinc-100">
-              <Trash2 className="h-4 w-4 text-red-400" />
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-4 w-4 text-red-500" />
               Delete Fee Template
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-zinc-500">
-              Are you sure you want to delete <strong className="text-zinc-300">{deleteConfirm?.name}</strong>?
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{deleteConfirm?.name}</strong>?
               This cannot be undone. Bills referencing this fee will no longer be linked.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting} className="border-zinc-700 text-zinc-300 hover:bg-zinc-800">Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting} className="border-gray-300 text-gray-600 hover:bg-gray-50">Cancel</AlertDialogCancel>
             <AlertDialogAction
               disabled={deleting}
               className="bg-red-600 hover:bg-red-700 text-white gap-2"

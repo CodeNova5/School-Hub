@@ -3,16 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { DashboardLayout } from "@/components/dashboard-layout";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { StatusDotBadge, PaymentProgressBar, FeePill } from "@/components/finance/finance-ui";
+import { StatusDotBadge, FeePill } from "@/components/finance/finance-ui";
 import { cn } from "@/lib/utils";
 import {
   Wallet,
-  TrendingUp,
   AlertCircle,
   Receipt,
   Banknote,
@@ -20,8 +18,6 @@ import {
   ArrowRight,
   CheckCircle2,
   CreditCard,
-  FileText,
-  ExternalLink,
   RefreshCw,
   ReceiptText,
 } from "lucide-react";
@@ -325,7 +321,7 @@ function FinanceSkeleton() {
 
 /* ── Empty State ──────────────────────────────────────────────── */
 
-function FinanceEmptyState() {
+function FinanceEmptyState({ onRefresh }: { onRefresh?: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-20 px-4">
       <div className="relative mb-6">
@@ -343,10 +339,12 @@ function FinanceEmptyState() {
         Your school hasn&apos;t issued any bills yet. Check back later or
         contact the finance office if you believe this is an error.
       </p>
-      <Button variant="outline" size="sm" className="gap-2">
-        <RefreshCw className="h-3.5 w-3.5" />
-        Refresh
-      </Button>
+      {onRefresh && (
+        <Button variant="outline" size="sm" className="gap-2" onClick={onRefresh}>
+          <RefreshCw className="h-3.5 w-3.5" />
+          Refresh
+        </Button>
+      )}
     </div>
   );
 }
@@ -445,7 +443,53 @@ export default function StudentFinancePage() {
     return (value: number) => `NGN ${Number(value || 0).toLocaleString()}`;
   }, []);
 
-  const handlePayNow = async (billId: string, amount: number) => {
+  const statCards: StatCardDef[] = useMemo(
+    () => [
+      {
+        label: "Total Due",
+        value: statement?.summary.totalDue || 0,
+        icon: Banknote,
+        gradient: "from-indigo-500 to-blue-500",
+        iconBg: "bg-gradient-to-br from-indigo-500 to-blue-600",
+        textColor: "text-gray-900",
+        format: "money" as const,
+        subtitle: statement ? "Current session total" : undefined,
+      },
+      {
+        label: "Total Paid",
+        value: statement?.summary.totalPaid || 0,
+        icon: CheckCircle2,
+        gradient: "from-emerald-400 to-green-500",
+        iconBg: "bg-gradient-to-br from-emerald-500 to-green-600",
+        textColor: "text-emerald-600",
+        format: "money" as const,
+        subtitle: statement ? "Completed payments" : undefined,
+      },
+      {
+        label: "Outstanding",
+        value: statement?.summary.totalOutstanding || 0,
+        icon: AlertCircle,
+        gradient: "from-amber-400 to-orange-500",
+        iconBg: "bg-gradient-to-br from-amber-500 to-orange-600",
+        textColor: "text-amber-600",
+        format: "money" as const,
+        subtitle: statement ? "Remaining balance" : undefined,
+      },
+      {
+        label: "Bills",
+        value: statement?.summary.billCount || 0,
+        icon: ReceiptText,
+        gradient: "from-purple-500 to-pink-500",
+        iconBg: "bg-gradient-to-br from-purple-500 to-pink-600",
+        textColor: "text-gray-900",
+        format: "count" as const,
+        subtitle: statement ? "Issued bills" : undefined,
+      },
+    ],
+    [statement]
+  );
+
+  const handlePayNow = useCallback(async (billId: string, amount: number) => {
     try {
       const callbackUrl = `${window.location.origin}/student/finance`;
       const res = await fetch("/api/finance/paystack/initialize", {
@@ -469,50 +513,7 @@ export default function StudentFinancePage() {
         error instanceof Error ? error.message : "Unable to start payment"
       );
     }
-  };
-
-  const statCards: StatCardDef[] = [
-    {
-      label: "Total Due",
-      value: statement?.summary.totalDue || 0,
-      icon: Banknote,
-      gradient: "from-indigo-500 to-blue-500",
-      iconBg: "bg-gradient-to-br from-indigo-500 to-blue-600",
-      textColor: "text-gray-900",
-      format: "money",
-      subtitle: statement ? "Current session total" : undefined,
-    },
-    {
-      label: "Total Paid",
-      value: statement?.summary.totalPaid || 0,
-      icon: CheckCircle2,
-      gradient: "from-emerald-400 to-green-500",
-      iconBg: "bg-gradient-to-br from-emerald-500 to-green-600",
-      textColor: "text-emerald-600",
-      format: "money",
-      subtitle: statement ? "Completed payments" : undefined,
-    },
-    {
-      label: "Outstanding",
-      value: statement?.summary.totalOutstanding || 0,
-      icon: AlertCircle,
-      gradient: "from-amber-400 to-orange-500",
-      iconBg: "bg-gradient-to-br from-amber-500 to-orange-600",
-      textColor: "text-amber-600",
-      format: "money",
-      subtitle: statement ? "Remaining balance" : undefined,
-    },
-    {
-      label: "Bills",
-      value: statement?.summary.billCount || 0,
-      icon: ReceiptText,
-      gradient: "from-purple-500 to-pink-500",
-      iconBg: "bg-gradient-to-br from-purple-500 to-pink-600",
-      textColor: "text-gray-900",
-      format: "count",
-      subtitle: statement ? "Issued bills" : undefined,
-    },
-  ];
+  }, []);
 
   return (
     <DashboardLayout role="student">
@@ -634,22 +635,19 @@ export default function StudentFinancePage() {
 
               <div className="grid gap-3">
                 {statement.bills.map((bill, i) => (
-                  <div
+                  <BillCard
                     key={bill.id}
-                    className="animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
-                    style={{ animationDelay: `${i * 60}ms` }}
-                  >
-                    <BillCard
-                      bill={bill}
-                      formatMoney={formatMoney}
-                      onPayNow={handlePayNow}
-                      index={i}
-                    />
-                  </div>
+                    bill={bill}
+                    formatMoney={formatMoney}
+                    onPayNow={handlePayNow}
+                    index={i}
+                  />
                 ))}
               </div>
 
-              {statement.bills.length === 0 && <FinanceEmptyState />}
+              {statement.bills.length === 0 && (
+                <FinanceEmptyState onRefresh={refreshStatement} />
+              )}
             </div>
           </div>
         ) : (

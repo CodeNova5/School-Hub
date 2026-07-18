@@ -44,8 +44,8 @@ export function useSessionTermFilters(
 
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [terms, setTerms] = useState<TermRecord[]>([]);
-  const [selectedSession, setSelectedSession] = useState<string>("");
-  const [selectedTerm, setSelectedTerm] = useState<string>("");
+  const [selectedSession, setSelectedSession] = useState<string>("all");
+  const [selectedTerm, setSelectedTerm] = useState<string>("all");
   const [filtersReady, setFiltersReady] = useState(false);
 
   /* ── Initial load ── */
@@ -70,8 +70,8 @@ export function useSessionTermFilters(
     const currentSession = sessionData.find((s) => s.is_current);
     const currentTerm = termData.find((t) => t.is_current);
 
-    let sessionId = currentSession?.id || sessionData[0]?.id || "";
-    let termId = currentTerm?.id || termData[0]?.id || "";
+    let sessionId = currentSession?.id || sessionData[0]?.id || "all";
+    let termId = currentTerm?.id || termData[0]?.id || "all";
 
     // 2. Override with URL params if they are non-empty and reference a valid record
     const urlParams =
@@ -81,10 +81,10 @@ export function useSessionTermFilters(
     const urlSession = urlParams?.get("session")?.trim();
     const urlTerm = urlParams?.get("term")?.trim();
 
-    if (urlSession && sessionData.find((s) => s.id === urlSession)) {
+    if (urlSession && urlSession !== "all" && sessionData.find((s) => s.id === urlSession)) {
       sessionId = urlSession;
     }
-    if (urlTerm && termData.find((t) => t.id === urlTerm)) {
+    if (urlTerm && urlTerm !== "all" && termData.find((t) => t.id === urlTerm)) {
       termId = urlTerm;
     }
 
@@ -93,8 +93,8 @@ export function useSessionTermFilters(
 
     // 3. Sync URL to reflect final selection (for bookmarking / sharing)
     const params = new URLSearchParams();
-    params.set("session", sessionId);
-    params.set("term", termId);
+    if (sessionId !== "all") params.set("session", sessionId);
+    if (termId !== "all") params.set("term", termId);
     router.replace(`?${params.toString()}`, { scroll: false });
 
     setFiltersReady(true);
@@ -106,7 +106,11 @@ export function useSessionTermFilters(
     (value: string) => {
       setSelectedSession(value);
       const params = new URLSearchParams(window.location.search);
-      params.set("session", value);
+      if (value !== "all") {
+        params.set("session", value);
+      } else {
+        params.delete("session");
+      }
       router.replace(`?${params.toString()}`, { scroll: false });
     },
     [router],
@@ -116,7 +120,11 @@ export function useSessionTermFilters(
     (value: string) => {
       setSelectedTerm(value);
       const params = new URLSearchParams(window.location.search);
-      params.set("term", value);
+      if (value !== "all") {
+        params.set("term", value);
+      } else {
+        params.delete("term");
+      }
       router.replace(`?${params.toString()}`, { scroll: false });
     },
     [router],

@@ -217,7 +217,7 @@ export function FinanceOverviewTab({
   onTermChange,
 }: OverviewTabProps) {
   // ── Filter bills: exclude one_time when session/term is active ──
-  const hasSessionTermSelected = selectedSession !== "" || selectedTerm !== "";
+  const hasSessionTermSelected = selectedSession !== "all" || selectedTerm !== "all";
   const filteredBills = useMemo(() => {
     if (!hasSessionTermSelected) return bills;
     // Exclude one-time payments when viewing by session/term
@@ -343,8 +343,8 @@ export function FinanceOverviewTab({
     setClassFilter("all");
     setStatusFilter("all");
     setFeeTypeFilter("all");
-    if (selectedSession) onSessionChange("");
-    if (selectedTerm) onTermChange("");
+    if (selectedSession !== "all") onSessionChange("all");
+    if (selectedTerm !== "all") onTermChange("all");
   };
 
   // ── Expanded class groups ──
@@ -801,7 +801,7 @@ export function FinanceOverviewTab({
                 <SelectValue placeholder="All Sessions" />
               </SelectTrigger>
               <SelectContent className="bg-white border-gray-200 text-gray-700 max-h-60">
-                <SelectItem value="">All Sessions</SelectItem>
+                <SelectItem value="all">All Sessions</SelectItem>
                 {sessions.map((s) => (
                   <SelectItem key={s.id} value={s.id}>
                     <span className="flex items-center gap-2">
@@ -825,7 +825,7 @@ export function FinanceOverviewTab({
                 <SelectValue placeholder={selectedSession ? "All Terms" : "Select session first"} />
               </SelectTrigger>
               <SelectContent className="bg-white border-gray-200 text-gray-700 max-h-60">
-                <SelectItem value="">All Terms</SelectItem>
+                <SelectItem value="all">All Terms</SelectItem>
                 {terms
                   .filter((t) => t.session_id === selectedSession)
                   .map((t) => (

@@ -421,12 +421,15 @@ export default function AdminReportsPage() {
         }
       });
 
+      const totalSubjectCount = subjectClassIds.length;
       const results = Array.from(resultsMap.values()).map(r => {
         if (r.total_subjects > 0) {
           r.average_score = r.total_score / r.total_subjects;
           r.average_grade = calculateAverageGrade(r.average_score);
-          r.completion_percentage = Math.round((r.subjects_complete / r.total_subjects) * 100);
-          r.is_complete = r.subjects_complete === r.total_subjects;
+          // Use total subject count for completion, not just subjects with results
+          // A student missing a result entirely should not be marked complete
+          r.completion_percentage = Math.round((r.subjects_complete / totalSubjectCount) * 100);
+          r.is_complete = r.subjects_complete === totalSubjectCount;
         }
         if (!r.has_results) r.lowest_score = 0;
         return r;

@@ -320,7 +320,7 @@ export default function SubjectManagementPage() {
      SUBJECT EDIT HANDLERS
   ═══════════════════════════════════════ */
   const handleEditFormChange = (field: string, value: any) => {
-    setEditForm((prev) => ({ ...prev, [field]: value }));
+    setEditForm((prev) => ({ ...prev, [field]: value === "none" ? "" : value }));
   };
 
   const saveSubjectChanges = async () => {
@@ -739,7 +739,7 @@ export default function SubjectManagementPage() {
                                 <SelectValue placeholder="Select level" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="">None</SelectItem>
+                                <SelectItem value="none">None</SelectItem>
                                 {educationLevels.map((el) => (
                                   <SelectItem key={el.id} value={el.id}>
                                     {el.name}
@@ -759,7 +759,7 @@ export default function SubjectManagementPage() {
                                 <SelectValue placeholder="Select department" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="">None</SelectItem>
+                                <SelectItem value="none">None</SelectItem>
                                 {departments.map((dept) => (
                                   <SelectItem key={dept.id} value={dept.id}>
                                     {dept.name}
@@ -779,7 +779,7 @@ export default function SubjectManagementPage() {
                                 <SelectValue placeholder="Select religion" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="">None</SelectItem>
+                                <SelectItem value="none">None</SelectItem>
                                 {religions.map((rel) => (
                                   <SelectItem key={rel.id} value={rel.id}>
                                     {rel.name}

@@ -1100,6 +1100,38 @@ export default function ResultEntry({
 
         setScores(normalizedScores);
 
+        // ── Save the student's term summary (source of truth for averages) ──
+        const totalSubjects = normalizedScores.length;
+        const totalScoreSum = completeScores.reduce((sum, s) => sum + s.total, 0);
+        const averageScore = totalSubjects > 0 ? totalScoreSum / totalSubjects : 0;
+        const completionPct = totalSubjects > 0
+          ? Math.round((completeScores.length / totalSubjects) * 100)
+          : 0;
+
+        const { error: summaryError } = await supabase
+          .from("student_term_summaries")
+          .upsert({
+            school_id: effectiveSchoolId,
+            student_id: student.id,
+            class_id: student.class_id,
+            session_id: session.id,
+            term_id: term.id,
+            total_subjects: totalSubjects,
+            subjects_with_results: completeScores.length,
+            subjects_complete: completeScores.length,
+            total_score: totalScoreSum,
+            average_score: averageScore,
+            completion_percentage: completionPct,
+            is_complete: completionPct === 100,
+          }, {
+            onConflict: "student_id,session_id,term_id",
+          });
+
+        if (summaryError) {
+          console.error("Error saving student term summary:", summaryError);
+          // Results saved OK, summary is best-effort
+        }
+
         const successMsg = skippedCount > 0
           ? `Results saved — ${skippedCount} subject(s) skipped (incomplete scores)`
           : "Results saved successfully";

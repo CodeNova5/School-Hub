@@ -344,19 +344,34 @@ export function ResultsTab({ classId, className, students, schoolId }: ResultsTa
                 .maybeSingle();
             setShowPositionSetting(settingsRow?.show_position !== false);
 
-            // Calculate averages and completion
-            const results = Array.from(studentResultsMap.values()).map((result) => {
-                if (result.total_subjects > 0) {
-                    result.average_score = result.total_score / result.total_subjects;
-                    result.average_grade = calculateAverageGrade(result.average_score);
+            // ── Fetch stored summaries from DB (source of truth) ──
+            const { data: summaries } = await supabase
+                .from("student_term_summaries")
+                .select("*")
+                .eq("school_id", schoolId)
+                .eq("session_id", selectedSessionId)
+                .eq("term_id", selectedTermId)
+                .in("student_id", currentStudentIds);
 
-                    // Calculate completion: of the subjects this student has results for,
-                    // how many have all component scores filled?
-                    result.completion_percentage = result.total_subjects > 0
-                        ? Math.round((result.subjects_complete / result.total_subjects) * 100)
-                        : 0;
-                    result.is_complete = result.total_subjects > 0
-                        && result.subjects_complete === result.total_subjects;
+            const summaryMap = new Map<string, any>();
+            (summaries || []).forEach((s: any) => summaryMap.set(s.student_id, s));
+
+            // Use total subject count for average and completion, not just subjects with results
+            const totalSubjectCount = subjectClassIds.length;
+            const results = Array.from(studentResultsMap.values()).map((result) => {
+                const stored = summaryMap.get(result.student_id);
+                if (stored && result.has_results) {
+                    // Use stored summary as source of truth
+                    result.average_score = stored.average_score;
+                    result.average_grade = calculateAverageGrade(stored.average_score);
+                    result.completion_percentage = stored.completion_percentage;
+                    result.is_complete = stored.is_complete;
+                } else if (result.total_subjects > 0) {
+                    // Fallback: compute manually (legacy data without stored summaries)
+                    result.average_score = result.total_score / totalSubjectCount;
+                    result.average_grade = calculateAverageGrade(result.average_score);
+                    result.completion_percentage = Math.round((result.subjects_complete / totalSubjectCount) * 100);
+                    result.is_complete = result.subjects_complete === totalSubjectCount;
                 }
                 if (!result.has_results) {
                     result.lowest_score = 0;
@@ -418,6 +433,23 @@ export function ResultsTab({ classId, className, students, schoolId }: ResultsTa
 
             if (error) throw error;
 
+            // ── Fetch stored term summaries (source of truth for term averages) ──
+            const { data: allCumulativeSummaries } = await supabase
+                .from("student_term_summaries")
+                .select("student_id, term_id, average_score")
+                .eq("school_id", schoolId)
+                .eq("session_id", selectedSessionId)
+                .in("student_id", currentStudentIds);
+
+            // Build lookup: student_id → (term_id → average_score)
+            const cumulativeSummaryMap = new Map<string, Map<string, number>>();
+            (allCumulativeSummaries || []).forEach((s: any) => {
+                if (!cumulativeSummaryMap.has(s.student_id)) {
+                    cumulativeSummaryMap.set(s.student_id, new Map());
+                }
+                cumulativeSummaryMap.get(s.student_id)!.set(s.term_id, s.average_score);
+            });
+
             // Process cumulative results per student
             const cumulativeMap = new Map<string, CumulativeResult>();
 
@@ -453,15 +485,28 @@ export function ResultsTab({ classId, className, students, schoolId }: ResultsTa
             // Calculate cumulative averages
             studentTermResults.forEach((termMap, studentId) => {
                 const cumulativeResult = cumulativeMap.get(studentId)!;
+                const studentSummaries = cumulativeSummaryMap.get(studentId);
                 let totalAverage = 0;
                 let termsCount = 0;
 
                 sessionTerms.forEach((term) => {
+                    // Prefer stored summary as source of truth
+                    const storedAvg = studentSummaries?.get(term.id);
+                    if (storedAvg !== undefined && storedAvg > 0) {
+                        cumulativeResult.term_averages.push({
+                            term_name: term.name,
+                            average: storedAvg,
+                        });
+                        totalAverage += storedAvg;
+                        termsCount++;
+                        return;
+                    }
+
+                    // Fall back to manual calculation from individual results
                     const termResults = termMap.get(term.id);
                     if (termResults && termResults.length > 0) {
-                        // Calculate average for this term
                         const termTotal = termResults.reduce((sum, r) => sum + (r.total || 0), 0);
-                        const termAverage = termTotal / termResults.length;
+                        const termAverage = subjectClassIds.length > 0 ? termTotal / subjectClassIds.length : 0;
                         
                         cumulativeResult.term_averages.push({
                             term_name: term.name,

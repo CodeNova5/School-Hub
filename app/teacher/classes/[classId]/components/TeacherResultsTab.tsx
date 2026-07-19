@@ -290,10 +290,33 @@ export default function ResultsTab({ classId, className, students, schoolId }: R
                 }
             });
 
-            // Calculate averages using total subject count, not just subjects with results
+            // ── Fetch stored summaries from DB (source of truth) ──
+            let summariesQuery = supabase
+                .from("student_term_summaries")
+                .select("*")
+                .eq("session_id", selectedSessionId)
+                .eq("term_id", selectedTermId)
+                .in("student_id", currentStudentIds);
+
+            if (schoolId) {
+                summariesQuery = summariesQuery.eq("school_id", schoolId);
+            }
+
+            const { data: summaries } = await summariesQuery;
+
+            const summaryMap = new Map<string, any>();
+            (summaries || []).forEach((s: any) => summaryMap.set(s.student_id, s));
+
+            // Calculate averages — prefer stored summaries as source of truth
             const totalSubjectCount = subjectClassIds.length;
             const results = Array.from(studentResultsMap.values()).map((result) => {
-                if (result.total_subjects > 0) {
+                const stored = summaryMap.get(result.student_id);
+                if (stored && result.has_results) {
+                    // Use stored summary as source of truth
+                    result.average_score = stored.average_score;
+                    result.average_grade = calculateAverageGrade(stored.average_score);
+                } else if (result.total_subjects > 0) {
+                    // Fallback: compute manually (legacy data without stored summaries)
                     result.average_score = result.total_score / totalSubjectCount;
                     result.average_grade = calculateAverageGrade(result.average_score);
                 }
@@ -371,6 +394,28 @@ export default function ResultsTab({ classId, className, students, schoolId }: R
 
             if (error) throw error;
 
+            // ── Fetch stored term summaries (source of truth for term averages) ──
+            let summariesQuery = supabase
+                .from("student_term_summaries")
+                .select("student_id, term_id, average_score")
+                .eq("session_id", selectedSessionId)
+                .in("student_id", currentStudentIds);
+
+            if (schoolId) {
+                summariesQuery = summariesQuery.eq("school_id", schoolId);
+            }
+
+            const { data: allCumulativeSummaries } = await summariesQuery;
+
+            // Build lookup: student_id → (term_id → average_score)
+            const cumulativeSummaryMap = new Map<string, Map<string, number>>();
+            (allCumulativeSummaries || []).forEach((s: any) => {
+                if (!cumulativeSummaryMap.has(s.student_id)) {
+                    cumulativeSummaryMap.set(s.student_id, new Map());
+                }
+                cumulativeSummaryMap.get(s.student_id)!.set(s.term_id, s.average_score);
+            });
+
             // Process cumulative results per student
             const cumulativeMap = new Map<string, CumulativeResult>();
 
@@ -406,13 +451,26 @@ export default function ResultsTab({ classId, className, students, schoolId }: R
             // Calculate cumulative averages
             studentTermResults.forEach((termMap, studentId) => {
                 const cumulativeResult = cumulativeMap.get(studentId)!;
+                const studentSummaries = cumulativeSummaryMap.get(studentId);
                 let totalAverage = 0;
                 let termsCount = 0;
 
                 sessionTerms.forEach((term) => {
+                    // Prefer stored summary as source of truth
+                    const storedAvg = studentSummaries?.get(term.id);
+                    if (storedAvg !== undefined && storedAvg > 0) {
+                        cumulativeResult.term_averages.push({
+                            term_name: term.name,
+                            average: storedAvg,
+                        });
+                        totalAverage += storedAvg;
+                        termsCount++;
+                        return;
+                    }
+
+                    // Fall back to manual calculation from individual results
                     const termResults = termMap.get(term.id);
                     if (termResults && termResults.length > 0) {
-                        // Calculate average for this term using all subjects, not just subjects with results
                         const termTotal = termResults.reduce((sum, r) => sum + (r.total || 0), 0);
                         const termAverage = subjectClassIds.length > 0 ? termTotal / subjectClassIds.length : 0;
                         

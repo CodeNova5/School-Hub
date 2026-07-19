@@ -117,7 +117,8 @@ async function calculateStudentEligibility(
   classesById: Map<string, PromotionClass>,
   orderedClassLevelIds: string[],
   classesByLevelId: Map<string, PromotionClass[]>,
-  promotionSettings: any
+  promotionSettings: any,
+  summariesByTerm?: Map<string, any>  // term_id → stored summary (source of truth)
 ) {
   const currentClassSubjects = subjectClasses?.filter(
     (sc) => sc.class_id === student.class_id
@@ -142,20 +143,27 @@ async function calculateStudentEligibility(
   let termsWithResults = 0;
 
   terms?.forEach((term) => {
-    const termData = termResults.get(term.id);
-    if (termData && termData.length > 0) {
-      // Use all subjects in the class, not just subjects with results
-      // A student missing a result for a subject should have that subject count as 0
-      const avg =
-        currentClassSubjectIds.length > 0
-          ? termData.reduce((sum: number, r: any) => sum + (r.total || 0), 0) /
-            currentClassSubjectIds.length
-          : 0;
-      termAverages.push({ term_id: term.id, average: avg });
-      totalAverage += avg;
+    // Prefer stored summary as source of truth
+    const storedSummary = summariesByTerm?.get(term.id);
+    if (storedSummary && storedSummary.average_score > 0) {
+      termAverages.push({ term_id: term.id, average: storedSummary.average_score });
+      totalAverage += storedSummary.average_score;
       termsWithResults++;
     } else {
-      termAverages.push({ term_id: term.id, average: 0 });
+      // Fall back to manual calculation from individual results
+      const termData = termResults.get(term.id);
+      if (termData && termData.length > 0) {
+        const avg =
+          currentClassSubjectIds.length > 0
+            ? termData.reduce((sum: number, r: any) => sum + (r.total || 0), 0) /
+              currentClassSubjectIds.length
+            : 0;
+        termAverages.push({ term_id: term.id, average: avg });
+        totalAverage += avg;
+        termsWithResults++;
+      } else {
+        termAverages.push({ term_id: term.id, average: 0 });
+      }
     }
   });
 
@@ -378,6 +386,23 @@ export async function GET(request: NextRequest) {
 
     if (resultsError) throw resultsError;
 
+    // ── Fetch stored term summaries (source of truth for averages) ──
+    const { data: allSummaries } = await supabaseAdmin
+      .from("student_term_summaries")
+      .select("*")
+      .eq("school_id", session.school_id)
+      .eq("session_id", sessionId)
+      .in("student_id", studentIds);
+
+    // Build lookup: student_id → (term_id → summary)
+    const summariesByStudent = new Map<string, Map<string, any>>();
+    (allSummaries || []).forEach((s: any) => {
+      if (!summariesByStudent.has(s.student_id)) {
+        summariesByStudent.set(s.student_id, new Map());
+      }
+      summariesByStudent.get(s.student_id)!.set(s.term_id, s);
+    });
+
     // Calculate eligibility for each student
     const eligibilityData = await Promise.all(
       (students || []).map((student: any) =>
@@ -389,7 +414,8 @@ export async function GET(request: NextRequest) {
           classesById,
           orderedClassLevelIds,
           classesByLevelId,
-          promotionSettings
+          promotionSettings,
+          summariesByStudent.get(student.id)  // pass per-student summaries
         )
       )
     );

@@ -421,11 +421,29 @@ export default function AdminReportsPage() {
         }
       });
 
+      // ── Fetch stored summaries from DB (source of truth) ──
+      const { data: summaries } = await supabase
+        .from("student_term_summaries")
+        .select("*")
+        .eq("school_id", schoolId)
+        .eq("session_id", selectedSessionId)
+        .eq("term_id", selectedTermId)
+        .in("student_id", currentStudentIds);
+
+      const summaryMap = new Map<string, any>();
+      (summaries || []).forEach((s: any) => summaryMap.set(s.student_id, s));
+
       const totalSubjectCount = subjectClassIds.length;
       const results = Array.from(resultsMap.values()).map(r => {
-        if (r.total_subjects > 0) {
-          // Use total subject count for both average and completion, not just subjects with results
-          // A student missing a result entirely should not be marked complete or have inflated averages
+        const stored = summaryMap.get(r.student_id);
+        if (stored && r.has_results) {
+          // Use stored summary as source of truth
+          r.average_score = stored.average_score;
+          r.average_grade = calculateAverageGrade(stored.average_score);
+          r.completion_percentage = stored.completion_percentage;
+          r.is_complete = stored.is_complete;
+        } else if (r.total_subjects > 0) {
+          // Fallback: compute manually (legacy data without stored summaries)
           r.average_score = r.total_score / totalSubjectCount;
           r.average_grade = calculateAverageGrade(r.average_score);
           r.completion_percentage = Math.round((r.subjects_complete / totalSubjectCount) * 100);
@@ -511,6 +529,23 @@ export default function AdminReportsPage() {
         .in("student_id", currentStudentIds)
         .in("subject_class_id", subjectClassIds);
 
+      // ── Fetch stored term summaries (source of truth for term averages) ──
+      const { data: allCumulativeSummaries } = await supabase
+        .from("student_term_summaries")
+        .select("student_id, term_id, average_score")
+        .eq("school_id", schoolId)
+        .eq("session_id", selectedSessionId)
+        .in("student_id", currentStudentIds);
+
+      // Build lookup: student_id → (term_id → average_score)
+      const cumulativeSummaryMap = new Map<string, Map<string, number>>();
+      (allCumulativeSummaries || []).forEach((s: any) => {
+        if (!cumulativeSummaryMap.has(s.student_id)) {
+          cumulativeSummaryMap.set(s.student_id, new Map());
+        }
+        cumulativeSummaryMap.get(s.student_id)!.set(s.term_id, s.average_score);
+      });
+
       const cumulativeMap = new Map<string, CumulativeResult>();
       students.forEach(s => {
         cumulativeMap.set(s.id, {
@@ -539,10 +574,21 @@ export default function AdminReportsPage() {
 
       studentTermResults.forEach((termMap, studentId) => {
         const cr = cumulativeMap.get(studentId)!;
+        const studentSummaries = cumulativeSummaryMap.get(studentId);
         let totalAverage = 0;
         let termsCount = 0;
 
         sessionTerms.forEach(term => {
+          // Prefer stored summary as source of truth
+          const storedAvg = studentSummaries?.get(term.id);
+          if (storedAvg !== undefined && storedAvg > 0) {
+            cr.term_averages.push({ term_name: term.name, average: storedAvg });
+            totalAverage += storedAvg;
+            termsCount++;
+            return;
+          }
+
+          // Fall back to manual calculation from individual results
           const termResults = termMap.get(term.id);
           if (termResults && termResults.length > 0) {
             const termTotal = termResults.reduce((sum, r) => sum + (r.total || 0), 0);

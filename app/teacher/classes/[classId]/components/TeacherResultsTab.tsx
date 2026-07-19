@@ -60,6 +60,9 @@ interface StudentResult {
     average_grade: string;
     class_position: number | null;
     has_results: boolean;
+    subjects_complete: number;
+    is_complete: boolean;
+    completion_percentage: number;
 }
 
 interface CumulativeResult {
@@ -256,6 +259,9 @@ export default function ResultsTab({ classId, className, students, schoolId }: R
                     average_grade: "",
                     class_position: null,
                     has_results: false,
+                    subjects_complete: 0,
+                    is_complete: false,
+                    completion_percentage: 0,
                 });
             });
 
@@ -315,13 +321,20 @@ export default function ResultsTab({ classId, className, students, schoolId }: R
                     // Use stored summary as source of truth
                     result.average_score = stored.average_score;
                     result.average_grade = calculateAverageGrade(stored.average_score);
+                    result.completion_percentage = stored.completion_percentage;
+                    result.is_complete = stored.is_complete;
                 } else if (result.total_subjects > 0) {
                     // Fallback: compute manually (legacy data without stored summaries)
                     result.average_score = result.total_score / totalSubjectCount;
                     result.average_grade = calculateAverageGrade(result.average_score);
+                    result.completion_percentage = Math.round((result.subjects_complete / totalSubjectCount) * 100);
+                    result.is_complete = result.subjects_complete === totalSubjectCount;
                 }
                 if (!result.has_results) {
                     result.lowest_score = 0;
+                    result.subjects_complete = 0;
+                    result.is_complete = false;
+                    result.completion_percentage = 0;
                 }
                 return result;
             });

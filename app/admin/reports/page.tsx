@@ -424,10 +424,10 @@ export default function AdminReportsPage() {
       const totalSubjectCount = subjectClassIds.length;
       const results = Array.from(resultsMap.values()).map(r => {
         if (r.total_subjects > 0) {
-          r.average_score = r.total_score / r.total_subjects;
+          // Use total subject count for both average and completion, not just subjects with results
+          // A student missing a result entirely should not be marked complete or have inflated averages
+          r.average_score = r.total_score / totalSubjectCount;
           r.average_grade = calculateAverageGrade(r.average_score);
-          // Use total subject count for completion, not just subjects with results
-          // A student missing a result entirely should not be marked complete
           r.completion_percentage = Math.round((r.subjects_complete / totalSubjectCount) * 100);
           r.is_complete = r.subjects_complete === totalSubjectCount;
         }
@@ -546,7 +546,7 @@ export default function AdminReportsPage() {
           const termResults = termMap.get(term.id);
           if (termResults && termResults.length > 0) {
             const termTotal = termResults.reduce((sum, r) => sum + (r.total || 0), 0);
-            const termAverage = termTotal / termResults.length;
+            const termAverage = subjectClassIds.length > 0 ? termTotal / subjectClassIds.length : 0;
             cr.term_averages.push({ term_name: term.name, average: termAverage });
             totalAverage += termAverage;
             termsCount++;

@@ -144,9 +144,13 @@ async function calculateStudentEligibility(
   terms?.forEach((term) => {
     const termData = termResults.get(term.id);
     if (termData && termData.length > 0) {
+      // Use all subjects in the class, not just subjects with results
+      // A student missing a result for a subject should have that subject count as 0
       const avg =
-        termData.reduce((sum: number, r: any) => sum + (r.total || 0), 0) /
-        termData.length;
+        currentClassSubjectIds.length > 0
+          ? termData.reduce((sum: number, r: any) => sum + (r.total || 0), 0) /
+            currentClassSubjectIds.length
+          : 0;
       termAverages.push({ term_id: term.id, average: avg });
       totalAverage += avg;
       termsWithResults++;

@@ -290,10 +290,11 @@ export default function ResultsTab({ classId, className, students, schoolId }: R
                 }
             });
 
-            // Calculate averages
+            // Calculate averages using total subject count, not just subjects with results
+            const totalSubjectCount = subjectClassIds.length;
             const results = Array.from(studentResultsMap.values()).map((result) => {
                 if (result.total_subjects > 0) {
-                    result.average_score = result.total_score / result.total_subjects;
+                    result.average_score = result.total_score / totalSubjectCount;
                     result.average_grade = calculateAverageGrade(result.average_score);
                 }
                 if (!result.has_results) {
@@ -411,9 +412,9 @@ export default function ResultsTab({ classId, className, students, schoolId }: R
                 sessionTerms.forEach((term) => {
                     const termResults = termMap.get(term.id);
                     if (termResults && termResults.length > 0) {
-                        // Calculate average for this term
+                        // Calculate average for this term using all subjects, not just subjects with results
                         const termTotal = termResults.reduce((sum, r) => sum + (r.total || 0), 0);
-                        const termAverage = termTotal / termResults.length;
+                        const termAverage = subjectClassIds.length > 0 ? termTotal / subjectClassIds.length : 0;
                         
                         cumulativeResult.term_averages.push({
                             term_name: term.name,

@@ -127,6 +127,10 @@ export default function ResultEntry({
   const [publicationSettings, setPublicationSettings] = useState<any>(null);
   const [isPublished, setIsPublished] = useState(false);
 
+  // Per-subject completion overrides (teacher can toggle)
+  // Map of subject_class_id -> boolean (true = manually marked complete)
+  const [subjectCompletionOverrides, setSubjectCompletionOverrides] = useState<Record<string, boolean>>({});
+
   useEffect(() => {
     if (studentId) loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -196,6 +200,23 @@ export default function ResultEntry({
     return activeComponents.every(
       (component) => Number(score.component_scores[component.component_key] || 0) > 0
     );
+  }
+
+  /** Returns the effective completion for a subject — override if set, else auto-detect */
+  function isSubjectEffectiveComplete(score: SubjectScore): boolean {
+    const override = subjectCompletionOverrides[score.subject_class_id];
+    if (override !== undefined) return override;
+    return isSubjectComplete(score);
+  }
+
+  /** Toggle completion for a subject */
+  function toggleSubjectCompletion(subjectClassId: string) {
+    setSubjectCompletionOverrides(prev => ({
+      ...prev,
+      [subjectClassId]: !isSubjectEffectiveComplete(
+        scores.find(s => s.subject_class_id === subjectClassId)!
+      ),
+    }));
   }
 
   async function loadData() {
@@ -672,6 +693,14 @@ export default function ResultEntry({
             initialScores[idx].total = total;
             initialScores[idx].grade = grade;
             initialScores[idx].remark = res.remark || remark;
+
+            // Load stored is_subject_complete into overrides
+            if (res.is_subject_complete !== undefined) {
+              setSubjectCompletionOverrides(prev => ({
+                ...prev,
+                [res.subject_class_id]: res.is_subject_complete,
+              }));
+            }
           }
         }
       } else {
@@ -813,14 +842,14 @@ export default function ResultEntry({
     }));
   }
 
-  // Completion summary
+  // Completion summary (uses effective completion — overrides + auto-detect)
   const completionSummary = useMemo(() => {
     const total = scores.length;
-    const complete = scores.filter(isSubjectComplete).length;
+    const complete = scores.filter(isSubjectEffectiveComplete).length;
     const incomplete = total - complete;
     const percentage = total > 0 ? Math.round((complete / total) * 100) : 0;
     return { total, complete, incomplete, percentage };
-  }, [scores, resultComponents]);
+  }, [scores, resultComponents, subjectCompletionOverrides]);
 
   useEffect(() => {
     if (scores.length > 0) {
@@ -962,9 +991,9 @@ export default function ResultEntry({
 
       const effectiveSchoolId = schoolId || student.school_id || null;
 
-      // Only save subjects with complete scores — skip incomplete ones
+      // Only save subjects that are effectively complete — skip incomplete ones
       const completeScores = normalizedScores.filter((score) => {
-        const complete = isSubjectComplete(score);
+        const complete = isSubjectEffectiveComplete(score);
         if (!complete) {
           console.warn(`Skipping incomplete subject: ${score.subject_name}`);
         }
@@ -1018,6 +1047,7 @@ export default function ResultEntry({
         total: score.total,
         grade: score.grade,
         remark: score.remark,
+        is_subject_complete: true, // Only complete subjects are saved
         attendance,
         next_term_begins: nextTermDate,
         class_teacher_remark: classTeacherRemark,
@@ -1295,7 +1325,7 @@ export default function ResultEntry({
                   </thead>
                   <tbody>
                     {scores.map((score, index) => {
-                      const complete = isSubjectComplete(score);
+                      const complete = isSubjectEffectiveComplete(score);
                       return (
                         <tr
                           key={score.subject_class_id}
@@ -1305,16 +1335,22 @@ export default function ResultEntry({
                         >
                           <td className="p-2 font-medium text-sm">
                             <div className="flex items-center gap-1.5">
-                              <span className="truncate">{score.subject_name}</span>
-                              <span
-                                className={`inline-flex items-center justify-center text-[10px] font-bold w-4 h-4 rounded-full flex-shrink-0 ${
+                              {/* Completion toggle */}
+                              <button
+                                type="button"
+                                onClick={() => toggleSubjectCompletion(score.subject_class_id)}
+                                className={`inline-flex items-center justify-center text-[10px] font-bold w-4 h-4 rounded-full flex-shrink-0 cursor-pointer transition-all hover:scale-110 ${
                                   complete
-                                    ? "bg-green-200 text-green-800"
-                                    : "bg-amber-200 text-amber-800"
+                                    ? "bg-green-200 text-green-800 hover:bg-green-300"
+                                    : "bg-amber-200 text-amber-800 hover:bg-amber-300"
                                 }`}
-                                title={complete ? "Complete" : "Pending"}
+                                title={complete ? "Click to mark incomplete" : "Click to mark complete"}
                               >
                                 {complete ? "✓" : "!"}
+                              </button>
+                              <span className="truncate">{score.subject_name}</span>
+                              <span className={`text-[10px] font-semibold ${complete ? 'text-green-600' : 'text-amber-600'}`}>
+                                {complete ? 'Done' : 'Pending'}
                               </span>
                             </div>
                           </td>

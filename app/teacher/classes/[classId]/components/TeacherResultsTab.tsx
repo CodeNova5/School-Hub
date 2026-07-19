@@ -979,16 +979,19 @@ export default function ResultsTab({ classId, className, students, schoolId }: R
                             <p className="text-xs sm:text-sm text-yellow-600 font-medium">Class Average</p>
                             <p className="text-xl sm:text-2xl font-bold text-yellow-900">
                                 {(
-                                    filteredResults.reduce((sum, r) => sum + r.average_score, 0) /
-                                    filteredResults.filter((r) => r.has_results).length || 0
+                                    filteredResults.filter(r => r.is_complete).reduce((sum, r) => sum + r.average_score, 0) /
+                                    (filteredResults.filter(r => r.is_complete).length || 1) || 0
                                 ).toFixed(1)}
                                 %
+                            </p>
+                            <p className="text-[10px] text-yellow-500 mt-0.5">
+                                {filteredResults.filter(r => r.is_complete).length} of {filteredResults.filter(r => r.has_results).length} complete
                             </p>
                         </div>
                         <div className="p-3 sm:p-4 bg-purple-50 rounded-lg">
                             <p className="text-xs sm:text-sm text-purple-600 font-medium">Highest Average</p>
                             <p className="text-xl sm:text-2xl font-bold text-purple-900">
-                                {Math.max(...filteredResults.map((r) => r.average_score), 0).toFixed(1)}%
+                                {Math.max(...filteredResults.filter(r => r.is_complete).map((r) => r.average_score), 0).toFixed(1)}%
                             </p>
                         </div>
                     </div>
@@ -1280,16 +1283,20 @@ export default function ResultsTab({ classId, className, students, schoolId }: R
                                                 )}
                                             </td>
                                             <td className="p-3 text-center">
-                                                {result.has_results ? (
+                                                {result.has_results && result.is_complete ? (
                                                     <span className="font-semibold">
                                                         {result.average_score.toFixed(1)}%
                                                     </span>
+                                                ) : result.has_results ? (
+                                                    <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-xs font-medium">
+                                                        Incomplete
+                                                    </Badge>
                                                 ) : (
                                                     <span className="text-muted-foreground">—</span>
                                                 )}
                                             </td>
                                             <td className="p-3 text-center">
-                                                {result.has_results ? (
+                                                {result.has_results && result.is_complete ? (
                                                     <span className="text-green-600 font-medium">
                                                         {result.highest_score.toFixed(0)}
                                                     </span>
@@ -1298,7 +1305,7 @@ export default function ResultsTab({ classId, className, students, schoolId }: R
                                                 )}
                                             </td>
                                             <td className="p-3 text-center">
-                                                {result.has_results ? (
+                                                {result.has_results && result.is_complete ? (
                                                     <span className="text-orange-600 font-medium">
                                                         {result.lowest_score.toFixed(0)}
                                                     </span>
@@ -1307,7 +1314,7 @@ export default function ResultsTab({ classId, className, students, schoolId }: R
                                                 )}
                                             </td>
                                             <td className="p-3 text-center">
-                                                {result.has_results ? (
+                                                {result.has_results && result.is_complete ? (
                                                     <div className="flex items-center justify-center gap-1">
                                                         <PerformanceIcon className={`h-4 w-4 ${performance.color}`} />
                                                         <span className={`text-xs ${performance.color}`}>
@@ -1319,7 +1326,7 @@ export default function ResultsTab({ classId, className, students, schoolId }: R
                                                 )}
                                             </td>
                                             <td className="p-3 text-center">
-                                                {result.has_results ? (
+                                                {result.has_results && result.is_complete ? (
                                                     <Badge
                                                         variant="outline"
                                                         className={`text-sm font-bold ${getGradeColor(result.average_grade)}`}
@@ -1331,7 +1338,7 @@ export default function ResultsTab({ classId, className, students, schoolId }: R
                                                 )}
                                             </td>
                                             <td className="p-3 text-center">
-                                                {result.class_position ? (
+                                                {result.class_position && result.is_complete ? (
                                                     getPositionDisplay(result.class_position)
                                                 ) : (
                                                     <span className="text-muted-foreground">—</span>

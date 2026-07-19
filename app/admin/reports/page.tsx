@@ -977,17 +977,19 @@ export default function AdminReportsPage() {
                 <StatCard
                   title="Class Average"
                   value={`${(
-                    filteredResults.reduce((sum, r) => sum + r.average_score, 0) /
-                    filteredResults.filter(r => r.has_results).length || 0
+                    filteredResults.filter(r => r.is_complete).reduce((sum, r) => sum + r.average_score, 0) /
+                    (filteredResults.filter(r => r.is_complete).length || 1) || 0
                   ).toFixed(1)}%`}
                   icon={GraduationCap}
                   color="text-indigo-600"
+                  subtitle={`based on ${filteredResults.filter(r => r.is_complete).length} of ${filteredResults.filter(r => r.has_results).length} complete students`}
                 />
                 <StatCard
                   title="Highest Avg"
-                  value={`${Math.max(...filteredResults.map(r => r.average_score), 0).toFixed(1)}%`}
+                  value={`${Math.max(...filteredResults.filter(r => r.is_complete).map(r => r.average_score), 0).toFixed(1)}%`}
                   icon={TrendingUp}
                   color="text-green-600"
+                  subtitle={filteredResults.filter(r => !r.is_complete && r.has_results).length > 0 ? `${filteredResults.filter(r => !r.is_complete && r.has_results).length} incomplete excluded` : undefined}
                 />
                 <StatCard
                   title="✅ Complete"
@@ -1283,28 +1285,32 @@ export default function AdminReportsPage() {
                                 )}
                               </td>
                               <td className="p-3 text-center">
-                                {r.has_results ? (
+                                {r.has_results && r.is_complete ? (
                                   <span className="font-bold text-slate-800">{r.average_score.toFixed(1)}%</span>
+                                ) : r.has_results ? (
+                                  <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-xs font-medium">
+                                    Incomplete
+                                  </Badge>
                                 ) : (
                                   <span className="text-slate-300">—</span>
                                 )}
                               </td>
                               <td className="p-3 text-center">
-                                {r.has_results ? (
+                                {r.has_results && r.is_complete ? (
                                   <span className="text-green-600 font-medium">{r.highest_score.toFixed(0)}</span>
                                 ) : (
                                   <span className="text-slate-300">—</span>
                                 )}
                               </td>
                               <td className="p-3 text-center">
-                                {r.has_results ? (
+                                {r.has_results && r.is_complete ? (
                                   <span className="text-orange-600 font-medium">{r.lowest_score.toFixed(0)}</span>
                                 ) : (
                                   <span className="text-slate-300">—</span>
                                 )}
                               </td>
                               <td className="p-3 text-center">
-                                {r.has_results ? (
+                                {r.has_results && r.is_complete ? (
                                   <div className="flex items-center justify-center gap-1">
                                     <PerfIcon className={`h-4 w-4 ${perf.color}`} />
                                     <span className={`text-xs font-medium ${perf.color}`}>{perf.label}</span>
@@ -1314,7 +1320,7 @@ export default function AdminReportsPage() {
                                 )}
                               </td>
                               <td className="p-3 text-center">
-                                {r.has_results ? (
+                                {r.has_results && r.is_complete ? (
                                   <Badge variant="outline" className={`text-sm font-bold ${getGradeColor(r.average_grade)}`}>
                                     {r.average_grade}
                                   </Badge>
@@ -1324,7 +1330,7 @@ export default function AdminReportsPage() {
                               </td>
                               {showPositionSetting && (
                                 <td className="p-3 text-center">
-                                  {r.class_position ? (
+                                  {r.class_position && r.is_complete ? (
                                     getPositionDisplay(r.class_position)
                                   ) : (
                                     <span className="text-slate-300">—</span>

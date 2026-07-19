@@ -120,6 +120,16 @@ async function calculateStudentEligibility(
   promotionSettings: any,
   summariesByTerm?: Map<string, any>  // term_id → stored summary (source of truth)
 ) {
+  // Check if the student has complete summaries for all terms
+  let allTermsComplete = true;
+  if (summariesByTerm) {
+    terms?.forEach((term) => {
+      const summary = summariesByTerm.get(term.id);
+      if (!summary || !summary.is_complete) {
+        allTermsComplete = false;
+      }
+    });
+  }
   const currentClassSubjects = subjectClasses?.filter(
     (sc) => sc.class_id === student.class_id
   ) || [];
@@ -209,7 +219,8 @@ async function calculateStudentEligibility(
     cumulative_average: cumulativeAverage,
     is_eligible: isEligible,
     is_graduating: isGraduating,
-    needs_manual_review: !isEligible && termsWithResults > 0,
+    is_all_terms_complete: allTermsComplete,
+    needs_manual_review: !allTermsComplete || (!isEligible && termsWithResults > 0),
     term_averages: termAverages,
   };
 }

@@ -349,16 +349,7 @@ export default function ResultEntry({
         }
       }
 
-      // 2. Class
-      let classQuery = supabase
-        .from("classes")
-        .select("*")
-        .eq("id", studentData.class_id);
-
-      if (schoolId) {
-        classQuery = classQuery.eq("school_id", schoolId);
-      }
-
+      // 2. Session & Term (load separately from class so we can resolve class_history first)
       let sessionQuery = supabase
         .from("sessions")
         .select("*");
@@ -371,11 +362,52 @@ export default function ResultEntry({
       termQuery = termId ? termQuery.eq("id", termId) : termQuery.eq("is_current", true);
       if (schoolId) termQuery = termQuery.eq("school_id", schoolId);
 
-      const [{ data: classData }, { data: sessionData }, { data: termData }] = await Promise.all([
-        classQuery.maybeSingle(),
+      const [{ data: sessionData }, { data: termData }] = await Promise.all([
         sessionQuery.maybeSingle(),
         termQuery.maybeSingle(),
       ]);
+
+      if (!sessionData || !termData) {
+        toast.error("No active session or term");
+        setIsLoading(false);
+        return;
+      }
+
+      setSession(sessionData);
+      setTerm(termData);
+
+      // 2.5 Resolve the correct class for this session via class_history
+      // This ensures that viewing a past session shows subjects from THAT class
+      // (the student may have moved to a different class in a later session)
+      let effectiveClassId = studentData.class_id;
+      if (sessionData) {
+        const { data: classHistoryData } = await supabase
+          .from("class_history")
+          .select("class_id")
+          .eq("student_id", studentId)
+          .eq("session_id", sessionData.id)
+          .maybeSingle();
+
+        if (classHistoryData) {
+          effectiveClassId = classHistoryData.class_id;
+        }
+      }
+
+      // Determine whether we're viewing a historical (past) session
+      // This helps us decide whether to apply current department/religion filters
+      const isHistoricalSession = effectiveClassId !== studentData.class_id;
+
+      // 3. Load class data with the resolved class_id
+      let classQuery = supabase
+        .from("classes")
+        .select("*")
+        .eq("id", effectiveClassId);
+
+      if (schoolId) {
+        classQuery = classQuery.eq("school_id", schoolId);
+      }
+
+      const { data: classData } = await classQuery.maybeSingle();
 
       if (classData) {
         setStudentClass(classData);
@@ -397,21 +429,12 @@ export default function ResultEntry({
         }
       }
 
-      if (!sessionData || !termData) {
-        toast.error("No active session or term");
-        setIsLoading(false);
-        return;
-      }
-
-      setSession(sessionData);
-      setTerm(termData);
-
       // 3.5 Load publication settings (for students and parents)
       if (role === 'student' || role === 'parent') {
         let pubQuery = supabase
           .from("results_publication")
           .select("*")
-          .eq("class_id", studentData.class_id)
+          .eq("class_id", effectiveClassId)
           .eq("session_id", sessionData.id)
           .eq("term_id", termData!.id);
 
@@ -438,7 +461,7 @@ export default function ResultEntry({
         setIsPublished(true);
       }
 
-      // 4. Load subject_classes for this student's class
+      // 4. Load subject_classes for this student's class (using the session-resolved class_id)
       let scQuery = supabase
         .from("subject_classes")
         .select(`
@@ -453,29 +476,53 @@ export default function ResultEntry({
           subjects:subject_id(id, name),
           teachers:teacher_id(id, first_name, last_name)
         `)
-        .eq("class_id", studentData.class_id);
+        .eq("class_id", effectiveClassId);
 
       if (schoolId) {
         scQuery = scQuery.eq("school_id", schoolId);
       }
 
-      let optQuery = supabase
+      // Build optional subject queries in parallel with subject_classes
+      // Supports both legacy (NULL session_id) and session-tracked records
+      // Note: Supabase .eq() is immutable — always reassign the builder
+      let allOptQuery = supabase
         .from("student_optional_subjects")
         .select("subject_id")
         .eq("student_id", studentId);
 
       if (schoolId) {
-        optQuery = optQuery.eq("school_id", schoolId);
+        allOptQuery = allOptQuery.eq("school_id", schoolId);
       }
 
-      const [{ data: subjectClasses, error: scError }, { data: optionalSubjectRows }] = await Promise.all([
-        scQuery,
-        optQuery,
-      ]);
+      const queries = [scQuery, allOptQuery];
 
-      const optionalSubjectIds = (optionalSubjectRows || [])
+      // For historical sessions, also query session-specific optional enrollment
+      if (sessionData && isHistoricalSession) {
+        let sessionOptQuery = supabase
+          .from("student_optional_subjects")
+          .select("subject_id")
+          .eq("student_id", studentId);
+
+        if (schoolId) {
+          sessionOptQuery = sessionOptQuery.eq("school_id", schoolId);
+        }
+
+        sessionOptQuery = sessionOptQuery.eq("session_id", sessionData.id);
+        queries.push(sessionOptQuery);
+      }
+
+      const allResults = await Promise.all(queries);
+
+      // Index 0 = subject_classes, 1 = all optional, 2 = session-specific (if present)
+      const { data: subjectClasses, error: scError } = allResults[0];
+      const allOptRows = allResults[1]?.data || [];
+      const sessionOptRows = allResults.length > 2 ? (allResults[2]?.data || []) : [];
+
+      // Use session-specific optional subjects if available, otherwise fall back to all
+      const effectiveOptRows = sessionOptRows.length > 0 ? sessionOptRows : allOptRows;
+      const optionalSubjectIds = effectiveOptRows
         .map((row: { subject_id: string }) => row.subject_id)
-        .filter((row: string) => row);
+        .filter((id: string) => id);
 
       if (scError || !subjectClasses || subjectClasses.length === 0) {
         toast.error("No subjects assigned to this class");
@@ -490,6 +537,13 @@ export default function ResultEntry({
         // If subject is optional, only show if student is enrolled
         if (sc.is_optional) {
           return optionalSubjectIds.includes(subject.id);
+        }
+        
+        // For historical sessions (where the student's class or department may have changed),
+        // skip department and religion filtering — show all compulsory subjects for that class.
+        // The existing results (if any) will determine which subjects actually had scores.
+        if (isHistoricalSession) {
+          return true;
         }
         
         // For compulsory subjects, apply department and religion filters
@@ -1143,7 +1197,7 @@ export default function ResultEntry({
           .upsert({
             school_id: effectiveSchoolId,
             student_id: student.id,
-            class_id: student.class_id,
+            class_id: studentClass?.id || student.class_id,
             session_id: session.id,
             term_id: term.id,
             total_subjects: totalSubjects,

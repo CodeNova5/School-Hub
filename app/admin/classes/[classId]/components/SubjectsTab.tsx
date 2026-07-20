@@ -69,6 +69,8 @@ interface SubjectsTabProps {
   onDeleteSubject: (subjectClassId: string) => void;
   onRefresh: () => void;
   schoolId?: string | null;
+  sessionId?: string | null;
+  termId?: string | null;
 }
 
 export function SubjectsTab({
@@ -81,6 +83,8 @@ export function SubjectsTab({
   onDeleteSubject,
   onRefresh,
   schoolId,
+  sessionId,
+  termId,
 }: SubjectsTabProps) {
   const router = useRouter();
   const [search, setSearch] = useState("");
@@ -237,23 +241,36 @@ export function SubjectsTab({
 
     try {
       if (shouldEnroll) {
+        const insertPayload: Record<string, any> = {
+          student_id: studentId,
+          subject_id: managingSubjectClass.subject.id,
+        };
+
+        // Include session/term context for historical tracking (termly storage)
+        if (sessionId) insertPayload.session_id = sessionId;
+        if (termId) insertPayload.term_id = termId;
+
         const { error } = await supabase
           .from("student_optional_subjects")
-          .insert({
-            student_id: studentId,
-            subject_id: managingSubjectClass.subject.id,
-          });
+          .insert(insertPayload);
 
         if (error) throw error;
 
         setEnrolledStudentIds((prev) => [...prev, studentId]);
         toast.success("Student enrolled");
       } else {
-        const { error } = await supabase
+        // Note: Supabase .eq() is immutable — always reassign
+        let deleteQuery = supabase
           .from("student_optional_subjects")
           .delete()
           .eq("student_id", studentId)
           .eq("subject_id", managingSubjectClass.subject.id);
+
+        // Scope deletion to current session/term when available
+        if (sessionId) deleteQuery = deleteQuery.eq("session_id", sessionId);
+        if (termId) deleteQuery = deleteQuery.eq("term_id", termId);
+
+        const { error } = await deleteQuery;
 
         if (error) throw error;
 

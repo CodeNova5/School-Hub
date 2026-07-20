@@ -6,17 +6,25 @@ import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Loader2, Save, BookOpen, CheckCircle2, Circle, GraduationCap, Edit3 } from "lucide-react";
+import { ArrowLeft, Loader2, Save, BookOpen, CheckCircle2, Circle, GraduationCap, Edit3, CalendarDays } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useSchoolContext } from "@/hooks/use-school-context";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Session, Term } from "@/lib/types";
 
 interface Subject {
   is_optional: any;
@@ -77,12 +85,58 @@ export default function StudentSubjectsPage() {
   const [newDepartmentId, setNewDepartmentId] = useState<string>("");
   const [availableDepartments, setAvailableDepartments] = useState<Department[]>([]);
   const [isChangingDepartment, setIsChangingDepartment] = useState(false);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [terms, setTerms] = useState<Term[]>([]);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [selectedTermId, setSelectedTermId] = useState<string | null>(null);
 
   useEffect(() => {
     if (schoolId && studentId) {
+      loadSessionsAndTerms();
       loadStudentData();
     }
   }, [schoolId, studentId]);
+
+  // When session changes, auto-select a valid term
+  useEffect(() => {
+    if (selectedSessionId) {
+      const sessionTerms = terms.filter(t => t.session_id === selectedSessionId);
+      if (sessionTerms.length > 0) {
+        const isValid = selectedTermId && sessionTerms.some(t => t.id === selectedTermId);
+        if (!isValid) {
+          const currentTerm = sessionTerms.find(t => t.is_current);
+          setSelectedTermId(currentTerm?.id || sessionTerms[0].id);
+        }
+      } else {
+        setSelectedTermId(null);
+      }
+    }
+  }, [selectedSessionId, terms, selectedTermId]);
+
+  // Reload student subjects when session/term changes
+  useEffect(() => {
+    if (studentId && selectedSessionId && selectedTermId && availableSubjects.length > 0) {
+      loadStudentSubjects();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSessionId, selectedTermId, studentId]);
+
+  async function loadSessionsAndTerms() {
+    if (!schoolId) return;
+    const [{ data: sessionsData }, { data: termsData }] = await Promise.all([
+      supabase.from("sessions").select("*").eq("school_id", schoolId).order("name", { ascending: false }),
+      supabase.from("terms").select("*").eq("school_id", schoolId).order("start_date", { ascending: false }),
+    ]);
+
+    setSessions(sessionsData || []);
+    setTerms(termsData || []);
+
+    // Auto-select current session and term
+    const currentSession = sessionsData?.find((s: any) => s.is_current);
+    const currentTerm = termsData?.find((t: any) => t.is_current);
+    if (currentSession) setSelectedSessionId(currentSession.id);
+    if (currentTerm) setSelectedTermId(currentTerm.id);
+  }
 
   async function loadStudentData() {
     setLoading(true);
@@ -224,28 +278,19 @@ export default function StudentSubjectsPage() {
       
       setAvailableSubjects(mappedSubjects);
 
-      // Fetch student's current subjects from student_subjects table
-      const { data: studentSubjectsData, error: studentSubjectsError } = await supabase
-        .from("student_subjects")
-        .select("subject_class_id")
-        .eq("student_id", studentId);
+      // Load student_subjects for the selected session/term (or legacy unfiltered)
+      await loadStudentSubjects();
 
-      if (studentSubjectsError) {
-        console.error("Error fetching student subjects:", studentSubjectsError);
-      } else {
-        const subjectClassIds = new Set<string>(
-          studentSubjectsData?.map((ss: any) => ss.subject_class_id) || []
-        );
-        
-        // Automatically select all compulsory subjects
+      // Auto-select all compulsory subjects (even if not in student_subjects for this term)
+      setSelectedSubjects(prev => {
+        const updated = new Set(prev);
         mappedSubjects.forEach((sc: any) => {
           if (!sc.is_optional) {
-            subjectClassIds.add(sc.id);
+            updated.add(sc.id);
           }
         });
-        
-        setSelectedSubjects(subjectClassIds);
-      }
+        return updated;
+      });
     } catch (error) {
       console.error("Error loading student data:", error);
       toast.error("Failed to load student data");
@@ -254,25 +299,80 @@ export default function StudentSubjectsPage() {
     }
   }
 
+  async function loadStudentSubjects() {
+    if (!schoolId || !studentId) return;
+
+    let subjectsQuery = supabase
+      .from("student_subjects")
+      .select("subject_class_id")
+      .eq("student_id", studentId);
+
+    // If session/term selected, filter by those (session+term tracked records)
+    if (selectedSessionId) {
+      subjectsQuery = subjectsQuery.eq("session_id", selectedSessionId);
+    }
+    if (selectedTermId) {
+      subjectsQuery = subjectsQuery.eq("term_id", selectedTermId);
+    }
+
+    const { data: studentSubjectsData, error: studentSubjectsError } = await subjectsQuery;
+
+    if (studentSubjectsError) {
+      console.error("Error fetching student subjects:", studentSubjectsError);
+      return;
+    }
+
+    const subjectClassIds = new Set<string>(
+      studentSubjectsData?.map((ss: any) => ss.subject_class_id) || []
+    );
+    setSelectedSubjects(subjectClassIds);
+
+    // If no results with session/term filter, try legacy fallback (no filter)
+    if (studentSubjectsData?.length === 0 && selectedSessionId) {
+      const { data: legacyData } = await supabase
+        .from("student_subjects")
+        .select("subject_class_id")
+        .eq("student_id", studentId)
+        .is("session_id", null);
+
+      if (legacyData && legacyData.length > 0) {
+        setSelectedSubjects(new Set(legacyData.map((ss: any) => ss.subject_class_id)));
+      }
+    }
+  }
+
   async function handleSaveSubjects() {
+    if (!selectedSessionId || !selectedTermId) {
+      toast.error("Please select a session and term");
+      return;
+    }
     setSaving(true);
     try {
-      // Delete all existing student_subjects for this student
-      const { error: deleteError } = await supabase
+      // Delete existing student_subjects for this student + session/term
+      let deleteQuery = supabase
         .from("student_subjects")
         .delete()
-        .eq("student_id", studentId);
+        .eq("student_id", studentId)
+        .eq("session_id", selectedSessionId);
+
+      if (selectedTermId) {
+        deleteQuery = deleteQuery.eq("term_id", selectedTermId);
+      }
+
+      const { error: deleteError } = await deleteQuery;
 
       if (deleteError) {
         throw deleteError;
       }
 
-      // Insert new student_subjects
+      // Insert new student_subjects with session/term context for termly tracking
       if (selectedSubjects.size > 0) {
         const studentSubjectsToInsert = Array.from(selectedSubjects).map(
           (subjectClassId) => ({
             student_id: studentId,
             subject_class_id: subjectClassId,
+            session_id: selectedSessionId,
+            term_id: selectedTermId,
           })
         );
 
@@ -464,7 +564,7 @@ export default function StudentSubjectsPage() {
                 </div>
               )}
             </div>
-            <Button onClick={handleSaveSubjects} disabled={saving} size="lg" className="shadow-md">
+            <Button onClick={handleSaveSubjects} disabled={saving || !selectedSessionId || !selectedTermId} size="lg" className="shadow-md">
               {saving ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -478,6 +578,61 @@ export default function StudentSubjectsPage() {
               )}
             </Button>
           </div>
+        </div>
+
+        {/* Session and Term Filters */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
+          <div className="space-y-2">
+            <label className="text-sm font-medium flex items-center gap-2">
+              <CalendarDays className="h-4 w-4" />
+              Session
+            </label>
+            <Select
+              value={selectedSessionId || ""}
+              onValueChange={(val) => setSelectedSessionId(val)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select session" />
+              </SelectTrigger>
+              <SelectContent>
+                {sessions.map((session) => (
+                  <SelectItem key={session.id} value={session.id}>
+                    {session.name} {session.is_current && "(Current)"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Term</label>
+            <Select
+              value={selectedTermId || ""}
+              onValueChange={(val) => setSelectedTermId(val)}
+              disabled={!selectedSessionId}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={selectedSessionId ? "Select term" : "Select session first"} />
+              </SelectTrigger>
+              <SelectContent>
+                {terms
+                  .filter(term => term.session_id === selectedSessionId)
+                  .map((term) => (
+                    <SelectItem key={term.id} value={term.id}>
+                      {term.name} {term.is_current && "(Current)"}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {selectedSessionId && selectedTermId && (
+            <div className="md:col-span-2 flex items-center gap-2 text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950/20 px-3 py-2 rounded-md border border-blue-200">
+              <CalendarDays className="h-3.5 w-3.5 text-blue-500" />
+              Managing subjects for:
+              <span className="font-semibold text-blue-700 dark:text-blue-400">
+                {sessions.find(s => s.id === selectedSessionId)?.name} — {terms.find(t => t.id === selectedTermId)?.name}
+              </span>
+            </div>
+          )}
         </div>
 
          {/* Summary */}

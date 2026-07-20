@@ -343,11 +343,16 @@ export default function SubjectResultEntryPage() {
       const now = Date.now();
       let optionalSubjectIds: string[] = [];
       if (subjectClass.is_optional) {
-        const { data: optionalSubjectRows } = await supabase
+        let optQuery = supabase
           .from('student_optional_subjects')
           .select('student_id')
           .eq('subject_id', subjectClass.subject_id)
           .eq('school_id', schoolId);
+
+        // The session/term data is loaded right after this block — but we need it here.
+        // Instead, we query optional subjects with no session filter first (backward compatible),
+        // then later override with session-specific records if available.
+        const { data: optionalSubjectRows } = await optQuery;
         optionalSubjectIds = (optionalSubjectRows || []).map((row: any) => row.student_id);
       }
 

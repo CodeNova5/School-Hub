@@ -31,8 +31,9 @@ CREATE TABLE IF NOT EXISTS student_subjects (
   school_id uuid REFERENCES schools(id) ON DELETE CASCADE,
   student_id uuid NOT NULL REFERENCES students(id) ON DELETE CASCADE,
   subject_class_id uuid NOT NULL REFERENCES subject_classes(id) ON DELETE CASCADE,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE(student_id, subject_class_id)
+  session_id uuid REFERENCES sessions(id) ON DELETE SET NULL,
+  term_id uuid REFERENCES terms(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS student_optional_subjects (
@@ -40,8 +41,9 @@ CREATE TABLE IF NOT EXISTS student_optional_subjects (
   school_id uuid REFERENCES schools(id) ON DELETE CASCADE,
   student_id uuid NOT NULL REFERENCES students(id) ON DELETE CASCADE,
   subject_id uuid NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE(student_id, subject_id)
+  session_id uuid REFERENCES sessions(id) ON DELETE SET NULL,
+  term_id uuid REFERENCES terms(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
 );
 
 -- -----------------------------------------------------------------------------
@@ -1018,9 +1020,31 @@ CREATE INDEX IF NOT EXISTS idx_subject_classes_is_optional ON subject_classes(is
 CREATE INDEX IF NOT EXISTS idx_student_subjects_school ON student_subjects(school_id);
 CREATE INDEX IF NOT EXISTS idx_student_subjects_student ON student_subjects(student_id);
 CREATE INDEX IF NOT EXISTS idx_student_subjects_subject_class ON student_subjects(subject_class_id);
+CREATE INDEX IF NOT EXISTS idx_student_subjects_session ON student_subjects(session_id);
+
+-- Enforce uniqueness for legacy records (NULL session_id) — one enrollment per student+subject_class
+CREATE UNIQUE INDEX IF NOT EXISTS idx_student_subjects_unique_nosession
+  ON student_subjects(student_id, subject_class_id)
+  WHERE session_id IS NULL;
+
+-- Enforce uniqueness for tracked records — one enrollment per student+subject_class+session+term
+CREATE UNIQUE INDEX IF NOT EXISTS idx_student_subjects_unique_session
+  ON student_subjects(student_id, subject_class_id, session_id, term_id)
+  WHERE session_id IS NOT NULL AND term_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_student_optional_subjects_school ON student_optional_subjects(school_id);
 CREATE INDEX IF NOT EXISTS idx_student_optional_subjects_student ON student_optional_subjects(student_id);
+CREATE INDEX IF NOT EXISTS idx_student_optional_subjects_session ON student_optional_subjects(session_id);
+
+-- Enforce uniqueness for old records (NULL session_id) — one enrollment per student+subject
+CREATE UNIQUE INDEX IF NOT EXISTS idx_student_optional_subjects_unique_nosession
+  ON student_optional_subjects(student_id, subject_id)
+  WHERE session_id IS NULL;
+
+-- Enforce uniqueness for new records (non-NULL session_id and term_id) — one enrollment per student+subject+session+term
+CREATE UNIQUE INDEX IF NOT EXISTS idx_student_optional_subjects_unique_session
+  ON student_optional_subjects(student_id, subject_id, session_id, term_id)
+  WHERE session_id IS NOT NULL AND term_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_attendance_school ON attendance(school_id);
 CREATE INDEX IF NOT EXISTS idx_attendance_class ON attendance(class_id);

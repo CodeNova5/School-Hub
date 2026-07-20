@@ -93,6 +93,14 @@ export default function ClassPage() {
   const [subjectsLoading, setSubjectsLoading] = useState(false);
   const [studentsLoading, setStudentsLoading] = useState(false);
 
+  // Compute the active session and term for optional subject management
+  const activeSessionId = classData?.session_id
+    || sessions.find(s => s.is_current)?.id
+    || null;
+  const activeTermId = terms.find(t => t.session_id === activeSessionId && t.is_current)?.id
+    || terms.find(t => t.session_id === activeSessionId)?.id
+    || null;
+
   const handleTabChange = (newTab: string) => {
     setActiveTab(newTab);
     // Silently update the URL so bookmarking works, without triggering a navigation
@@ -642,6 +650,8 @@ export default function ClassPage() {
               students={students}
               classId={classId}
               schoolId={schoolId}
+              sessionId={activeSessionId}
+              termId={activeTermId}
               onGenerateCodes={generateMissingSubjectCodes}
               onAssignTeacher={handleAssignTeacher}
               onDeleteSubject={deleteSubjectClass}

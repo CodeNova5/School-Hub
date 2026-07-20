@@ -5,7 +5,7 @@ This file groups the school operations that sit on top of the core tenancy model
 ## Tables
 - `subject_classes`
 - `student_subjects`
-- `student_optional_subjects`
+- `student_optional_subjects` (includes `session_id`/`term_id` for historical optional enrollment tracking)
 - `attendance`
 - `assignments`
 - `assignment_submissions`
@@ -99,3 +99,4 @@ This file groups the school operations that sit on top of the core tenancy model
 - `supabase/migrations/20260626_teacher_question_weekly_scheme.sql`
 - `supabase/migrations/20260701_add_school_motto_and_domain_ratings.sql`
 - `supabase/migrations/create_class_history_and_promotion.sql`
+- `supabase/migrations/add-session-term-to-optional-subjects.sql`

@@ -234,23 +234,49 @@ export default function AdminReportsPage() {
     }
   }, [selectedSessionId, terms]);
 
-  // ── Fetch students when class changes ──
+  // ── Fetch students when class or session changes ──
+  // Uses class_history to resolve which students were in the selected class
+  // during the selected session (for historical accuracy)
 
   useEffect(() => {
     if (schoolId && selectedClassId) {
       loadStudents();
     }
-  }, [schoolId, selectedClassId]);
+  }, [schoolId, selectedClassId, selectedSessionId]);
 
   async function loadStudents() {
     if (!schoolId || !selectedClassId) return;
     try {
-      const { data } = await supabase
+      let studentIds: string[] | null = null;
+
+      // If a session is selected, first try to find students via class_history
+      if (selectedSessionId) {
+        const { data: historyRows } = await supabase
+          .from("class_history")
+          .select("student_id")
+          .eq("school_id", schoolId)
+          .eq("class_id", selectedClassId)
+          .eq("session_id", selectedSessionId);
+
+        if (historyRows && historyRows.length > 0) {
+          studentIds = historyRows.map(r => r.student_id);
+        }
+      }
+
+      let query = supabase
         .from("students")
         .select("*")
-        .eq("school_id", schoolId)
-        .eq("class_id", selectedClassId)
-        .order("first_name", { ascending: true });
+        .eq("school_id", schoolId);
+
+      if (studentIds) {
+        // Found students via class_history — fetch their details by IDs
+        query = query.in("id", studentIds);
+      } else {
+        // Fallback: use current class_id (legacy data without class_history)
+        query = query.eq("class_id", selectedClassId);
+      }
+
+      const { data } = await query.order("first_name", { ascending: true });
 
       setStudents(data || []);
     } catch (err) {

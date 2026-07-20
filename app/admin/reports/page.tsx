@@ -259,7 +259,7 @@ export default function AdminReportsPage() {
           .eq("session_id", selectedSessionId);
 
         if (historyRows && historyRows.length > 0) {
-          studentIds = historyRows.map(r => r.student_id);
+          studentIds = historyRows.map((r: { student_id: string }) => r.student_id);
         }
       }
 

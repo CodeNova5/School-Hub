@@ -21,6 +21,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { SessionsSkeleton } from '@/components/skeletons';
 import { shiftDateByOneAcademicYear, getNextSessionName } from './utils/term-dates';
+import { canChangeTerm, canChangeSession } from '@/lib/publication-utils';
 
 // ─── Nigerian academic calendar defaults ───────────────────────────────────
 // Based on typical private school term patterns in Nigeria
@@ -757,6 +758,31 @@ export default function SessionsPage() {
     try {
       setIsLoading(true);
       setError(null);
+
+      const session = sessions.find(s => s.id === sessionId);
+      if (!session) { setIsLoading(false); return; }
+
+      // ── Guard: Check that all classes have completed promotions ──
+      const gate = await canChangeSession(supabase, {
+        schoolId: schoolId!,
+        sessionId: sessionId,
+        sessionName: session.name,
+      });
+
+      if (!gate.allowed) {
+        const detailLines = gate.details?.slice(0, 6) || [];
+        const summary = detailLines.map(d => `• ${d}`).join('\n');
+        const remaining = gate.details && gate.details.length > 6
+          ? `\n\n...and ${gate.details.length - 6} more class(es)`
+          : '';
+        
+        setError(
+          `${gate.reason}\n\n${summary}${remaining}\n\nPlease complete all promotions before changing the active session.`
+        );
+        setIsLoading(false);
+        return;
+      }
+
       await supabase.from('sessions').update({ is_current: false }).eq('school_id', schoolId);
       await supabase.from('sessions').update({ is_current: true }).eq('school_id', schoolId).eq('id', sessionId);
       setCurrentSessionId(sessionId);
@@ -773,17 +799,48 @@ export default function SessionsPage() {
     try {
       setIsLoading(true);
       setError(null);
-      const term = terms.find(t => t.id === termId);
-      if (term) {
-        const today = getCurrentDateStringWAT();
-        if (today < term.start_date || today > term.end_date) {
-          const confirmed = confirm(
-            `⚠️ Today (${formatDateLong(today)}) is not within this term's dates.\n\n` +
-            `Term: ${term.name}\nStart: ${formatDateLong(term.start_date)}\nEnd: ${formatDateLong(term.end_date)}\n\nSet as active anyway?`
+      
+      const targetTerm = terms.find(t => t.id === termId);
+      if (!targetTerm) { setIsLoading(false); return; }
+
+      // ── Guard: Check the CURRENT term's publication before switching ──
+      // When proceeding to the *next* term, the current term's report cards
+      // must be completed and published first. Setting a term as current when
+      // no term is currently active (first-time setup) is always allowed.
+      const currentTerm = terms.find(t => t.is_current);
+      if (currentTerm && currentTerm.id !== termId) {
+        const gate = await canChangeTerm(supabase, {
+          schoolId: schoolId!,
+          sessionId: currentTerm.session_id,
+          termId: currentTerm.id,
+          termName: currentTerm.name,
+        });
+
+        if (!gate.allowed) {
+          const detailLines = gate.details?.slice(0, 6) || [];
+          const summary = detailLines.map(d => `• ${d}`).join('\n');
+          const remaining = gate.details && gate.details.length > 6
+            ? `\n\n...and ${gate.details.length - 6} more class(es)`
+            : '';
+          
+          setError(
+            `${gate.reason}\n\n${summary}${remaining}\n\nPlease publish all report cards for the current term before switching to another term.`
           );
-          if (!confirmed) { setIsLoading(false); return; }
+          setIsLoading(false);
+          return;
         }
       }
+
+      // ── Date check warning ──
+      const today = getCurrentDateStringWAT();
+      if (today < targetTerm.start_date || today > targetTerm.end_date) {
+        const confirmed = confirm(
+          `⚠️ Today (${formatDateLong(today)}) is not within this term's dates.\n\n` +
+          `Term: ${targetTerm.name}\nStart: ${formatDateLong(targetTerm.start_date)}\nEnd: ${formatDateLong(targetTerm.end_date)}\n\nSet as active anyway?`
+        );
+        if (!confirmed) { setIsLoading(false); return; }
+      }
+
       await supabase.from('terms').update({ is_current: false }).eq('school_id', schoolId);
       await supabase.from('terms').update({ is_current: true }).eq('school_id', schoolId).eq('id', termId);
       await fetchTerms();

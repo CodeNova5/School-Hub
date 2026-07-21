@@ -36,6 +36,8 @@ import {
   Loader2,
   AlertCircle,
   Printer,
+  Globe,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -43,6 +45,7 @@ import { useSchoolContext } from "@/hooks/use-school-context";
 import { Session, Term, Student, Class } from "@/lib/types";
 import { resolveClassStudentsForSession } from "@/lib/class-history-utils";
 import { ResultsPublicationDialog } from "@/components/ResultsPublicationDialog";
+import { TermPublicationOverview } from "@/components/TermPublicationOverview";
 
 /* ── Types ── */
 
@@ -195,6 +198,7 @@ export default function AdminReportsPage() {
   const [showPositionSetting, setShowPositionSetting] = useState(true);
   const [isPublicationDialogOpen, setIsPublicationDialogOpen] = useState(false);
   const [subjectCompletion, setSubjectCompletion] = useState<SubjectCompletion[]>([]);
+  const [isPrintingAll, setIsPrintingAll] = useState(false);
 
   // ── Load initial data ──
 
@@ -777,6 +781,52 @@ export default function AdminReportsPage() {
     window.open(`/admin/students/${studentId}/report?session=${selectedSessionId}&term=${selectedTermId}`, "_blank");
   }
 
+  async function handlePrintAllReportCards() {
+    if (!selectedSessionId || !selectedTermId || !selectedClassId) return;
+    const ids = filteredResults.filter(r => r.has_results).map(r => r.student_id);
+    if (ids.length === 0) {
+      toast.error("No students with results to print");
+      return;
+    }
+    setIsPrintingAll(true);
+    try {
+      // Open each report card in a new window in rapid succession
+      // Using a short delay to avoid popup blockers
+      ids.forEach((studentId, i) => {
+        setTimeout(() => {
+          window.open(
+            `/admin/students/${studentId}/report?session=${selectedSessionId}&term=${selectedTermId}&print=true`,
+            "_blank"
+          );
+        }, i * 300);
+      });
+      toast.success(`Opening ${ids.length} report card(s) for printing`);
+    } finally {
+      setIsPrintingAll(false);
+    }
+  }
+
+  async function handleDownloadAllReportCards() {
+    if (!selectedSessionId || !selectedTermId || !selectedClassId) return;
+    const ids = filteredResults.filter(r => r.has_results).map(r => r.student_id);
+    if (ids.length === 0) {
+      toast.error("No students with results to download");
+      return;
+    }
+    setIsPrintingAll(true);
+    try {
+      ids.forEach((studentId) => {
+        window.open(
+          `/admin/students/${studentId}/report?session=${selectedSessionId}&term=${selectedTermId}&print=true`,
+          "_blank"
+        );
+      });
+      toast.success(`Opening ${ids.length} report card(s)`);
+    } finally {
+      setIsPrintingAll(false);
+    }
+  }
+
   // ── Render ──
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
@@ -978,7 +1028,31 @@ export default function AdminReportsPage() {
                   className="rounded-xl text-xs h-8"
                 >
                   <Eye className="h-3.5 w-3.5 mr-1" />
-                  Publish Results
+                  Publish
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handlePrintAllReportCards}
+                  disabled={loading || filteredResults.filter(r => r.has_results).length === 0}
+                  className="rounded-xl text-xs h-8 border-slate-300"
+                >
+                  {isPrintingAll ? (
+                    <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                  ) : (
+                    <Printer className="h-3.5 w-3.5 mr-1" />
+                  )}
+                  Print All
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleDownloadAllReportCards}
+                  disabled={loading || filteredResults.filter(r => r.has_results).length === 0}
+                  className="rounded-xl text-xs h-8 border-slate-300"
+                >
+                  <Download className="h-3.5 w-3.5 mr-1" />
+                  Download All
                 </Button>
                 {showPositionSetting && (
                   <Button
@@ -1473,6 +1547,22 @@ export default function AdminReportsPage() {
       </div>
 
       {/* Publication Dialog */}
+      {/* ── Term Publication Overview ── */}
+      {selectedSessionId && selectedTermId && (
+        <div className="animate-in fade-in slide-in-from-top-2 duration-500">
+          <TermPublicationOverview
+            supabase={supabase}
+            schoolId={schoolId}
+            sessionId={selectedSessionId}
+            termId={selectedTermId}
+            termName={terms.find(t => t.id === selectedTermId)?.name || ""}
+            onRefresh={() => {
+              fetchResults();
+            }}
+          />
+        </div>
+      )}
+
       <ResultsPublicationDialog
         isOpen={isPublicationDialogOpen}
         onClose={() => setIsPublicationDialogOpen(false)}

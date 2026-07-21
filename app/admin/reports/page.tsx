@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -166,6 +167,8 @@ function StatCard({ title, value, icon: Icon, color, subtitle }: {
 /* ── Main Page ── */
 
 export default function AdminReportsPage() {
+  const searchParams = useSearchParams();
+
   const { schoolId, isLoading: schoolLoading, error: schoolError } = useSchoolContext();
 
   // Data
@@ -217,6 +220,12 @@ export default function AdminReportsPage() {
       const currentTerm = termsRes.data?.find((t: any) => t.is_current);
       if (currentSession) setSelectedSessionId(currentSession.id);
       if (currentTerm) setSelectedTermId(currentTerm.id);
+
+      // Apply URL search params if present (from ResultsTab redirect)
+      const urlClassId = searchParams.get("classId");
+      if (urlClassId && classesRes.data?.some((c: any) => c.id === urlClassId)) {
+        setSelectedClassId(urlClassId);
+      }
     } catch (err) {
       console.error("Error loading metadata:", err);
     }

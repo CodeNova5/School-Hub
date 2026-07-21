@@ -40,6 +40,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useSchoolContext } from "@/hooks/use-school-context";
 import { Session, Term, Student, Class } from "@/lib/types";
+import { resolveClassStudentsForSession } from "@/lib/class-history-utils";
 import { ResultsPublicationDialog } from "@/components/ResultsPublicationDialog";
 
 /* ── Types ── */
@@ -253,15 +254,14 @@ export default function AdminReportsPage() {
 
       // If a session is selected, first try to find students via class_history
       if (selectedSessionId) {
-        const { data: historyRows } = await supabase
-          .from("class_history")
-          .select("student_id")
-          .eq("school_id", schoolId)
-          .eq("class_id", selectedClassId)
-          .eq("session_id", selectedSessionId);
+        const historyStudentIds = await resolveClassStudentsForSession(supabase, {
+          schoolId,
+          classId: selectedClassId,
+          sessionId: selectedSessionId,
+        });
 
-        if (historyRows && historyRows.length > 0) {
-          studentIds = historyRows.map((r: { student_id: string }) => r.student_id);
+        if (historyStudentIds.length > 0) {
+          studentIds = historyStudentIds;
         } else {
           // No class_history records — check whether this is a past session
           const selectedSession = sessions.find(s => s.id === selectedSessionId);

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import { Student, Class as ClassType, Session, Term } from "@/lib/types";
+import { resolveStudentClassForSession } from "@/lib/class-history-utils";
 import { toast } from "sonner";
 import ReportCardPreview from "@/components/ReportCardPreview";
 import { Save, Printer, Loader2, FileDown } from "lucide-react";
@@ -380,16 +381,15 @@ export default function ResultEntry({
       // This ensures that viewing a past session shows subjects from THAT class
       // (the student may have moved to a different class in a later session)
       let effectiveClassId = studentData.class_id;
-      if (sessionData) {
-        const { data: classHistoryData } = await supabase
-          .from("class_history")
-          .select("class_id")
-          .eq("student_id", studentId)
-          .eq("session_id", sessionData.id)
-          .maybeSingle();
+      if (sessionData && schoolId) {
+        const historyClassId = await resolveStudentClassForSession(supabase, {
+          schoolId,
+          studentId,
+          sessionId: sessionData.id,
+        });
 
-        if (classHistoryData) {
-          effectiveClassId = classHistoryData.class_id;
+        if (historyClassId) {
+          effectiveClassId = historyClassId;
         }
       }
 

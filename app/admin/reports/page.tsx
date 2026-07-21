@@ -236,7 +236,9 @@ export default function AdminReportsPage() {
 
   // ── Fetch students when class or session changes ──
   // Uses class_history to resolve which students were in the selected class
-  // during the selected session (for historical accuracy)
+  // during the selected session (for historical accuracy).
+  // For past sessions without class_history records, returns an empty list
+  // (current students should not appear in historical sessions).
 
   useEffect(() => {
     if (schoolId && selectedClassId) {
@@ -260,6 +262,19 @@ export default function AdminReportsPage() {
 
         if (historyRows && historyRows.length > 0) {
           studentIds = historyRows.map((r: { student_id: string }) => r.student_id);
+        } else {
+          // No class_history records — check whether this is a past session
+          const selectedSession = sessions.find(s => s.id === selectedSessionId);
+          const isCurrentSession = selectedSession?.is_current === true;
+
+          if (!isCurrentSession) {
+            // Past session with no class_history: no students to show.
+            // Current students would incorrectly appear via the class_id fallback.
+            setStudents([]);
+            return;
+          }
+          // Current session without class_history yet (promotions haven't run):
+          // fall through to the class_id fallback below.
         }
       }
 
@@ -272,7 +287,7 @@ export default function AdminReportsPage() {
         // Found students via class_history — fetch their details by IDs
         query = query.in("id", studentIds);
       } else {
-        // Fallback: use current class_id (legacy data without class_history)
+        // Fallback: use current class_id (for current session before promotions run)
         query = query.eq("class_id", selectedClassId);
       }
 

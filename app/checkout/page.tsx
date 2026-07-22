@@ -202,13 +202,13 @@ function CheckoutContent() {
     : "opacity-0 translate-y-6";
 
   const planColors = {
-    iconBg: planKey === "basic" ? "bg-green-100 dark:bg-green-900/30"
+    iconBg: planKey === "basic" ? "bg-emerald-100 dark:bg-emerald-900/30"
       : planKey === "pro" ? "bg-blue-100 dark:bg-blue-900/30"
       : "bg-purple-100 dark:bg-purple-900/30",
-    color: planKey === "basic" ? "text-green-600"
+    color: planKey === "basic" ? "text-emerald-600"
       : planKey === "pro" ? "text-blue-600"
       : "text-purple-600",
-    border: planKey === "basic" ? "border-green-200 dark:border-green-800"
+    border: planKey === "basic" ? "border-emerald-200 dark:border-emerald-800"
       : planKey === "pro" ? "border-blue-200 dark:border-blue-800"
       : "border-purple-200 dark:border-purple-800",
     buttonBg: planKey === "basic"

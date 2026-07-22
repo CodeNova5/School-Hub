@@ -48,6 +48,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       p_name: body.name ?? null,
       p_description: body.description ?? null,
       p_monthly_price: body.monthly_price != null ? Number(body.monthly_price) : null,
+      p_termly_price: body.termly_price != null ? Number(body.termly_price) : null,
       p_yearly_price: body.yearly_price != null ? Number(body.yearly_price) : null,
       p_is_active: body.is_active != null ? Boolean(body.is_active) : null,
       p_label_short: body.label_short ?? null,

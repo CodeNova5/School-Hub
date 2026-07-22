@@ -105,6 +105,68 @@ export function SessionPromotionReadiness({
     loadStatus();
   }, [loadStatus]);
 
+  // ── Advance to Next Session ──
+  const [showSessionAdvanceDialog, setShowSessionAdvanceDialog] = useState(false);
+  const [isAdvancingSession, setIsAdvancingSession] = useState(false);
+
+  // Find the next session chronologically (sorted by name ascending)
+  const nextSession = useMemo(() => {
+    if (!allSessions || allSessions.length === 0) return null;
+    const sorted = [...allSessions].sort((a, b) => a.name.localeCompare(b.name));
+    const currentIndex = sorted.findIndex((s) => s.id === sessionId);
+    if (currentIndex === -1 || currentIndex >= sorted.length - 1) return null;
+    return sorted[currentIndex + 1];
+  }, [allSessions, sessionId]);
+
+  async function handleAdvanceToNextSession() {
+    if (!nextSession) return;
+    setIsAdvancingSession(true);
+    try {
+      // Unset all sessions, then set the next session as current
+      await supabase
+        .from("sessions")
+        .update({ is_current: false })
+        .eq("school_id", schoolId);
+      await supabase
+        .from("sessions")
+        .update({ is_current: true })
+        .eq("school_id", schoolId)
+        .eq("id", nextSession.id);
+
+      // Also set the first term of the next session as current
+      const { data: nextSessionTerms } = await supabase
+        .from("terms")
+        .select("id")
+        .eq("school_id", schoolId)
+        .eq("session_id", nextSession.id)
+        .order("start_date", { ascending: true })
+        .limit(1);
+
+      if (nextSessionTerms && nextSessionTerms.length > 0) {
+        await supabase
+          .from("terms")
+          .update({ is_current: false })
+          .eq("school_id", schoolId);
+        await supabase
+          .from("terms")
+          .update({ is_current: true })
+          .eq("school_id", schoolId)
+          .eq("id", nextSessionTerms[0].id);
+      }
+
+      toast.success(
+        `Advanced to ${nextSession.name}! ${sessionName} is now closed and ${nextSession.name} is active.`,
+      );
+      setShowSessionAdvanceDialog(false);
+      onSessionChanged?.();
+    } catch (err) {
+      console.error("Error advancing session:", err);
+      toast.error("Failed to advance to the next session. Please try again.");
+    } finally {
+      setIsAdvancingSession(false);
+    }
+  }
+
   // ── Auto-promote remaining eligible students across all pending classes ──
 
   async function handleAutoPromoteAll() {
@@ -433,27 +495,182 @@ export function SessionPromotionReadiness({
             </div>
 
             {/* Footer summary */}
-            <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50 text-xs text-slate-400 flex items-center justify-between">
-              <span>
-                {status.completedClasses} of {status.totalClasses} classes completed
-              </span>
-              {status.isFullyPromoted ? (
-                <span className="flex items-center gap-1 text-green-600 font-medium">
-                  <Unlock className="h-3 w-3" />
-                  Session change is now allowed
+            <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50 text-xs text-slate-400">
+              <div className="flex items-center justify-between mb-2">
+                <span>
+                  {status.completedClasses} of {status.totalClasses} classes completed
                 </span>
-              ) : (
-                <span className="flex items-center gap-1 text-amber-600 font-medium">
-                  <Lock className="h-3 w-3" />
-                  Complete all promotions to enable session change
-                </span>
+                {status.isFullyPromoted ? (
+                  <span className="flex items-center gap-1 text-green-600 font-medium">
+                    <Unlock className="h-3 w-3" />
+                    Session change is now allowed
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-amber-600 font-medium">
+                    <Lock className="h-3 w-3" />
+                    Complete all promotions to enable session change
+                  </span>
+                )}
+              </div>
+
+              {/* ── Advance to Next Session CTA ── */}
+              {status.isFullyPromoted && nextSession && !nextSession.is_current && (
+                <div className="mt-3 rounded-xl border-2 border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 p-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                  <div className="flex items-start gap-3">
+                    <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                      <Sparkles className="h-5 w-5 text-green-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm text-green-800">
+                        🎉 All promotions complete for {sessionName}!
+                      </p>
+                      <p className="text-xs text-green-700 mt-0.5">
+                        You can now advance to{' '}
+                        <strong>{nextSession.name}</strong> to begin the next academic session.
+                      </p>
+                      <div className="flex items-center gap-2 mt-3">
+                        <Button
+                          size="sm"
+                          onClick={() => setShowSessionAdvanceDialog(true)}
+                          className="bg-green-600 hover:bg-green-700 text-white text-xs h-9 px-4 rounded-xl shadow-sm"
+                        >
+                          <ArrowRight className="h-4 w-4 mr-1.5" />
+                          Advance to {nextSession.name}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={loadStatus}
+                          className="text-xs h-9 px-3 rounded-xl border-green-200 text-green-700 hover:bg-green-50"
+                        >
+                          Refresh
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── No next session exists — guide to Sessions page ── */}
+              {status.isFullyPromoted && !nextSession && (
+                <div className="mt-3 rounded-xl border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                  <div className="flex items-start gap-3">
+                    <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                      <Calendar className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm text-blue-800">
+                        ✅ All promotions complete for {sessionName}!
+                      </p>
+                      <p className="text-xs text-blue-700 mt-0.5">
+                        The next session hasn't been created yet. Go to the{' '}
+                        <a
+                          href="/admin/sessions"
+                          className="font-semibold underline hover:text-blue-900"
+                        >
+                          Sessions page
+                        </a>{' '}
+                        to create the next session, then return here to activate it.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           </CardContent>
         )}
       </Card>
 
-      {/* ── Confirmation Dialog ── */}
+      {/* ── Session Advance Confirmation Dialog ── */}
+      <AlertDialog open={showSessionAdvanceDialog} onOpenChange={setShowSessionAdvanceDialog}>
+        <AlertDialogContent className="rounded-2xl max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-lg">
+              <ArrowRight className="h-5 w-5 text-green-600" />
+              Advance to {nextSession?.name || "Next Session"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3 pt-2">
+              <p>
+                This will <strong>close {sessionName}</strong> and set{' '}
+                <strong>{nextSession?.name || "the next session"}</strong> as the
+                active academic session.{' '}
+                {nextSession && (
+                  <>
+                    The <strong>first term</strong> of {nextSession.name} will be
+                    set as the active term.
+                  </>
+                )}
+              </p>
+
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                <strong>⚠️ Before continuing, confirm:</strong>
+                <ul className="list-disc list-inside mt-1 space-y-0.5">
+                  <li>All classes have completed promotions ✓</li>
+                  <li>
+                    No further promotions needed for {sessionName}
+                  </li>
+                  <li>
+                    {nextSession?.name || "The next session"} is ready for class setup
+                  </li>
+                  <li>Teachers are assigned to new classes in the next session</li>
+                </ul>
+              </div>
+
+              {/* Session comparison */}
+              {nextSession && (
+                <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-500">Closing:</span>
+                    <span className="font-semibold text-slate-700">{sessionName}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-500">Opening:</span>
+                    <span className="font-semibold text-green-700">{nextSession.name}</span>
+                  </div>
+                  {nextSession.start_date && (
+                    <div className="flex items-center justify-between text-xs text-slate-400">
+                      <span>Starts:</span>
+                      <span>{new Date(nextSession.start_date).toLocaleDateString()}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <p className="text-xs text-slate-400">
+                This action can be undone by setting a different active session on
+                the Sessions page.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="rounded-xl" disabled={isAdvancingSession}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleAdvanceToNextSession();
+              }}
+              disabled={isAdvancingSession}
+              className="rounded-xl bg-green-600 hover:bg-green-700 text-white"
+            >
+              {isAdvancingSession ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                  Advancing...
+                </>
+              ) : (
+                <>
+                  <ArrowRight className="h-4 w-4 mr-1.5" />
+                  Yes, Advance to {nextSession?.name}
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Auto-Promote Confirmation Dialog ── */}
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <AlertDialogContent className="max-w-lg">
           <AlertDialogHeader>

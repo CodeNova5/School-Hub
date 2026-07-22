@@ -826,11 +826,17 @@ export default function PromotionsPage() {
                   schoolId={schoolId!}
                   sessionId={selectedSessionId}
                   sessionName={sessions.find(s => s.id === selectedSessionId)?.name || ""}
+                  sessions={sessions}
                   onRefresh={fetchClassProgress}
                   onClassSelect={(classId, className) => {
                     setLoadingDestinationOptions(true);
                     setSelectedClass({ id: classId, name: className });
                     setPhase("mapping");
+                  }}
+                  onSessionChanged={() => {
+                    // Session changed (advanced to next), reload everything
+                    fetchSessions();
+                    fetchClassProgress();
                   }}
                 />
 

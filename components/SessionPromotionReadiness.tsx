@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -35,11 +35,14 @@ import {
   Zap,
   Globe,
   AlertTriangle,
+  Calendar,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSessionPromotionStatus } from "@/lib/publication-utils";
 import type { SessionPromotionSummary, PromotionProgress } from "@/lib/publication-utils";
+import type { Session } from "@/lib/types";
 
 /* ── Staggered delay helper ── */
 function delay(i: number) {
@@ -55,6 +58,10 @@ interface SessionPromotionReadinessProps {
   sessionName: string;
   onRefresh: () => void;
   onClassSelect: (classId: string, className: string) => void;
+  /** All sessions in the school (used to find the next session for advancing) */
+  sessions?: Session[];
+  /** Called after the session has been successfully changed */
+  onSessionChanged?: () => void;
 }
 
 /* ── Component ── */
@@ -66,6 +73,8 @@ export function SessionPromotionReadiness({
   sessionName,
   onRefresh,
   onClassSelect,
+  sessions: allSessions,
+  onSessionChanged,
 }: SessionPromotionReadinessProps) {
   const [status, setStatus] = useState<SessionPromotionSummary | null>(null);
   const [loading, setLoading] = useState(true);

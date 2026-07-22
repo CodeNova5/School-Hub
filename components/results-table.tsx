@@ -116,7 +116,7 @@ export function ResultsTable({ results, maxScorePerSubject = 100 }: ResultsTable
             </TableRow>
           </TableHeader>
           <TableBody>
-            {            processedResults.length === 0 ? (
+            {processedResults.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                   No results available for selected term

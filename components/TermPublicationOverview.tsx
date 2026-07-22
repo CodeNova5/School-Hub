@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -10,6 +10,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Eye,
   EyeOff,
@@ -24,11 +34,13 @@ import {
   ChevronUp,
   Globe,
   Lock,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getTermPublicationStatus } from "@/lib/publication-utils";
 import type { TermPublicationSummary, ClassPublicationStatus } from "@/lib/publication-utils";
+import type { Term } from "@/lib/types";
 
 // Staggered animation delay helper
 function delay(i: number) {
@@ -44,6 +56,10 @@ interface TermPublicationOverviewProps {
   termId: string;
   termName: string;
   onRefresh: () => void;
+  /** All terms in the school (used to find the next term for advancing) */
+  terms?: Term[];
+  /** Called after the term has been successfully changed */
+  onTermChanged?: () => void;
 }
 
 /* ── Component ── */
@@ -55,6 +71,8 @@ export function TermPublicationOverview({
   termId,
   termName,
   onRefresh,
+  terms: allTerms,
+  onTermChanged,
 }: TermPublicationOverviewProps) {
   const [status, setStatus] = useState<TermPublicationSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -91,6 +109,56 @@ export function TermPublicationOverview({
   useEffect(() => {
     loadStatus();
   }, [loadStatus]);
+
+  // ── Advance to Next Term ──
+  const [showAdvanceDialog, setShowAdvanceDialog] = useState(false);
+  const [isAdvancing, setIsAdvancing] = useState(false);
+
+  // Only allow advancing from the currently active term
+  const isCurrentTerm =
+    allTerms?.find((t: Term) => t.is_current)?.id === termId;
+
+  // Find the next term chronologically (only when fully published)
+  const nextTerm = useMemo(() => {
+    if (!allTerms || allTerms.length === 0) return null;
+    const sessionTerms = allTerms
+      .filter((t: Term) => t.session_id === sessionId)
+      .sort(
+        (a: Term, b: Term) =>
+          new Date(a.start_date).getTime() - new Date(b.start_date).getTime(),
+      );
+    const currentIndex = sessionTerms.findIndex((t: Term) => t.id === termId);
+    if (currentIndex === -1 || currentIndex >= sessionTerms.length - 1) return null;
+    return sessionTerms[currentIndex + 1];
+  }, [allTerms, sessionId, termId]);
+
+  async function handleAdvanceToNextTerm() {
+    if (!nextTerm) return;
+    setIsAdvancing(true);
+    try {
+      // Unset all terms, then set the next term as current
+      await supabase
+        .from("terms")
+        .update({ is_current: false })
+        .eq("school_id", schoolId);
+      await supabase
+        .from("terms")
+        .update({ is_current: true })
+        .eq("school_id", schoolId)
+        .eq("id", nextTerm.id);
+
+      toast.success(
+        `Advanced to ${nextTerm.name}! ${termName} is now closed and ${nextTerm.name} is active.`,
+      );
+      setShowAdvanceDialog(false);
+      onTermChanged?.();
+    } catch (err) {
+      console.error("Error advancing term:", err);
+      toast.error("Failed to advance to the next term. Please try again.");
+    } finally {
+      setIsAdvancing(false);
+    }
+  }
 
   // ── Bulk Publish ──
 
@@ -414,24 +482,148 @@ export function TermPublicationOverview({
           </div>
 
           {/* Footer summary */}
-          <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50 text-xs text-slate-400 flex items-center justify-between">
-            <span>
-              {status.publishedClasses} of {status.totalClasses} classes published
-            </span>
-            {status.isFullyPublished ? (
-              <span className="flex items-center gap-1 text-green-600 font-medium">
-                <CheckCircle2 className="h-3 w-3" />
-                All report cards are published for {termName}
+          <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50 text-xs text-slate-400">
+            <div className="flex items-center justify-between mb-2">
+              <span>
+                {status.publishedClasses} of {status.totalClasses} classes published
               </span>
-            ) : (
-              <span className="flex items-center gap-1 text-amber-600 font-medium">
-                <AlertCircle className="h-3 w-3" />
-                {pendingCount} class(es) still need publishing
-              </span>
+              {status.isFullyPublished ? (
+                <span className="flex items-center gap-1 text-green-600 font-medium">
+                  <CheckCircle2 className="h-3 w-3" />
+                  All report cards are published for {termName}
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-amber-600 font-medium">
+                  <AlertCircle className="h-3 w-3" />
+                  {pendingCount} class(es) still need publishing
+                </span>
+              )}
+            </div>
+
+            {/* ── Advance to Next Term CTA ── */}
+            {status.isFullyPublished && isCurrentTerm && nextTerm && !nextTerm.is_current && (
+              <div className="mt-3 rounded-xl border-2 border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 p-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                    <Sparkles className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm text-green-800">
+                      🎉 All report cards published for {termName}!
+                    </p>
+                    <p className="text-xs text-green-700 mt-0.5">
+                      You can now advance to{' '}
+                      <strong>{nextTerm.name}</strong> to begin the next academic period.
+                    </p>
+                    <div className="flex items-center gap-2 mt-3">
+                      <Button
+                        size="sm"
+                        onClick={() => setShowAdvanceDialog(true)}
+                        className="bg-green-600 hover:bg-green-700 text-white text-xs h-9 px-4 rounded-xl shadow-sm"
+                      >
+                        <ArrowRight className="h-4 w-4 mr-1.5" />
+                        Advance to {nextTerm.name}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={loadStatus}
+                        className="text-xs h-9 px-3 rounded-xl border-green-200 text-green-700 hover:bg-green-50"
+                      >
+                        Refresh
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Last term — no next term ── */}
+            {status.isFullyPublished && isCurrentTerm && !nextTerm && (
+              <div className="mt-3 rounded-xl border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm text-blue-800">
+                      ✅ {termName} fully published!
+                    </p>
+                    <p className="text-xs text-blue-700 mt-0.5">
+                      This is the last term in this session. To proceed, complete student promotions
+                      on the{' '}
+                      <a
+                        href="/admin/promotions"
+                        className="font-semibold underline hover:text-blue-900"
+                      >
+                        Promotions page
+                      </a>{' '}
+                      before changing to a new session.
+                    </p>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </CardContent>
       )}
+      {/* ── Advance Confirmation Dialog ── */}
+      <AlertDialog open={showAdvanceDialog} onOpenChange={setShowAdvanceDialog}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-lg">
+              <ArrowRight className="h-5 w-5 text-green-600" />
+              Advance to {nextTerm?.name || "Next Term"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3 pt-2">
+              <p>
+                This will <strong>close {termName}</strong> and set{' '}
+                <strong>{nextTerm?.name || "the next term"}</strong> as the
+                active term.
+              </p>
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                <strong>⚠️ Before continuing, confirm:</strong>
+                <ul className="list-disc list-inside mt-1 space-y-0.5">
+                  <li>All report cards are published ✓</li>
+                  <li>
+                    No further edits needed for {termName}
+                  </li>
+                  <li>Teachers are ready to start entering scores for {nextTerm?.name}</li>
+                </ul>
+              </div>
+              <p className="text-xs text-slate-400">
+                This action can be undone by setting a different active term on
+                the Sessions page.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="rounded-xl" disabled={isAdvancing}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleAdvanceToNextTerm();
+              }}
+              disabled={isAdvancing}
+              className="rounded-xl bg-green-600 hover:bg-green-700 text-white"
+            >
+              {isAdvancing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                  Advancing...
+                </>
+              ) : (
+                <>
+                  <ArrowRight className="h-4 w-4 mr-1.5" />
+                  Yes, Advance to {nextTerm?.name}
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

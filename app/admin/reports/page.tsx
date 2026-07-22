@@ -1556,8 +1556,13 @@ export default function AdminReportsPage() {
             sessionId={selectedSessionId}
             termId={selectedTermId}
             termName={terms.find(t => t.id === selectedTermId)?.name || ""}
+            terms={terms}
             onRefresh={() => {
               fetchResults();
+            }}
+            onTermChanged={() => {
+              // If the term changed (advanced to next), reload everything
+              loadMetadata();
             }}
           />
         </div>

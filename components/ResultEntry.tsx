@@ -742,11 +742,25 @@ export default function ResultEntry({
             }
 
             initialScores[idx] = merged;
-            const total = calculateTotalScore(initialScores[idx]);
-            const { grade, remark } = calculateGrade(initialScores[idx], total);
+            let total = calculateTotalScore(initialScores[idx]);
+            let { grade, remark } = calculateGrade(initialScores[idx], total);
+
+            // Safety fallback: if component scores are all 0 but the DB stored a
+            // non-zero total, use the stored values. This handles the case where
+            // result_component_scores rows were lost (e.g. due to a prior save bug).
+            if (total === 0 && Number(res.total) > 0) {
+              total = Number(res.total);
+              const maxScore = getSubjectMaxPossibleScore();
+              const percentage = maxScore > 0 ? (total / maxScore) * 100 : 0;
+              const fallbackGradeInfo = resolveGradeFromPercentage(percentage, configuredPassPercentage);
+              grade = fallbackGradeInfo.grade;
+              remark = fallbackGradeInfo.remark;
+            }
+
+            remark = res.remark || remark;
             initialScores[idx].total = total;
             initialScores[idx].grade = grade;
-            initialScores[idx].remark = res.remark || remark;
+            initialScores[idx].remark = remark;
 
             // Load stored is_subject_complete into overrides
             if (res.is_subject_complete !== undefined) {
@@ -1130,24 +1144,22 @@ export default function ResultEntry({
           const rowIds = rows.map((row) => row.id);
           const activeComponentKeys = activeComponents.map((component) => component.component_key);
 
-          let staleRowsQuery = supabase
+          // Delete ALL existing component scores for these result IDs
+          // then re-insert fresh ones below. Simpler than selectively deleting
+          // stale keys and avoids filter syntax issues.
+          let deleteScoresQuery = supabase
             .from("result_component_scores")
             .delete()
             .in("result_id", rowIds);
 
           if (effectiveSchoolId) {
-            staleRowsQuery = staleRowsQuery.eq("school_id", effectiveSchoolId);
+            deleteScoresQuery = deleteScoresQuery.eq("school_id", effectiveSchoolId);
           }
 
-          if (activeComponentKeys.length > 0) {
-            const activeKeysFilter = `(${activeComponentKeys.map((key) => `"${key}"`).join(",")})`;
-            staleRowsQuery = staleRowsQuery.not("component_key", "in", activeKeysFilter);
-          }
-
-          const { error: staleDeleteError } = await staleRowsQuery;
-          if (staleDeleteError) {
-            console.error("Error deleting stale component scores:", staleDeleteError);
-            toast.error(staleDeleteError.message || "Failed to clean up stale component scores");
+          const { error: deleteScoresError } = await deleteScoresQuery;
+          if (deleteScoresError) {
+            console.error("Error deleting existing component scores:", deleteScoresError);
+            toast.error("Failed to save component scores");
             return;
           }
 

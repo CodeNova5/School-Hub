@@ -71,6 +71,7 @@ import { Session } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import { useSchoolContext } from "@/hooks/use-school-context";
 import { DashboardLayout } from "@/components/dashboard-layout";
+import { SessionPromotionReadiness } from "@/components/SessionPromotionReadiness";
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -819,6 +820,20 @@ export default function PromotionsPage() {
             {/* PHASE 1: OVERVIEW & CLASS SELECTION */}
             {phase === "overview" && (
               <div className="space-y-6">
+                {/* Session Promotion Readiness Dashboard */}
+                <SessionPromotionReadiness
+                  supabase={supabase}
+                  schoolId={schoolId!}
+                  sessionId={selectedSessionId}
+                  sessionName={sessions.find(s => s.id === selectedSessionId)?.name || ""}
+                  onRefresh={fetchClassProgress}
+                  onClassSelect={(classId, className) => {
+                    setLoadingDestinationOptions(true);
+                    setSelectedClass({ id: classId, name: className });
+                    setPhase("mapping");
+                  }}
+                />
+
                 {/* Progress Summary */}
                 <Card>
                   <CardHeader>

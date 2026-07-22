@@ -32,6 +32,17 @@ export async function GET(req: NextRequest) {
       .eq("is_current", true)
       .single();
 
+    // Get the previous term for trend comparison
+    const { data: previousTerm } = await supabase
+      .from("terms")
+      .select("*")
+      .eq("school_id", schoolId)
+      .eq("session_id", currentSession?.id || "")
+      .order("start_date", { ascending: false })
+      .lt("start_date", currentTerm?.start_date || new Date().toISOString())
+      .limit(1)
+      .maybeSingle();
+
     // 1. Total Students (filtered by school)
     const { count: totalStudents } = await supabase
       .from("students")
@@ -200,6 +211,25 @@ export async function GET(req: NextRequest) {
       .eq("school_id", schoolId)
       .eq("status", "pending");
 
+    // 11b. Recent admissions (last 7 days) for trend comparison
+    const lastWeek = new Date();
+    lastWeek.setDate(lastWeek.getDate() - 7);
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+    
+    const { count: recentAdmissionsCount } = await supabase
+      .from("admissions")
+      .select("*", { count: "exact", head: true })
+      .eq("school_id", schoolId)
+      .gte("created_at", lastWeek.toISOString());
+    
+    const { count: previousWeekAdmissionsCount } = await supabase
+      .from("admissions")
+      .select("*", { count: "exact", head: true })
+      .eq("school_id", schoolId)
+      .gte("created_at", twoWeeksAgo.toISOString())
+      .lt("created_at", lastWeek.toISOString());
+
     // 12. Average Performance (current term, filtered by school)
     const { data: allResults } = await supabase
       .from("results")
@@ -221,6 +251,62 @@ export async function GET(req: NextRequest) {
         ? Math.round((passCount / allResults.length) * 100 * 10) / 10
         : 0;
 
+    // ─── Trend Calculations ──────────────────────────────────────────────────
+    
+    // Attendance trend: compare current term vs previous term
+    let previousAttendanceRate = 0;
+    if (previousTerm) {
+      const { data: prevAttendanceData } = await supabase
+        .from("attendance")
+        .select("status")
+        .eq("school_id", schoolId)
+        .eq("term_id", previousTerm.id);
+      
+      const prevTotal = prevAttendanceData?.length || 0;
+      const prevPresent = prevAttendanceData?.filter(
+        (a) => a.status === "present" || a.status === "late"
+      ).length || 0;
+      previousAttendanceRate = prevTotal > 0 ? (prevPresent / prevTotal) * 100 : 0;
+    }
+
+    // Student trend: compare current count vs count at start of current term
+    let previousStudentCount = totalStudents || 0;
+    if (currentTerm?.start_date) {
+      const { count: studentsAtTermStart } = await supabase
+        .from("students")
+        .select("*", { count: "exact", head: true })
+        .eq("school_id", schoolId)
+        .eq("status", "active")
+        .lte("created_at", currentTerm.start_date);
+      previousStudentCount = studentsAtTermStart || 0;
+    }
+
+    // Teacher trend: compare current count vs count at start of current term
+    let previousTeacherCount = totalTeachers || 0;
+    if (currentTerm?.start_date) {
+      const { count: teachersAtTermStart } = await supabase
+        .from("teachers")
+        .select("*", { count: "exact", head: true })
+        .eq("school_id", schoolId)
+        .eq("status", "active")
+        .lte("created_at", currentTerm.start_date);
+      previousTeacherCount = teachersAtTermStart || 0;
+    }
+
+    // Calculate trend percentages
+    const calculateTrend = (current: number, previous: number): number | null => {
+      if (previous === 0) return current > 0 ? 100 : null;
+      return Math.round(((current - previous) / previous) * 100 * 10) / 10;
+    };
+
+    const studentTrend = calculateTrend(totalStudents || 0, previousStudentCount);
+    const teacherTrend = calculateTrend(totalTeachers || 0, previousTeacherCount);
+    const attendanceTrend = calculateTrend(attendanceRate, previousAttendanceRate);
+    const admissionTrend = calculateTrend(
+      recentAdmissionsCount || 0,
+      previousWeekAdmissionsCount || 0
+    );
+
     return successResponse({
       stats: {
         totalStudents: totalStudents || 0,
@@ -231,6 +317,12 @@ export async function GET(req: NextRequest) {
         averagePerformance,
         passRate,
         pendingAdmissions: pendingAdmissions || 0,
+        trends: {
+          totalStudents: studentTrend,
+          totalTeachers: teacherTrend,
+          attendanceRate: attendanceTrend,
+          pendingAdmissions: admissionTrend,
+        },
       },
       classDistribution: classDistributionData,
       enrollmentTrend: last6Months,

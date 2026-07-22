@@ -40,6 +40,12 @@ interface DashboardData {
     averagePerformance: number;
     passRate: number;
     pendingAdmissions: number;
+    trends: {
+      totalStudents: number | null;
+      totalTeachers: number | null;
+      attendanceRate: number | null;
+      pendingAdmissions: number | null;
+    };
   };
   classDistribution: Array<{ name: string; value: number }>;
   enrollmentTrend: Array<{ month: string; students: number }>;
@@ -246,9 +252,10 @@ export default function AdminDashboard() {
             totalClasses: dashboardData.stats.totalClasses,
             attendanceRate: dashboardData.stats.attendanceRate,
             pendingAdmissions: dashboardData.stats.pendingAdmissions,
-            totalStudentsTrend: 8.5,
-            totalTeachersTrend: 5.2,
-            attendanceRateTrend: 3.6,
+            totalStudentsTrend: dashboardData.stats.trends?.totalStudents ?? null,
+            totalTeachersTrend: dashboardData.stats.trends?.totalTeachers ?? null,
+            attendanceRateTrend: dashboardData.stats.trends?.attendanceRate ?? null,
+            pendingAdmissionsTrend: dashboardData.stats.trends?.pendingAdmissions ?? null,
           }}
         />
 

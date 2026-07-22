@@ -98,10 +98,22 @@ interface QuickStatsProps {
     totalClasses: number;
     attendanceRate: number;
     pendingAdmissions: number;
-    totalStudentsTrend?: number;
-    totalTeachersTrend?: number;
-    attendanceRateTrend?: number;
+    totalStudentsTrend?: number | null;
+    totalTeachersTrend?: number | null;
+    attendanceRateTrend?: number | null;
+    pendingAdmissionsTrend?: number | null;
   };
+}
+
+interface StatCard {
+  title: string;
+  value: string;
+  trend: number | null | undefined;
+  trendLabel: string;
+  icon: React.ComponentType<{ className?: string }>;
+  iconBg: string;
+  iconColor: string;
+  onClick: () => void;
 }
 
 export function QuickStatsCards({ stats }: QuickStatsProps) {
@@ -151,8 +163,8 @@ export function QuickStatsCards({ stats }: QuickStatsProps) {
     {
       title: 'Pending Admissions',
       value: stats.pendingAdmissions.toLocaleString(),
-      trend: stats.pendingAdmissions > 0 ? -4 : undefined,
-      trendLabel: 'less than last week',
+      trend: stats.pendingAdmissionsTrend ?? undefined,
+      trendLabel: 'vs prev. week',
       icon: UserPlus,
       iconBg: 'bg-rose-100',
       iconColor: 'text-rose-600',
@@ -175,7 +187,7 @@ export function QuickStatsCards({ stats }: QuickStatsProps) {
                 <div className="flex-1">
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{card.title}</p>
                   <p className="text-2xl font-bold text-gray-900 mt-2">{card.value}</p>
-                  {card.trend !== undefined ? (
+                  {card.trend != null ? (
                     <div className="flex items-center gap-1 mt-2">
                       {card.trend > 0 ? (
                         <TrendingUp className="h-3 w-3 text-emerald-500" />
@@ -192,7 +204,7 @@ export function QuickStatsCards({ stats }: QuickStatsProps) {
                   ) : (
                     <div className="flex items-center gap-1 mt-2">
                       <Minus className="h-3 w-3 text-gray-400" />
-                      <span className="text-xs text-gray-500">{card.trendLabel}</span>
+                      <span className="text-xs text-gray-500">No previous data</span>
                     </div>
                   )}
                 </div>

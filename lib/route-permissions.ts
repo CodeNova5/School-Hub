@@ -172,6 +172,7 @@ const ADMIN_ROUTE_PERMISSIONS: RoutePermissionEntry[] = [
 
   // Payroll pages
   { pattern: "/admin/payroll", permission: "finance:read" },
+  { pattern: "/admin/payroll/settings", permission: "finance:read" },
 
   // Audit pages (not matched by /admin/audit since path uses hyphen)
   { pattern: "/admin/audit-logs", permission: "audit:read" },

@@ -20,7 +20,6 @@ import {
   ExternalLink,
   CreditCard,
   Search,
-  Calendar,
   Settings,
   Plus,
   Download,
@@ -151,6 +150,13 @@ export default function AdminPayrollPage() {
     new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })
   );
 
+  // Generate month options (last 12 months)
+  const monthOptions = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  });
+
   // Salary editing
   const [editingSalary, setEditingSalary] = useState<Record<string, string>>({});
   const [savingSalary, setSavingSalary] = useState<string | null>(null);
@@ -276,7 +282,25 @@ export default function AdminPayrollPage() {
     }
   };
 
-  // ── Computed values ──
+  // ── Parse selected month to filter payments ──
+  const parseSelectedMonth = (monthStr: string) => {
+    const d = new Date(monthStr + " 1");
+    return { month: d.getMonth(), year: d.getFullYear() };
+  };
+
+  const { month: selMonth, year: selYear } = parseSelectedMonth(selectedMonth);
+
+  // Payments filtered by selected month
+  const filteredPayments = payments.filter((p) => {
+    const d = new Date(p.paid_at || p.created_at);
+    return d.getMonth() === selMonth && d.getFullYear() === selYear;
+  });
+
+  // Paid payments for the selected month
+  const monthPaidPayments = filteredPayments.filter((p) => p.status === "success" || p.status === "paid");
+  const monthPendingPayments = filteredPayments.filter((p) => p.status === "pending");
+
+  // ── Computed values (based on selected month) ──
   const filteredTeachers = teachers.filter((t) =>
     `${t.first_name} ${t.last_name} ${t.staff_id} ${t.email}`.toLowerCase().includes(search.toLowerCase())
   );
@@ -284,15 +308,10 @@ export default function AdminPayrollPage() {
   const totalPayrollThisMonth = overview?.totalSalaryBudget || 0;
   const totalTeachers = overview?.totalActiveTeachers || 0;
   const averageSalary = totalTeachers > 0 ? totalPayrollThisMonth / totalTeachers : 0;
-  const paymentsThisMonth = payments.filter((p) => {
-    if (p.status !== "success" && p.status !== "paid") return false;
-    const d = new Date(p.paid_at || p.created_at);
-    const now = new Date();
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-  }).length;
+  const paymentsThisMonth = monthPaidPayments.length;
 
-  const paidTotal = overview?.totalPaid || 0;
-  const pendingTotal = overview?.pendingPayments || 0;
+  const paidTotal = monthPaidPayments.reduce((sum, p) => sum + p.amount, 0);
+  const pendingTotal = monthPendingPayments.reduce((sum, p) => sum + p.amount, 0);
   const otherDeductions = Math.max(0, totalPayrollThisMonth - paidTotal - pendingTotal);
 
   const donutData = [
@@ -301,9 +320,7 @@ export default function AdminPayrollPage() {
     { name: "Other Deductions", value: otherDeductions, fill: DONUT_CONFIG.deductions.color },
   ].filter((d) => d.value > 0);
 
-  const recentPaidPayments = payments
-    .filter((p) => p.status === "success" || p.status === "paid")
-    .slice(0, 5);
+  const recentPaidPayments = monthPaidPayments.slice(0, 5);
 
   // ── Render ──
   return (
@@ -426,8 +443,9 @@ export default function AdminPayrollPage() {
                           onChange={(e) => setSelectedMonth(e.target.value)}
                           className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-sky-400"
                         >
-                          <option>{new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}</option>
-                          <option>{new Date(Date.now() - 30 * 86400000).toLocaleDateString("en-US", { month: "long", year: "numeric" })}</option>
+                          {monthOptions.map((m) => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
                         </select>
                         <Button variant="outline" size="sm" className="rounded-xl gap-1.5">
                           <Download className="h-3.5 w-3.5" />

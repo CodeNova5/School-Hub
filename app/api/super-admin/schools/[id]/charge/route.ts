@@ -270,7 +270,7 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
       reference,
       gateway_response: chargeData.data?.gateway_response || chargeData.message,
       message: isSuccess
-        ? `Successfully charged ${school.name} ₦${(amount / 100).toLocaleString()}`
+        ? `Successfully charged ${school.name} ₦${amount.toLocaleString()}`
         : `Charge failed: ${chargeData.data?.gateway_response || chargeData.message}`,
     });
   } catch (err: any) {

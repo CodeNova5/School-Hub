@@ -8,6 +8,7 @@ import { SubscriptionGraceBanner } from '@/components/subscription-grace-banner'
 import { SubscriptionTermBanner } from '@/components/subscription-term-banner';
 import { SubscriptionHolidayBanner } from '@/components/subscription-holiday-banner';
 import { SubscriptionYearlyTimeline } from '@/components/subscription-yearly-timeline';
+import { StudentLimitBanner, type LimitInfo } from '@/components/student-limit-banner';
 import { Bell, GraduationCap, Plus, AlertCircle, UserPlus, FileText, Calendar } from 'lucide-react';
 import { OnboardingChecklist } from '@/components/onboarding-checklist';
 import { useRouter } from 'next/navigation';
@@ -60,15 +61,27 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [limitInfo, setLimitInfo] = useState<LimitInfo | null>(null);
   const { syncNotificationToken } = useNotificationSetup({ role: 'admin' });
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
     if (!schoolLoading && schoolId) {
       fetchDashboardData();
+      fetchStudentLimit();
       syncTokenOnLoad();
     }
   }, [schoolId, schoolLoading]);
+
+  const fetchStudentLimit = async () => {
+    try {
+      const res = await fetch('/api/admin/check-student-limit');
+      const data = await res.json();
+      setLimitInfo(data);
+    } catch {
+      // Silent fail — banner handles gracefully
+    }
+  };
 
   const syncTokenOnLoad = async () => {
     try {
@@ -190,6 +203,7 @@ export default function AdminDashboard() {
     <DashboardLayout role="admin">
       <div className="space-y-8">
         <OnboardingChecklist isNewSchool={isNewSchool} />
+        <StudentLimitBanner limitInfo={limitInfo} />
         <SubscriptionGraceBanner />
         <SubscriptionTermBanner />
         <SubscriptionHolidayBanner />

@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSchoolContext } from "@/hooks/use-school-context";
 import { supabase } from "@/lib/supabase";
 import { Class, Department, Religion } from "@/lib/types";
+import { StudentLimitBanner, type LimitInfo } from "@/components/student-limit-banner";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -16,7 +17,9 @@ import {
   Loader2,
   Search,
   School,
+  ShieldAlert,
   Sparkles,
+  TrendingUp,
   Upload,
   UploadCloud,
   UserPlus,
@@ -147,6 +150,20 @@ export default function NewStudentPage() {
   const [studentImage, setStudentImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+  const [limitInfo, setLimitInfo] = useState<LimitInfo | null>(null);
+  const [limitLoading, setLimitLoading] = useState(true);
+
+  useEffect(() => {
+    if (!schoolId) return;
+    fetch("/api/admin/check-student-limit")
+      .then((res) => res.json())
+      .then((data) => {
+        setLimitInfo(data);
+        setLimitLoading(false);
+      })
+      .catch(() => setLimitLoading(false));
+  }, [schoolId]);
 
   const [formData, setFormData] = useState({
     full_name: "",
@@ -317,6 +334,12 @@ export default function NewStudentPage() {
       return;
     }
 
+    // Re-check limit before submitting (in case it changed since mount)
+    if (limitInfo && !limitInfo.allowed) {
+      setShowLimitModal(true);
+      return;
+    }
+
     if (!formData.full_name.trim()) {
       toast.error("Student full name is required");
       return;
@@ -434,7 +457,11 @@ export default function NewStudentPage() {
     }
   }
 
-  if (schoolLoading || isLoadingOptions) {
+  const [showLimitModal, setShowLimitModal] = useState(false);
+
+  const planLabel = limitInfo?.plan === "basic" ? "Free" : limitInfo?.plan === "pro" ? "Pro" : "Premium";
+
+  if (limitLoading || schoolLoading || isLoadingOptions) {
     return (
       <DashboardLayout role="admin">
         <div className="flex min-h-[60vh] items-center justify-center">
@@ -467,9 +494,77 @@ export default function NewStudentPage() {
     );
   }
 
+  // ── Blocking modal when student limit is reached ──
+  if (limitInfo && !limitInfo.allowed && showLimitModal) {
+    return (
+      <DashboardLayout role="admin">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-md animate-in zoom-in-95 fade-in duration-200">
+            <div className="rounded-2xl border border-red-200 bg-white p-6 shadow-2xl">
+              <div className="flex flex-col items-center text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-100">
+                  <ShieldAlert className="h-7 w-7 text-red-600" />
+                </div>
+                <h2 className="mt-4 text-lg font-bold text-slate-900">Student Limit Reached</h2>
+                <p className="mt-2 text-sm text-slate-600">
+                  Your {planLabel} plan has a maximum of{" "}
+                  <span className="font-semibold text-slate-900">
+                    {limitInfo.student_limit?.toLocaleString()} students
+                  </span>
+                  . You currently have{" "}
+                  <span className="font-semibold text-slate-900">
+                    {limitInfo.active_student_count}
+                  </span>{" "}
+                  active students enrolled.
+                </p>
+                <div className="mt-4 w-full rounded-xl border border-red-100 bg-red-50 px-4 py-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-red-700">Active students</span>
+                    <span className="font-bold text-red-700">
+                      {limitInfo.active_student_count} / {limitInfo.student_limit?.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-red-200">
+                    <div
+                      className="h-full rounded-full bg-red-500 transition-all"
+                      style={{
+                        width: `${Math.min(100, (limitInfo.active_student_count / (limitInfo.student_limit ?? 1)) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-slate-500">
+                  Upgrade to a higher plan to increase your student capacity and continue enrolling new students.
+                </p>
+                <div className="mt-5 flex w-full flex-col gap-2 sm:flex-row">
+                  <Button
+                    variant="outline"
+                    className="flex-1 rounded-xl"
+                    onClick={() => router.push("/admin/students")}
+                  >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Go Back
+                  </Button>
+                  <Button
+                    className="flex-1 rounded-xl bg-red-600 text-white hover:bg-red-700"
+                    onClick={() => router.push("/admin/subscription")}
+                  >
+                    <TrendingUp className="mr-2 h-4 w-4" />
+                    Upgrade Plan
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout role="admin">
       <div className="space-y-6">
+        <StudentLimitBanner limitInfo={limitInfo} />
         <div className="rounded-2xl bg-gradient-to-r from-sky-700 via-sky-700 to-blue-700 px-6 py-5 text-white shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>

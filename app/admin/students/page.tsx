@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { useSchoolContext } from '@/hooks/use-school-context';
 import { Student, Term, Class, Department } from '@/lib/types';
 import { StudentTable } from '@/components/student-table';
+import { StudentLimitBanner } from '@/components/student-limit-banner';
 import {
   Search, Download, Users, UserCheck, UserX,
   Calendar as CalendarIcon, Plus,
@@ -169,6 +170,8 @@ export default function AdminStudentsPage() {
   return (
     <DashboardLayout role="admin">
       <div className="space-y-8">
+
+        <StudentLimitBanner />
 
         {/* ── Page header ── */}
         <div className="flex items-center justify-between">

@@ -6,7 +6,7 @@ import { AlertTriangle, Users, TrendingUp, X } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 
-interface LimitInfo {
+export interface LimitInfo {
   plan: string;
   active_student_count: number;
   student_limit: number | null;
@@ -15,20 +15,32 @@ interface LimitInfo {
   message: string | null;
 }
 
-export function StudentLimitBanner() {
-  const [limitInfo, setLimitInfo] = useState<LimitInfo | null>(null);
-  const [loading, setLoading] = useState(true);
+interface Props {
+  limitInfo?: LimitInfo | null;
+}
+
+export function StudentLimitBanner({ limitInfo: propLimitInfo }: Props) {
+  const [fetchedLimitInfo, setFetchedLimitInfo] = useState<LimitInfo | null>(null);
+  const [loading, setLoading] = useState(!propLimitInfo);
   const [dismissed, setDismissed] = useState(false);
 
+  // Use prop if provided, otherwise fetch independently
+  const limitInfo = propLimitInfo ?? fetchedLimitInfo;
+
   useEffect(() => {
+    // Only fetch if no prop was provided
+    if (propLimitInfo) {
+      setLoading(false);
+      return;
+    }
     fetch("/api/admin/check-student-limit")
       .then((res) => res.json())
       .then((data) => {
-        setLimitInfo(data);
+        setFetchedLimitInfo(data);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
+  }, [propLimitInfo]);
 
   if (loading || !limitInfo || dismissed) return null;
 

@@ -1133,17 +1133,19 @@ export default function ResultEntry({
       }
 
       // Save each subject's result separately using Supabase upsert
+      // IMPORTANT: Only include columns that actually exist in the `results` table.
+      // Dynamic component scores (like "ca", "assignment", etc.) are saved
+      // separately to `result_component_scores` below — NOT as columns here.
       const saveDataArray = completeScores.map(score => ({
         student_id: student.id,
         session_id: session.id,
         term_id: term.id,
         subject_class_id: score.subject_class_id,
-        // Save dynamic component values — the actual result columns are
-        // `welcome_test_score`, `mid_term_test_score`, etc. but we also spread
-        // the active component keys for legacy fallback compatibility
-        ...Object.fromEntries(
-          activeComponents.map(c => [c.component_key, Number(score.component_scores[c.component_key]) || 0])
-        ),
+        // Legacy score columns (actual DB columns in the `results` table)
+        welcome_test_score: Number(score.component_scores.welcome_test_score) || 0,
+        mid_term_test_score: Number(score.component_scores.mid_term_test_score) || 0,
+        vetting_score: Number(score.component_scores.vetting_score) || 0,
+        exam_score: Number(score.component_scores.exam_score) || 0,
         total: score.total,
         grade: score.grade,
         remark: score.remark,

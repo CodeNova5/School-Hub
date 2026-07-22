@@ -9,7 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { useSchoolContext } from '@/hooks/use-school-context';
 import { Student, Term, Class, Department } from '@/lib/types';
 import { StudentTable } from '@/components/student-table';
-import { StudentLimitBanner } from '@/components/student-limit-banner';
+import { StudentLimitBanner, type LimitInfo } from '@/components/student-limit-banner';
 import {
   Search, Download, Users, UserCheck, UserX,
   Calendar as CalendarIcon, Plus,
@@ -53,6 +53,7 @@ export default function AdminStudentsPage() {
   const [classes, setClasses] = useState<Class[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [limitInfo, setLimitInfo] = useState<LimitInfo | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('');
@@ -61,7 +62,17 @@ export default function AdminStudentsPage() {
 
   const router = useRouter();
 
-  useEffect(() => { if (schoolId) loadData(); }, [schoolId]);
+  useEffect(() => { if (schoolId) { loadData(); fetchLimitInfo(); } }, [schoolId]);
+
+  const fetchLimitInfo = async () => {
+    try {
+      const res = await fetch('/api/admin/check-student-limit');
+      const data = await res.json();
+      setLimitInfo(data);
+    } catch {
+      // Silent fail — banner handles gracefully
+    }
+  };
 
   const applyFilters = useCallback(() => {
     let f = [...students];
@@ -171,7 +182,7 @@ export default function AdminStudentsPage() {
     <DashboardLayout role="admin">
       <div className="space-y-8">
 
-        <StudentLimitBanner />
+        <StudentLimitBanner limitInfo={limitInfo} />
 
         {/* ── Page header ── */}
         <div className="flex items-center justify-between">

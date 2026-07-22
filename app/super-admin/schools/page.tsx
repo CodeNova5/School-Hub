@@ -67,6 +67,7 @@ import {
 } from "lucide-react";
 import type { School as SchoolType, SchoolPlan } from "@/lib/types";
 import { usePlanDisplayInfo, PLAN_KEYS_IN_ORDER } from "@/hooks/use-plan-display-info";
+import { getPlanBadgeColor } from "@/components/subscription-utils";
 
 interface SchoolWithStats extends SchoolType {
   studentCount?: number;
@@ -448,7 +449,7 @@ export default function SchoolsManagementPage() {
                       </TableCell>
                       <TableCell>
                         <Badge
-                          className={getPlanInfo(school.plan ?? 'basic').badge_color}
+                          className={getPlanBadgeColor(school.plan ?? 'basic')}
                         >
                           {getPlanInfo(school.plan ?? 'basic').label_short}
                         </Badge>
@@ -660,7 +661,7 @@ export default function SchoolsManagementPage() {
                             : 'border-gray-200 hover:border-gray-300 bg-white dark:bg-gray-900'
                         }`}
                       >
-                        <Shield className={`h-5 w-5 ${info.color}`} />
+                        <Shield className={`h-5 w-5 ${plan === "basic" ? "text-emerald-600" : plan === "pro" ? "text-blue-600" : "text-purple-600"}`} />
                         <span className="text-sm font-semibold">{info.label_short}</span>
                         <span className="text-xs text-muted-foreground">{info.price_hint}</span>
                       </button>

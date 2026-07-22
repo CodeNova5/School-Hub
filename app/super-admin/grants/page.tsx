@@ -67,6 +67,7 @@ import {
 } from "lucide-react";
 import type { SchoolPlan } from "@/lib/types";
 import { usePlanDisplayInfo, PLAN_KEYS_IN_ORDER } from "@/hooks/use-plan-display-info";
+import { getPlanBadgeColor } from "@/components/subscription-utils";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -627,7 +628,7 @@ export default function GrantsManagementPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge className={planInfo.badge_color}>
+                          <Badge className={getPlanBadgeColor(grant.plan_key)}>
                             <Shield className="h-3 w-3 mr-1" />
                             {planInfo.label_short}
                           </Badge>
@@ -781,7 +782,7 @@ export default function GrantsManagementPage() {
                           : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 bg-card hover:shadow-sm"
                       }`}
                     >
-                      <Shield className={`h-6 w-6 ${info.color}`} />
+                      <Shield className={`h-6 w-6 ${plan === "pro" ? "text-blue-600" : "text-purple-600"}`} />
                       <span className="text-sm font-semibold">{info.label_short}</span>
                       <span className="text-xs text-muted-foreground">{info.price_hint}</span>
                       {isSelected && (

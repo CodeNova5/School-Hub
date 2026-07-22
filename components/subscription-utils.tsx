@@ -166,6 +166,19 @@ export function getPlanColor(planKey: string): string {
   }
 }
 
+export function getPlanBadgeColor(planKey: string): string {
+  switch (planKey) {
+    case "basic":
+      return "bg-emerald-100 text-emerald-800 border-emerald-200";
+    case "pro":
+      return "bg-blue-100 text-blue-800 border-blue-200";
+    case "premium":
+      return "bg-purple-100 text-purple-800 border-purple-200";
+    default:
+      return "bg-gray-100 text-gray-800 border-gray-200";
+  }
+}
+
 export function getIntervalLabel(billingInterval: string | undefined, activeGrants?: ActiveGrant[] | null): string {
   if (activeGrants && activeGrants.length > 0) {
     const grantTypes = activeGrants.map((g) => g.grant_type);
@@ -535,7 +548,7 @@ export function GrantCoverageSection({ grants, termsBySession }: { grants: Activ
                   {/* Grant header */}
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <Badge className={planInfo.badge_color}>
+                      <Badge className={getPlanBadgeColor(grant.plan_key)}>
                         <Shield className="h-3 w-3 mr-1" />
                         {planInfo.label_short}
                       </Badge>

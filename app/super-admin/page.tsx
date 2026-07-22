@@ -301,7 +301,7 @@ export default function SuperAdminDashboard() {
                     key={plan}
                     className="flex flex-col items-center p-4 rounded-xl border bg-muted/30"
                   >
-                    <Shield className={`h-6 w-6 mb-2 ${info.color}`} />
+                    <Shield className={`h-6 w-6 mb-2 ${plan === "basic" ? "text-emerald-600" : plan === "pro" ? "text-blue-600" : "text-purple-600"}`} />
                     <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       {info.label_short}
                     </span>

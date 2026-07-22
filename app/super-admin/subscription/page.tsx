@@ -86,11 +86,7 @@ interface SubscriptionPlan {
   is_active: boolean;
   sort_order: number;
   label_short: string;
-  color_tailwind: string;
-  badge_color_tailwind: string;
   price_hint: string;
-  border_color_tailwind: string;
-  icon_bg_tailwind: string;
   features: PlanFeature[];
 }
 
@@ -197,8 +193,7 @@ function PlansTab() {
   const [editForm, setEditForm] = useState({
     name: "", description: "",
     monthly_price: "", termly_price: "", yearly_price: "",
-    label_short: "", color_tailwind: "", badge_color_tailwind: "", price_hint: "",
-    border_color_tailwind: "", icon_bg_tailwind: "",
+    label_short: "", price_hint: "",
   });
 
   const [featureDialogOpen, setFeatureDialogOpen] = useState(false);
@@ -254,11 +249,7 @@ function PlansTab() {
       termly_price: String((plan as any).termly_price ?? plan.monthly_price * 3),
       yearly_price: String(plan.yearly_price),
       label_short: plan.label_short ?? "",
-      color_tailwind: plan.color_tailwind ?? "",
-      badge_color_tailwind: plan.badge_color_tailwind ?? "",
       price_hint: plan.price_hint ?? "",
-      border_color_tailwind: plan.border_color_tailwind ?? "",
-      icon_bg_tailwind: plan.icon_bg_tailwind ?? "",
     });
     setEditDialogOpen(true);
   }
@@ -277,11 +268,7 @@ function PlansTab() {
           termly_price: Number(editForm.termly_price),
           yearly_price: Number(editForm.yearly_price),
           label_short: editForm.label_short.trim(),
-          color_tailwind: editForm.color_tailwind.trim(),
-          badge_color_tailwind: editForm.badge_color_tailwind.trim(),
           price_hint: editForm.price_hint.trim(),
-          border_color_tailwind: editForm.border_color_tailwind.trim(),
-          icon_bg_tailwind: editForm.icon_bg_tailwind.trim(),
         }),
       });
       const data = await res.json();
@@ -354,12 +341,39 @@ function PlansTab() {
           {["basic", "pro", "premium"].map((key) => {
             const plan = plans.find((p) => p.plan_key === key);
             if (!plan) return null;
-            const planColors = {
-              color: plan.color_tailwind || "text-green-600",
-              badge: plan.badge_color_tailwind || "bg-green-100 text-green-800",
-              border: plan.border_color_tailwind || "border-green-200 dark:border-green-800",
-              iconBg: plan.icon_bg_tailwind || "bg-green-100 dark:bg-green-900/30",
-            };
+            const planColors = (() => {
+              // Hardcoded per-plan CSS — not stored in DB
+              switch (plan.plan_key) {
+                case "basic":
+                  return {
+                    color: "text-emerald-600",
+                    badge: "bg-emerald-100 text-emerald-800 border-emerald-200",
+                    border: "border-emerald-200 dark:border-emerald-800",
+                    iconBg: "bg-emerald-100 dark:bg-emerald-900/30",
+                  };
+                case "pro":
+                  return {
+                    color: "text-blue-600",
+                    badge: "bg-blue-100 text-blue-800 border-blue-200",
+                    border: "border-blue-200 dark:border-blue-800",
+                    iconBg: "bg-blue-100 dark:bg-blue-900/30",
+                  };
+                case "premium":
+                  return {
+                    color: "text-purple-600",
+                    badge: "bg-purple-100 text-purple-800 border-purple-200",
+                    border: "border-purple-200 dark:border-purple-800",
+                    iconBg: "bg-purple-100 dark:bg-purple-900/30",
+                  };
+                default:
+                  return {
+                    color: "text-green-600",
+                    badge: "bg-green-100 text-green-800",
+                    border: "border-green-200 dark:border-green-800",
+                    iconBg: "bg-green-100 dark:bg-green-900/30",
+                  };
+              }
+            })();
             const enabledFeatures = plan.features.filter((f) => f.is_enabled);
             const hasPaystack = plan.monthly_paystack_plan_code || plan.yearly_paystack_plan_code;
             return (
@@ -535,62 +549,10 @@ function PlansTab() {
                     placeholder="Mid tier" />
                 </div>
               </div>
-              <div className="space-y-2 mb-4">
-                <Label htmlFor="ep-color">Text Color (Tailwind)</Label>
-                <Input id="ep-color" value={editForm.color_tailwind}
-                  onChange={(e) => setEditForm({ ...editForm, color_tailwind: e.target.value })}
-                  placeholder="text-blue-600" />
-                <p className="text-xs text-muted-foreground">
-                  Preview: <span className={editForm.color_tailwind || "text-muted-foreground"}>
-                    {editingPlan?.name ?? "Plan"}
-                  </span>
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="ep-badge">Badge Color (Tailwind)</Label>
-                <Input id="ep-badge" value={editForm.badge_color_tailwind}
-                  onChange={(e) => setEditForm({ ...editForm, badge_color_tailwind: e.target.value })}
-                  placeholder="bg-blue-100 text-blue-800" />
-                <p className="text-xs text-muted-foreground">
-                  Preview:{' '}
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${editForm.badge_color_tailwind || "bg-muted text-muted-foreground"}`}>
-                    {editingPlan?.name ?? "Plan"}
-                  </span>
-                </p>
-              </div>
+              <p className="text-xs text-muted-foreground italic">
+                Note: Styling (colors, borders, icon backgrounds) is now hardcoded in CSS — no longer configurable per plan.
+              </p>
             </div>
-
-              {/* Card Accent Settings */}
-              <div className="pt-4 border-t">
-                <h4 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
-                  <Settings className="h-4 w-4" />
-                  Card Accents
-                </h4>
-                <div className="space-y-2 mb-4">
-                  <Label htmlFor="ep-border">Border Color (Tailwind)</Label>
-                  <Input id="ep-border" value={editForm.border_color_tailwind}
-                    onChange={(e) => setEditForm({ ...editForm, border_color_tailwind: e.target.value })}
-                    placeholder="border-blue-200 dark:border-blue-800" />
-                  <p className="text-xs text-muted-foreground">
-                    Preview:{' '}
-                    <span className={`inline-block px-2 py-1 rounded text-xs font-medium border-2 ${editForm.border_color_tailwind || "border-gray-200"}`}>
-                      Card Border
-                    </span>
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="ep-iconbg">Icon Background (Tailwind)</Label>
-                  <Input id="ep-iconbg" value={editForm.icon_bg_tailwind}
-                    onChange={(e) => setEditForm({ ...editForm, icon_bg_tailwind: e.target.value })}
-                    placeholder="bg-blue-100 dark:bg-blue-900/30" />
-                  <p className="text-xs text-muted-foreground">
-                    Preview:{' '}
-                    <span className={`inline-flex items-center justify-center w-6 h-6 rounded text-xs ${editForm.icon_bg_tailwind || "bg-muted"}`}>
-                      <Shield className="h-3 w-3" />
-                    </span>
-                  </p>
-                </div>
-              </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditDialogOpen(false)} disabled={saving}>Cancel</Button>

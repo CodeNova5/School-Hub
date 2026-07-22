@@ -17,6 +17,7 @@ import {
 import { getUpgradePlan } from "@/lib/plan-features";
 import { usePlanFeatures } from "@/hooks/use-plan-features";
 import { usePlanDisplayInfo } from "@/hooks/use-plan-display-info";
+import { getPlanBadgeColor } from "@/components/subscription-utils";
 import type { PlanFeature, SchoolPlan } from "@/lib/types";
 
 // ── Feature-to-benefits mapping ───────────────────────────────────────────
@@ -395,7 +396,7 @@ export function FeatureLockedPage({
                 <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
                   Your Plan
                 </span>                  <span
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold ${currentInfo.badge_color} dark:saturate-50`}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold ${getPlanBadgeColor(currentPlan)} dark:saturate-50`}
                 >
                   <Shield className="h-3.5 w-3.5" />
                   {currentInfo.label_short}
@@ -410,7 +411,7 @@ export function FeatureLockedPage({
                 <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
                   Required
                 </span>                  <span
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold ${requiredInfo?.badge_color ?? currentInfo.badge_color} dark:saturate-50`}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold ${getPlanBadgeColor(requiredPlan ?? currentPlan)} dark:saturate-50`}
                 >
                   <Star className="h-3.5 w-3.5" />
                   {requiredInfo?.label_short ?? "Basic"}

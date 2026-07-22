@@ -41,6 +41,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     // ── Update plan details ──
+    // Note: CSS/styling fields (color_tailwind, badge_color_tailwind, etc.)
+    // are intentionally excluded — styles are now hardcoded in client helpers.
     const { data, error } = await supabaseAdmin.rpc("update_subscription_plan", {
       p_plan_id: params.id,
       p_name: body.name ?? null,
@@ -49,11 +51,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       p_yearly_price: body.yearly_price != null ? Number(body.yearly_price) : null,
       p_is_active: body.is_active != null ? Boolean(body.is_active) : null,
       p_label_short: body.label_short ?? null,
-      p_color_tailwind: body.color_tailwind ?? null,
-      p_badge_color_tailwind: body.badge_color_tailwind ?? null,
       p_price_hint: body.price_hint ?? null,
-      p_border_color_tailwind: body.border_color_tailwind ?? null,
-      p_icon_bg_tailwind: body.icon_bg_tailwind ?? null,
     });
 
     if (error) throw error;

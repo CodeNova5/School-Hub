@@ -25,17 +25,15 @@ export async function GET() {
     const { data, error } = await supabaseAdmin.rpc("get_subscription_plans");
     if (error) throw error;
 
-    // Return a clean display-focused shape
+    // Return a clean display-focused shape.
+    // Note: CSS/styling fields (color_tailwind, badge_color_tailwind, etc.)
+    // are intentionally excluded — styles are hardcoded in client helpers.
     const plans = (data ?? []).map((plan: any) => ({
       plan_key: plan.plan_key,
       name: plan.name,
       label_short: plan.label_short,
       description: plan.description,
-      color: plan.color_tailwind,
-      badge_color: plan.badge_color_tailwind,
       price_hint: plan.price_hint,
-      border_color: plan.border_color_tailwind,
-      icon_bg: plan.icon_bg_tailwind,
       monthly_price: plan.monthly_price,
       termly_price: plan.termly_price ?? plan.monthly_price * 3,
       yearly_price: plan.yearly_price,

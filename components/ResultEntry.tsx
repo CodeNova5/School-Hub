@@ -735,10 +735,26 @@ export default function ResultEntry({
             }
 
             if (!hasDynamicRows) {
-              merged.component_scores.welcome_test = Number(res.welcome_test) || 0;
-              merged.component_scores.mid_term_test = Number(res.mid_term_test) || 0;
-              merged.component_scores.vetting = Number(res.vetting) || 0;
-              merged.component_scores.exam = Number(res.exam) || 0;
+              // No dynamic component scores found — try to load from the result row
+              // First try each active component key as-is on the result row,
+              // then try the legacy `_score` suffixed column names.
+              const activeComps = getActiveComponentTemplates();
+              if (activeComps.length > 0) {
+                activeComps.forEach((component) => {
+                  // Try the exact component key first
+                  const direct = (res as any)[component.component_key];
+                  if (direct !== undefined && Number(direct) > 0) {
+                    merged.component_scores[component.component_key] = Number(direct);
+                  } else {
+                    // Try with `_score` suffix (legacy DB columns like welcome_test_score)
+                    const legacyKey = `${component.component_key}_score`;
+                    const legacyVal = (res as any)[legacyKey];
+                    if (legacyVal !== undefined && Number(legacyVal) > 0) {
+                      merged.component_scores[component.component_key] = Number(legacyVal);
+                    }
+                  }
+                });
+              }
             }
 
             initialScores[idx] = merged;
@@ -748,6 +764,8 @@ export default function ResultEntry({
             // Safety fallback: if component scores are all 0 but the DB stored a
             // non-zero total, use the stored values. This handles the case where
             // result_component_scores rows were lost (e.g. due to a prior save bug).
+            // IMPORTANT: Also populate merged.component_scores so the useEffect
+            // recalculation below doesn't override back to 0.
             if (total === 0 && Number(res.total) > 0) {
               total = Number(res.total);
               const maxScore = getSubjectMaxPossibleScore();
@@ -755,6 +773,18 @@ export default function ResultEntry({
               const fallbackGradeInfo = resolveGradeFromPercentage(percentage, configuredPassPercentage);
               grade = fallbackGradeInfo.grade;
               remark = fallbackGradeInfo.remark;
+
+              // Populate component_scores so the useEffect recalc uses them
+              const activeComps = getActiveComponentTemplates();
+              if (activeComps.length > 0) {
+                // Distribute total proportionally by max_score so the
+                // recalculation preserves the correct total
+                const totalMax = activeComps.reduce((s, c) => s + c.max_score, 0) || 1;
+                activeComps.forEach((c) => {
+                  merged.component_scores[c.component_key] =
+                    Math.round((c.max_score / totalMax) * total);
+                });
+              }
             }
 
             remark = res.remark || remark;
@@ -1108,10 +1138,12 @@ export default function ResultEntry({
         session_id: session.id,
         term_id: term.id,
         subject_class_id: score.subject_class_id,
-        welcome_test: Number(score.component_scores.welcome_test) || 0,
-        mid_term_test: Number(score.component_scores.mid_term_test) || 0,
-        vetting: Number(score.component_scores.vetting) || 0,
-        exam: Number(score.component_scores.exam) || 0,
+        // Save dynamic component values — the actual result columns are
+        // `welcome_test_score`, `mid_term_test_score`, etc. but we also spread
+        // the active component keys for legacy fallback compatibility
+        ...Object.fromEntries(
+          activeComponents.map(c => [c.component_key, Number(score.component_scores[c.component_key]) || 0])
+        ),
         total: score.total,
         grade: score.grade,
         remark: score.remark,

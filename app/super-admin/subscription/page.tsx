@@ -125,9 +125,9 @@ const CATEGORIES = [
   { value: "premium", label: "Premium Feature" },
 ];
 
-function formatPrice(cents: number): string {
-  if (cents === 0) return "Free";
-  return `₦${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+function formatPrice(amount: number): string {
+  if (amount === 0) return "Free";
+  return `₦${amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
 // ============================================================================
@@ -457,19 +457,19 @@ function PlansTab() {
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-2">
-                <Label htmlFor="ep-monthly">Monthly (kobo)</Label>
+                <Label htmlFor="ep-monthly">Monthly (Naira)</Label>
                 <Input id="ep-monthly" type="number" min="0" step="100" value={editForm.monthly_price}
                   onChange={(e) => setEditForm({ ...editForm, monthly_price: e.target.value })} />
                 <p className="text-xs text-muted-foreground">{formatPrice(Number(editForm.monthly_price))}</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="ep-termly">Termly (kobo)</Label>
+                <Label htmlFor="ep-termly">Termly (Naira)</Label>
                 <Input id="ep-termly" type="number" min="0" step="100" value={editForm.termly_price}
                   onChange={(e) => setEditForm({ ...editForm, termly_price: e.target.value })} />
                 <p className="text-xs text-muted-foreground">{formatPrice(Number(editForm.termly_price))}</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="ep-yearly">Yearly (kobo)</Label>
+                <Label htmlFor="ep-yearly">Yearly (Naira)</Label>
                 <Input id="ep-yearly" type="number" min="0" step="100" value={editForm.yearly_price}
                   onChange={(e) => setEditForm({ ...editForm, yearly_price: e.target.value })} />
                 <p className="text-xs text-muted-foreground">{formatPrice(Number(editForm.yearly_price))}</p>

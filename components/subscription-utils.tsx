@@ -45,9 +45,9 @@ import type { ActiveGrant, TermWithStatus, TermsBySessionGroup } from "./subscri
 
 // ── Price / Date Helpers ──────────────────────────────────────────────────
 
-export function formatPrice(cents: number): string {
-  if (cents === 0) return "Free";
-  return `₦${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+export function formatPrice(amount: number): string {
+  if (amount === 0) return "Free";
+  return `₦${amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
 export function formatDate(iso: string | null | undefined): string {

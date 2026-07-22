@@ -5,6 +5,8 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import crypto from "crypto";
 import { buildSchoolSenderName, sendEmailSafe } from "@/lib/email";
 import { resolveSchoolName } from "@/lib/school-branding";
+import type { SchoolPlan } from "@/lib/types";
+import { PLAN_STUDENT_LIMITS } from "@/lib/plan-features";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -129,6 +131,37 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unable to determine school context" }, { status: 400 });
     }
     const schoolName = await resolveSchoolName(supabaseAuth, schoolId);
+
+    // ── Student Limit Check ──
+    // Count current active students BEFORE creating a new one
+    const { count: activeStudentCount, error: countError } = await supabaseAuth
+      .from("students")
+      .select("*", { count: "exact", head: true })
+      .eq("school_id", schoolId)
+      .eq("status", "active");
+
+    if (countError) {
+      console.error("Failed to count active students:", countError);
+    } else {
+      // Get the school's current plan
+      const { data: schoolPlan } = await supabaseAuth
+        .rpc("get_school_plan", { p_school_id: schoolId });
+
+      const plan = (schoolPlan as SchoolPlan) || "basic";
+      const limit = PLAN_STUDENT_LIMITS[plan];
+
+      if (limit !== null && (activeStudentCount ?? 0) >= limit) {
+        return NextResponse.json(
+          {
+            error: `Student limit reached. Your ${plan === "basic" ? "Free" : "Pro"} plan allows up to ${limit.toLocaleString()} active students. Please upgrade to add more.`,
+            limit,
+            current_count: activeStudentCount,
+            plan,
+          },
+          { status: 403 }
+        );
+      }
+    }
 
     // Generate unique student ID
     const generatedStudentId = await generateUniqueStudentId(supabaseAuth);

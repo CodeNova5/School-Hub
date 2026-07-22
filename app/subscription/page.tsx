@@ -129,6 +129,15 @@ const ALL_DISPLAY_FEATURES: DisplayFeature[] = [
     premium: false,
     description: "Organize classes, streams, departments, and education levels",
   },
+  {
+    key: "student_limits",
+    label: "Student Capacity",
+    category: "Limits",
+    icon: Users,
+    pro: false,
+    premium: false,
+    description: "Basic: 50 students | Pro: 500 students | Premium: Unlimited",
+  },
 
   // Pro
   {
@@ -338,7 +347,7 @@ const ALL_DISPLAY_FEATURES: DisplayFeature[] = [
 const FAQS = [
   {
     q: "How does the Free plan work?",
-    a: "The Free plan gives you full access to core school management features — subjects, students, classes, timetables, attendance, and report cards. There's no time limit and no credit card required.",
+    a: "The Free plan gives you full access to core school management features — subjects, students (up to 50), classes, timetables, attendance, and report cards. There's no time limit and no credit card required. As your school grows, upgrade to Pro (up to 500 students) or Premium (unlimited students) to unlock more capacity and advanced features.",
   },
   {
     q: "Can I upgrade from Free to Pro mid-term?",
@@ -799,7 +808,7 @@ export default function SubscriptionPage() {
 
             {/* Table Rows */}
             {(() => {
-              const categories = ["Core", "Pro", "Premium"] as const;
+              const categories = ["Core", "Pro", "Premium", "Limits"] as const;
               const rows: { category: string; features: DisplayFeature[] }[] = categories.map((cat) => ({
                 category: cat,
                 features: ALL_DISPLAY_FEATURES.filter((f) => f.category === cat),
@@ -813,6 +822,7 @@ export default function SubscriptionPage() {
                       {section.category === "Core" && <Building2 className="h-3.5 w-3.5 text-gray-500" />}
                       {section.category === "Pro" && <TrendingUp className="h-3.5 w-3.5 text-blue-500" />}
                       {section.category === "Premium" && <Sparkles className="h-3.5 w-3.5 text-purple-500" />}
+                      {section.category === "Limits" && <Users className="h-3.5 w-3.5 text-amber-500" />}
                       <span className="text-xs font-semibold uppercase tracking-wider text-gray-600">
                         {section.category}
                       </span>
@@ -851,6 +861,32 @@ export default function SubscriptionPage() {
                           : planKey === "pro"
                           ? !feature.premium
                           : true;
+
+                        // Special case for student_limits: show the actual limit number
+                        if (feature.key === "student_limits") {
+                          const limitLabel = planKey === "basic" ? "50" : planKey === "pro" ? "500" : "∞";
+                          const limitFull = planKey === "basic"
+                            ? "Up to 50 students"
+                            : planKey === "pro"
+                            ? "Up to 500 students"
+                            : "Unlimited students";
+                          return (
+                            <div
+                              key={planKey}
+                              className={`bg-white p-3.5 text-center transition-colors duration-150 font-semibold text-sm ${
+                                planKey === "basic"
+                                  ? "text-emerald-600"
+                                  : planKey === "pro"
+                                  ? "text-blue-600"
+                                  : "text-purple-600"
+                              }`}
+                              title={limitFull}
+                            >
+                              {limitLabel}
+                            </div>
+                          );
+                        }
+
                         return (
                           <div
                             key={planKey}

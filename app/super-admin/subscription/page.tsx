@@ -46,6 +46,7 @@ import {
   Loader2,
   Shield,
   DollarSign,
+  Users,
   RefreshCw,
   CheckCircle2,
   XCircle,
@@ -377,7 +378,44 @@ function PlansTab() {
                     <Badge className={planColors.badge}>{plan.is_active ? "Active" : "Inactive"}</Badge>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-5">                    <div className="grid grid-cols-3 gap-2">
+                <CardContent className="space-y-5">
+                  {/* Student Limit Display */}
+                  <div className={`p-3 rounded-lg border ${
+                    plan.plan_key === "basic"
+                      ? "bg-emerald-50/50 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-800"
+                      : plan.plan_key === "pro"
+                      ? "bg-blue-50/50 border-blue-200 dark:bg-blue-950/20 dark:border-blue-800"
+                      : "bg-purple-50/50 border-purple-200 dark:bg-purple-950/20 dark:border-purple-800"
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Users className={`h-4 w-4 ${
+                          plan.plan_key === "basic"
+                            ? "text-emerald-600"
+                            : plan.plan_key === "pro"
+                            ? "text-blue-600"
+                            : "text-purple-600"
+                        }`} />
+                        <span className="text-xs font-medium text-muted-foreground">Student Limit</span>
+                      </div>
+                      <span className={`text-sm font-bold ${
+                        plan.plan_key === "basic"
+                          ? "text-emerald-600"
+                          : plan.plan_key === "pro"
+                          ? "text-blue-600"
+                          : "text-purple-600"
+                      }`}>
+                        {plan.plan_key === "basic" ? "50" : plan.plan_key === "pro" ? "500" : "Unlimited"}
+                      </span>
+                    </div>
+                    {(plan.plan_key === "basic" || plan.plan_key === "pro") && (
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Maximum active students
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
                     <div className="p-3 rounded-lg bg-muted/30 border">
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                         <Clock className="h-3 w-3" /> Monthly

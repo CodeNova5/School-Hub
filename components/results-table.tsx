@@ -9,19 +9,61 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { getGradeColor } from '@/lib/student-utils';
-import { Key } from 'react';
+import { getGradeColor, calculateGradeFromPercentage } from '@/lib/student-utils';
+import { Key, useMemo } from 'react';
 import { Medal } from 'lucide-react';
 
 interface ResultsTableProps {
   results: Result[];
+  /** Maximum possible total score per subject (defaults to 100 for legacy scale) */
+  maxScorePerSubject?: number;
 }
 
-export function ResultsTable({ results }: ResultsTableProps) {
+export function ResultsTable({ results, maxScorePerSubject = 100 }: ResultsTableProps) {
+  /**
+   * Derive the effective total for each result:
+   * - If individual component scores are non-zero, sum them for accuracy
+   * - Otherwise fall back to the stored `.total`
+   * - If still 0 but a grade exists, trust the stored grade
+   */
+  const processedResults = useMemo(() => {
+    return results.map((r) => {
+      const componentSum =
+        (Number(r.welcome_test) || 0) +
+        (Number(r.mid_term_test) || 0) +
+        (Number(r.vetting) || 0) +
+        (Number(r.exam) || 0);
+
+      // Use auto-calculated total only if we have actual component values
+      const effectiveTotal =
+        componentSum > 0
+          ? componentSum
+          : Number(r.total) || 0;
+
+      // Auto-calculate grade from the effective total
+      let computedGrade = String(r.grade || '');
+      let computedRemark = '';
+      if (effectiveTotal > 0) {
+        const pct = (effectiveTotal / maxScorePerSubject) * 100;
+        const result = calculateGradeFromPercentage(pct);
+        computedGrade = result.grade;
+        computedRemark = result.remark;
+      } else if (!computedGrade) {
+        computedGrade = '—';
+      }
+
+      return {
+        ...r,
+        total: effectiveTotal,
+        grade: computedGrade,
+      };
+    });
+  }, [results, maxScorePerSubject]);
+
   const calculateTotalGPA = () => {
-    if (results.length === 0) return 0;
-    const totalScore = results.reduce((sum, r) => sum + r.total, 0);
-    const maxScore = results.length * 100;
+    if (processedResults.length === 0) return 0;
+    const totalScore = processedResults.reduce((sum, r) => sum + r.total, 0);
+    const maxScore = processedResults.length * maxScorePerSubject;
     return ((totalScore / maxScore) * 100).toFixed(2);
   };
 
@@ -74,14 +116,14 @@ export function ResultsTable({ results }: ResultsTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {results.length === 0 ? (
+            {            processedResults.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                   No results available for selected term
                 </TableCell>
               </TableRow>
             ) : (
-              results.map((result: Result, index: Key | null | undefined) => (
+              processedResults.map((result: Result, index: Key | null | undefined) => (
                 <TableRow key={index}>
                   <TableCell className="font-medium text-xs md:text-sm">{result.subject_name}</TableCell>
                   <TableCell className="text-center text-xs md:text-sm">{result.welcome_test}</TableCell>
@@ -101,11 +143,11 @@ export function ResultsTable({ results }: ResultsTableProps) {
         </Table>
       </div>
 
-      {results.length > 0 && (
+      {processedResults.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
           <div className="p-3 md:p-4 bg-gray-50 rounded-lg">
             <p className="text-xs md:text-sm text-gray-600">Total Subjects</p>
-            <p className="text-xl md:text-2xl font-bold">{results.length}</p>
+            <p className="text-xl md:text-2xl font-bold">{processedResults.length}</p>
           </div>
           <div className="p-3 md:p-4 bg-gray-50 rounded-lg">
             <p className="text-xs md:text-sm text-gray-600">Average Score</p>

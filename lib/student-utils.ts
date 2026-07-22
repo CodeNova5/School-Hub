@@ -16,6 +16,51 @@ export function calculateTermGPA(results: Result[]): number {
   return Math.round((totalScore / maxScore) * 100);
 }
 
+/** WAEC/NECO-standard grade scale entry */
+export interface WaeCGradeEntry {
+  grade_label: string;
+  min_percentage: number;
+  remark: string;
+}
+
+/** Default WAEC-standard grade scale used for auto-calculation */
+export const WAEC_GRADE_SCALE: WaeCGradeEntry[] = [
+  { grade_label: 'A1', min_percentage: 75, remark: 'Excellent' },
+  { grade_label: 'B2', min_percentage: 70, remark: 'Very Good' },
+  { grade_label: 'B3', min_percentage: 65, remark: 'Good' },
+  { grade_label: 'C4', min_percentage: 60, remark: 'Credit' },
+  { grade_label: 'C5', min_percentage: 55, remark: 'Credit' },
+  { grade_label: 'C6', min_percentage: 50, remark: 'Credit' },
+  { grade_label: 'D7', min_percentage: 45, remark: 'Pass' },
+  { grade_label: 'E8', min_percentage: 40, remark: 'Pass' },
+  { grade_label: 'F9', min_percentage: 0, remark: 'Fail' },
+];
+
+/**
+ * Calculate WAEC/NECO-standard grade from a percentage score.
+ * Falls back to simple letter grade if no scale is provided.
+ */
+export function calculateGradeFromPercentage(
+  percentage: number,
+  scale: WaeCGradeEntry[] = WAEC_GRADE_SCALE,
+  passPercentage: number = 40
+): { grade: string; remark: string } {
+  const sorted = [...scale].sort((a, b) => b.min_percentage - a.min_percentage);
+  const fallback = sorted[sorted.length - 1] || { grade_label: 'F9', remark: 'Fail', min_percentage: 0 };
+  const matched = sorted.find((g) => percentage >= g.min_percentage) || fallback;
+
+  if (percentage < passPercentage) {
+    return { grade: fallback.grade_label, remark: fallback.remark };
+  }
+
+  return { grade: matched.grade_label, remark: matched.remark };
+}
+
+/**
+ * Calculate grade from a total score (0–100 scale).
+ * Supports both simple letter grades and WAEC-style grades.
+ * @deprecated Use `calculateGradeFromPercentage` for WAEC-standard grading.
+ */
 export function calculateGrade(total: number): string {
   if (total >= 90) return 'A+';
   if (total >= 80) return 'A';
@@ -91,9 +136,11 @@ export function getAttendanceStatusColor(status: string): string {
   }
 }
 
+/** Return a Tailwind text-color class for a given grade string */
 export function getGradeColor(grade: string): string {
-  switch (grade) {
-    case 'A+':
+  if (!grade) return 'text-gray-600';
+  const prefix = grade.charAt(0).toUpperCase();
+  switch (prefix) {
     case 'A':
       return 'text-green-600';
     case 'B':
@@ -101,6 +148,7 @@ export function getGradeColor(grade: string): string {
     case 'C':
       return 'text-yellow-600';
     case 'D':
+    case 'E':
       return 'text-orange-600';
     case 'F':
       return 'text-red-600';

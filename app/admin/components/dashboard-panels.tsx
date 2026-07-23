@@ -50,9 +50,6 @@ export function WelcomeHeader({ schoolName = 'your school', notificationCount = 
         <h1 className="text-2xl font-bold text-gray-900">
           {greeting}, Admin! <span className="inline-block animate-bounce">👋</span>
         </h1>
-        <p className="text-gray-500 mt-1 text-sm">
-          Here&apos;s what&apos;s happening at <span className="font-medium text-gray-700">{schoolName}</span> today.
-        </p>
       </div>
       <div className="flex gap-2 flex-wrap">
         <Button
@@ -688,46 +685,37 @@ export function FinanceOverview({
         <div className="flex items-center justify-between">
           <CardTitle className="text-base font-semibold text-gray-900">Finance Overview</CardTitle>
           <Badge variant="outline" className="text-[10px] font-normal">
-            All Time
+            This Term
           </Badge>
         </div>
       </CardHeader>
       <CardContent className="pt-0">
         {hasData ? (
           <div className="space-y-4">
-            {/* Collection Progress */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs text-gray-500 font-medium">Collection Rate</span>
-                <span className="text-sm font-bold text-blue-600">{collectionRate}%</span>
+            {/* 2x2 Stats Grid */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-gray-500 font-medium">Total Billed</p>
+                <p className="text-lg font-bold text-gray-900 mt-1">{formatNaira(totalBilled)}</p>
               </div>
-              <div className="w-full bg-gray-100 rounded-full h-2">
-                <div
-                  className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-700 ease-out"
-                  style={{ width: `${Math.min(collectionRate, 100)}%` }}
-                />
+              <div>
+                <p className="text-xs text-gray-500 font-medium">Total Paid</p>
+                <p className="text-lg font-bold text-emerald-600 mt-1">{formatNaira(totalPaid)}</p>
               </div>
-            </div>
-
-            {/* Stats Grid */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 rounded-lg bg-emerald-50/80">
-                <p className="text-[10px] text-emerald-600 font-medium uppercase tracking-wider">
-                  Total Paid
-                </p>
-                <p className="text-lg font-bold text-emerald-700 mt-0.5">{formatNaira(totalPaid)}</p>
+              <div>
+                <p className="text-xs text-gray-500 font-medium">Due Amount</p>
+                <p className="text-lg font-bold text-rose-500 mt-1">{formatNaira(totalOutstanding)}</p>
               </div>
-              <div className="p-3 rounded-lg bg-rose-50/80">
-                <p className="text-[10px] text-rose-600 font-medium uppercase tracking-wider">
-                  Outstanding
-                </p>
-                <p className="text-lg font-bold text-rose-700 mt-0.5">{formatNaira(totalOutstanding)}</p>
+              <div>
+                <p className="text-xs text-gray-500 font-medium">Collection Rate</p>
+                <p className="text-lg font-bold text-gray-900 mt-1">{collectionRate}%</p>
+                <div className="w-full bg-gray-100 rounded-full h-1.5 mt-2">
+                  <div
+                    className="bg-emerald-500 h-1.5 rounded-full transition-all duration-700 ease-out"
+                    style={{ width: `${Math.min(collectionRate, 100)}%` }}
+                  />
+                </div>
               </div>
-            </div>
-
-            <div className="pt-1">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Total Billed</p>
-              <p className="text-xl font-bold text-gray-900">{formatNaira(totalBilled)}</p>
             </div>
           </div>
         ) : (

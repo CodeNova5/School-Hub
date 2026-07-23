@@ -5,13 +5,9 @@ import { DashboardLayout } from '@/components/dashboard-layout';
 import { DashboardSkeleton } from '@/components/dashboard-skeleton';
 import { Button } from '@/components/ui/button';
 
-import { SubscriptionGraceBanner } from '@/components/subscription-grace-banner';
-import { SubscriptionTermBanner } from '@/components/subscription-term-banner';
-import { SubscriptionHolidayBanner } from '@/components/subscription-holiday-banner';
-import { StudentLimitBanner, type LimitInfo } from '@/components/student-limit-banner';
+import { PlanStatusBanner } from '@/components/plan-status-banner';
 import { AlertCircle, FileText, Calendar, GraduationCap } from 'lucide-react';
-import { OnboardingChecklist } from '@/components/onboarding-checklist';
-import { useRouter } from 'next/navigation';
+
 import { useNotificationSetup } from '@/hooks/use-notification-setup';
 import { useSchoolContext } from '@/hooks/use-school-context';
 import { supabase } from '@/lib/supabase';
@@ -71,31 +67,19 @@ interface DashboardData {
 }
 
 export default function AdminDashboard() {
-  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [limitInfo, setLimitInfo] = useState<LimitInfo | null>(null);
+
   const { syncNotificationToken } = useNotificationSetup({ role: 'admin' });
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
     if (!schoolLoading && schoolId) {
       fetchDashboardData();
-      fetchStudentLimit();
       syncTokenOnLoad();
     }
   }, [schoolId, schoolLoading]);
-
-  const fetchStudentLimit = async () => {
-    try {
-      const res = await fetch('/api/admin/check-student-limit');
-      const data = await res.json();
-      setLimitInfo(data);
-    } catch {
-      // Silent fail — banner handles gracefully
-    }
-  };
 
   const syncTokenOnLoad = async () => {
     try {
@@ -211,19 +195,11 @@ export default function AdminDashboard() {
     );
   }
 
-  const isNewSchool =
-    (dashboardData?.stats?.totalStudents ?? 0) === 0 &&
-    (dashboardData?.stats?.totalTeachers ?? 0) === 0;
-
   return (
     <DashboardLayout role="admin">
       <div className="space-y-6">
-        {/* ── Critical Banners (only show when relevant) ── */}
-        <OnboardingChecklist isNewSchool={isNewSchool} />
-        <StudentLimitBanner limitInfo={limitInfo} />
-        <SubscriptionGraceBanner />
-        <SubscriptionTermBanner />
-        <SubscriptionHolidayBanner />
+        {/* ── Plan Status Banner ── */}
+        <PlanStatusBanner />
 
         {/* ── Welcome & Quick Stats ── */}
         <WelcomeHeader

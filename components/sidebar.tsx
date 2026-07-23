@@ -26,6 +26,7 @@ import {
   Layers,
   QrCode,
   Globe,
+  ChevronLeft,
   UserCheck,
   Target,
   ScrollText,

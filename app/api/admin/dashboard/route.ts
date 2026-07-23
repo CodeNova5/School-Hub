@@ -307,6 +307,45 @@ export async function GET(req: NextRequest) {
       previousWeekAdmissionsCount || 0
     );
 
+    // 14. Finance Overview (filtered by school)
+    const { data: financeBills } = await supabase
+      .from("finance_student_bills")
+      .select("total_amount, balance_amount, status")
+      .eq("school_id", schoolId);
+
+    const { data: financeTransactions } = await supabase
+      .from("finance_transactions")
+      .select("amount")
+      .eq("school_id", schoolId)
+      .eq("status", "success");
+
+    const financeBillRows = financeBills || [];
+    const financeTxRows = financeTransactions || [];
+
+    const totalBilled = financeBillRows.reduce((sum, row) => sum + Number(row.total_amount || 0), 0);
+    const totalPaid = financeTxRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    const totalOutstanding = financeBillRows.reduce((sum, row) => sum + Number(row.balance_amount || 0), 0);
+    const collectionRate = totalBilled > 0 ? Math.round((totalPaid / totalBilled) * 1000) / 10 : 0;
+
+    // 15. Upcoming Events (events with date >= today, filtered by school)
+    const todayStr = new Date().toISOString().split("T")[0];
+    const { data: upcomingEventsData } = await supabase
+      .from("events")
+      .select("id, title, start_date, event_type, created_at")
+      .eq("school_id", schoolId)
+      .gte("start_date", todayStr)
+      .order("start_date", { ascending: true })
+      .limit(5);
+
+    const upcomingEvents = (upcomingEventsData || []).map((event: any) => ({
+      id: event.id,
+      title: event.title,
+      date: event.start_date
+        ? new Date(event.start_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+        : "",
+      type: event.event_type || "event",
+    }));
+
     return successResponse({
       stats: {
         totalStudents: totalStudents || 0,
@@ -332,6 +371,13 @@ export async function GET(req: NextRequest) {
         admissions: recentAdmissions || [],
         students: recentStudents || [],
       },
+      finance: {
+        totalBilled,
+        totalPaid,
+        totalOutstanding,
+        collectionRate,
+      },
+      upcomingEvents,
       systemStatus: {
         absentToday,
         lateToday,

@@ -54,6 +54,13 @@ interface DashboardData {
     admissions: any[];
     students: any[];
   };
+  finance: {
+    totalBilled: number;
+    totalPaid: number;
+    totalOutstanding: number;
+    collectionRate: number;
+  };
+  upcomingEvents: Array<{ id: string; title: string; date: string; type: string }>;
   systemStatus: {
     absentToday: number;
     lateToday: number;
@@ -257,15 +264,27 @@ export default function AdminDashboard() {
         {/* ── Key Metrics ── */}
         <KeyMetricsTabs
           stats={dashboardData.stats}
+          finance={dashboardData.finance}
           systemStatus={dashboardData.systemStatus}
           termName={dashboardData.currentTerm?.name}
         />
 
         {/* ── Bottom Row: Finance, Events, System ── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <FinanceOverview />
-          <UpcomingEvents />
-          <SystemOverview />
+          <FinanceOverview
+            totalBilled={dashboardData.finance?.totalBilled ?? 0}
+            totalPaid={dashboardData.finance?.totalPaid ?? 0}
+            totalOutstanding={dashboardData.finance?.totalOutstanding ?? 0}
+            collectionRate={dashboardData.finance?.collectionRate ?? 0}
+          />
+          <UpcomingEvents events={dashboardData.upcomingEvents ?? []} />
+          <SystemOverview
+            totalStudents={dashboardData.stats.totalStudents}
+            totalTeachers={dashboardData.stats.totalTeachers}
+            absentToday={dashboardData.systemStatus.absentToday}
+            lateToday={dashboardData.systemStatus.lateToday}
+            attendanceRate={dashboardData.systemStatus.attendanceRate}
+          />
         </div>
       </div>
     </DashboardLayout>

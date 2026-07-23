@@ -22,14 +22,10 @@ import {
   CheckCircle,
   AlertCircle,
   Activity,
-  HardDrive,
-  Wifi,
-  Database,
   BookOpen,
   ClipboardList,
   CalendarDays,
   Target,
-  Search,
   ArrowRight,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -330,13 +326,26 @@ export function RecentActivities({ activities }: RecentActivitiesProps) {
 
 // ─── Key Metrics Tabs ──────────────────────────────────────────
 
+function formatNaira(amount: number): string {
+  if (amount >= 1_000_000) return `₦${(amount / 1_000_000).toFixed(1)}M`;
+  if (amount >= 1_000) return `₦${(amount / 1_000).toFixed(0)}K`;
+  return `₦${amount.toLocaleString()}`;
+}
+
 interface KeyMetricsTabsProps {
   stats: {
     totalSubjects: number;
     totalStudents: number;
     totalTeachers: number;
+    totalClasses: number;
     passRate: number;
     averagePerformance: number;
+  };
+  finance?: {
+    totalBilled: number;
+    totalPaid: number;
+    totalOutstanding: number;
+    collectionRate: number;
   };
   systemStatus: {
     attendanceRate: number;
@@ -346,7 +355,7 @@ interface KeyMetricsTabsProps {
   termName?: string;
 }
 
-export function KeyMetricsTabs({ stats, systemStatus, termName }: KeyMetricsTabsProps) {
+export function KeyMetricsTabs({ stats, finance, systemStatus, termName }: KeyMetricsTabsProps) {
   return (
     <Card className="border-gray-100">
       <CardHeader className="pb-2">
@@ -431,8 +440,8 @@ export function KeyMetricsTabs({ stats, systemStatus, termName }: KeyMetricsTabs
                 icon={Wallet}
                 iconBg="bg-emerald-50"
                 iconColor="text-emerald-600"
-                label="Total Revenue"
-                value="₦12.5M"
+                label="Total Billed"
+                value={formatNaira(finance?.totalBilled ?? 0)}
                 sub="This term"
               />
               <MetricCard
@@ -440,24 +449,24 @@ export function KeyMetricsTabs({ stats, systemStatus, termName }: KeyMetricsTabs
                 iconBg="bg-blue-50"
                 iconColor="text-blue-600"
                 label="Fees Collected"
-                value="₦8.7M"
-                sub="70.3% collection"
+                value={formatNaira(finance?.totalPaid ?? 0)}
+                sub={`${finance?.collectionRate ?? 0}% collection`}
               />
               <MetricCard
                 icon={AlertCircle}
                 iconBg="bg-rose-50"
                 iconColor="text-rose-600"
                 label="Outstanding"
-                value="₦3.7M"
+                value={formatNaira(finance?.totalOutstanding ?? 0)}
                 sub="Pending payments"
               />
               <MetricCard
                 icon={TrendingUp}
                 iconBg="bg-violet-50"
                 iconColor="text-violet-600"
-                label="Avg Fee/Student"
-                value="₦125K"
-                sub="Per term"
+                label="Collection Rate"
+                value={`${finance?.collectionRate ?? 0}%`}
+                sub="Overall"
               />
             </div>
           </TabsContent>
@@ -505,33 +514,33 @@ export function KeyMetricsTabs({ stats, systemStatus, termName }: KeyMetricsTabs
                 icon={Users}
                 iconBg="bg-blue-50"
                 iconColor="text-blue-600"
-                label="Active Users"
-                value={156}
-                sub="Online now"
+                label="Total Students"
+                value={stats.totalStudents}
+                sub="Active"
               />
               <MetricCard
-                icon={HardDrive}
+                icon={GraduationCap}
+                iconBg="bg-indigo-50"
+                iconColor="text-indigo-600"
+                label="Total Teachers"
+                value={stats.totalTeachers}
+                sub="Active"
+              />
+              <MetricCard
+                icon={Building2}
                 iconBg="bg-amber-50"
                 iconColor="text-amber-600"
-                label="Storage Used"
-                value="42.7 GB"
-                sub="of 100 GB"
+                label="Total Classes"
+                value={stats.totalClasses}
+                sub="All levels"
               />
               <MetricCard
-                icon={Wifi}
-                iconBg="bg-emerald-50"
-                iconColor="text-emerald-600"
-                label="System Uptime"
-                value="99.9%"
-                sub="Operational"
-              />
-              <MetricCard
-                icon={Database}
+                icon={BookOpen}
                 iconBg="bg-violet-50"
                 iconColor="text-violet-600"
-                label="DB Status"
-                value="Healthy"
-                sub="All systems go"
+                label="Avg Performance"
+                value={`${stats.averagePerformance}`}
+                sub="Score average"
               />
             </div>
           </TabsContent>
@@ -664,65 +673,75 @@ export function QuickActions() {
 // ─── Finance Overview ──────────────────────────────────────────
 
 interface FinanceOverviewProps {
-  totalBilled?: string;
-  totalPaid?: string;
-  dueAmount?: string;
+  totalBilled?: number;
+  totalPaid?: number;
+  totalOutstanding?: number;
   collectionRate?: number;
 }
 
 export function FinanceOverview({
-  totalBilled = '₦12,450,000',
-  totalPaid = '₦8,750,000',
-  dueAmount = '₦3,700,000',
-  collectionRate = 70.3,
+  totalBilled = 0,
+  totalPaid = 0,
+  totalOutstanding = 0,
+  collectionRate = 0,
 }: FinanceOverviewProps) {
+  const hasData = totalBilled > 0 || totalPaid > 0;
+
   return (
     <Card className="border-gray-100 h-full">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base font-semibold text-gray-900">Finance Overview</CardTitle>
           <Badge variant="outline" className="text-[10px] font-normal">
-            This Term
+            All Time
           </Badge>
         </div>
       </CardHeader>
       <CardContent className="pt-0">
-        <div className="space-y-4">
-          {/* Collection Progress */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs text-gray-500 font-medium">Collection Rate</span>
-              <span className="text-sm font-bold text-blue-600">{collectionRate}%</span>
+        {hasData ? (
+          <div className="space-y-4">
+            {/* Collection Progress */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs text-gray-500 font-medium">Collection Rate</span>
+                <span className="text-sm font-bold text-blue-600">{collectionRate}%</span>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-2">
+                <div
+                  className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-700 ease-out"
+                  style={{ width: `${Math.min(collectionRate, 100)}%` }}
+                />
+              </div>
             </div>
-            <div className="w-full bg-gray-100 rounded-full h-2">
-              <div
-                className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-700 ease-out"
-                style={{ width: `${collectionRate}%` }}
-              />
-            </div>
-          </div>
 
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-3 rounded-lg bg-emerald-50/80">
-              <p className="text-[10px] text-emerald-600 font-medium uppercase tracking-wider">
-                Total Paid
-              </p>
-              <p className="text-lg font-bold text-emerald-700 mt-0.5">{totalPaid}</p>
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-lg bg-emerald-50/80">
+                <p className="text-[10px] text-emerald-600 font-medium uppercase tracking-wider">
+                  Total Paid
+                </p>
+                <p className="text-lg font-bold text-emerald-700 mt-0.5">{formatNaira(totalPaid)}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-rose-50/80">
+                <p className="text-[10px] text-rose-600 font-medium uppercase tracking-wider">
+                  Outstanding
+                </p>
+                <p className="text-lg font-bold text-rose-700 mt-0.5">{formatNaira(totalOutstanding)}</p>
+              </div>
             </div>
-            <div className="p-3 rounded-lg bg-rose-50/80">
-              <p className="text-[10px] text-rose-600 font-medium uppercase tracking-wider">
-                Due Amount
-              </p>
-              <p className="text-lg font-bold text-rose-700 mt-0.5">{dueAmount}</p>
-            </div>
-          </div>
 
-          <div className="pt-1">
-            <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Total Billed</p>
-            <p className="text-xl font-bold text-gray-900">{totalBilled}</p>
+            <div className="pt-1">
+              <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Total Billed</p>
+              <p className="text-xl font-bold text-gray-900">{formatNaira(totalBilled)}</p>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="text-center py-8 text-gray-400">
+            <Wallet className="h-8 w-8 mx-auto mb-2 text-gray-200" />
+            <p className="text-sm font-medium">No finance data yet</p>
+            <p className="text-xs mt-1">Billing data will appear here</p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -739,13 +758,7 @@ interface Event {
 interface UpcomingEventsProps {
   events?: Event[];
 }
-export function UpcomingEvents({
-  events = [
-    { id: '1', date: 'May 27, 2025', title: "Children's Day Celebration" },
-    { id: '2', date: 'May 30, 2025', title: 'End of Term 2' },
-    { id: '3', date: 'Jun 2, 2025', title: 'Term 3 Resumes' },
-  ],
-}: UpcomingEventsProps) {
+export function UpcomingEvents({ events = [] }: UpcomingEventsProps) {
   const router = useRouter();
 
   return (
@@ -765,22 +778,30 @@ export function UpcomingEvents({
         </div>
       </CardHeader>
       <CardContent className="pt-0">
-        <div className="space-y-0">
-          {events.map((event, idx) => (
-            <div key={event.id}>
-              <div className="flex items-center gap-3 py-3 px-1 rounded-lg hover:bg-gray-50 transition-colors -mx-1">
-                <div className="bg-blue-50 p-2 rounded-lg flex-shrink-0">
-                  <CalendarDays className="h-4 w-4 text-blue-600" />
+        {events.length > 0 ? (
+          <div className="space-y-0">
+            {events.map((event, idx) => (
+              <div key={event.id}>
+                <div className="flex items-center gap-3 py-3 px-1 rounded-lg hover:bg-gray-50 transition-colors -mx-1">
+                  <div className="bg-blue-50 p-2 rounded-lg flex-shrink-0">
+                    <CalendarDays className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-gray-500 font-medium">{event.date}</p>
+                    <p className="text-sm font-medium text-gray-800 mt-0.5">{event.title}</p>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-gray-500 font-medium">{event.date}</p>
-                  <p className="text-sm font-medium text-gray-800 mt-0.5">{event.title}</p>
-                </div>
+                {idx < events.length - 1 && <Separator className="ml-10" />}
               </div>
-              {idx < events.length - 1 && <Separator className="ml-10" />}
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-400">
+            <CalendarDays className="h-8 w-8 mx-auto mb-2 text-gray-200" />
+            <p className="text-sm font-medium">No upcoming events</p>
+            <p className="text-xs mt-1">Schedule events from the calendar</p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -789,90 +810,80 @@ export function UpcomingEvents({
 // ─── System Overview ───────────────────────────────────────────
 
 interface SystemOverviewProps {
-  activeUsers?: number;
-  storageUsed?: string;
-  storageTotal?: string;
-  uptime?: string;
-  dbStatus?: 'Healthy' | 'Warning' | 'Critical';
+  totalStudents?: number;
+  totalTeachers?: number;
+  absentToday?: number;
+  lateToday?: number;
+  attendanceRate?: number;
 }
 
 export function SystemOverview({
-  activeUsers = 156,
-  storageUsed = '42.7 GB',
-  storageTotal = '100 GB',
-  uptime = '99.9%',
-  dbStatus = 'Healthy',
+  totalStudents = 0,
+  totalTeachers = 0,
+  absentToday = 0,
+  lateToday = 0,
+  attendanceRate = 0,
 }: SystemOverviewProps) {
-  const statusColors = {
-    Healthy: 'bg-emerald-50 text-emerald-700',
-    Warning: 'bg-amber-50 text-amber-700',
-    Critical: 'bg-rose-50 text-rose-700',
-  };
+  const presentToday = totalStudents - absentToday;
+  const attendancePct = totalStudents > 0 ? Math.round((presentToday / totalStudents) * 100) : 0;
 
   return (
     <Card className="border-gray-100 h-full">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base font-semibold text-gray-900">System Health</CardTitle>
+        <CardTitle className="text-base font-semibold text-gray-900">Today&apos;s Summary</CardTitle>
       </CardHeader>
       <CardContent className="pt-0">
         <div className="space-y-3">
           <div className="flex items-center gap-3 p-2.5 rounded-lg bg-gray-50/80">
-            <div className="bg-blue-50 p-2 rounded-lg flex-shrink-0">
-              <Users className="h-4 w-4 text-blue-600" />
+            <div className="bg-emerald-50 p-2 rounded-lg flex-shrink-0">
+              <CheckCircle className="h-4 w-4 text-emerald-600" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">
-                Active Users
+                Present Today
               </p>
               <div className="flex items-center gap-2">
-                <p className="text-lg font-bold text-gray-900">{activeUsers}</p>
-                <span className="text-[10px] text-emerald-500 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                  online
+                <p className="text-lg font-bold text-gray-900">{presentToday}</p>
+                <span className="text-[10px] text-emerald-500 font-medium">
+                  {attendancePct}%
                 </span>
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-3 p-2.5 rounded-lg bg-gray-50/80">
-            <div className="bg-violet-50 p-2 rounded-lg flex-shrink-0">
-              <HardDrive className="h-4 w-4 text-violet-600" />
+            <div className="bg-rose-50 p-2 rounded-lg flex-shrink-0">
+              <AlertCircle className="h-4 w-4 text-rose-600" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">
-                Storage
+                Absent Today
               </p>
-              <p className="text-lg font-bold text-gray-900">{storageUsed}</p>
-              <div className="w-full bg-gray-200 rounded-full h-1 mt-1.5">
-                <div
-                  className="bg-violet-500 h-1 rounded-full"
-                  style={{
-                    width: `${(parseFloat(storageUsed) / parseFloat(storageTotal)) * 100}%`,
-                  }}
-                />
-              </div>
+              <p className="text-lg font-bold text-gray-900">{absentToday}</p>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-gray-50/80">
-              <div className="bg-emerald-50 p-2 rounded-lg flex-shrink-0">
-                <Wifi className="h-4 w-4 text-emerald-600" />
+              <div className="bg-amber-50 p-2 rounded-lg flex-shrink-0">
+                <Clock className="h-4 w-4 text-amber-600" />
               </div>
               <div>
                 <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">
-                  Uptime
+                  Late
                 </p>
-                <p className="text-sm font-bold text-gray-900">{uptime}</p>
+                <p className="text-sm font-bold text-gray-900">{lateToday}</p>
               </div>
             </div>
             <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-gray-50/80">
-              <div className="bg-amber-50 p-2 rounded-lg flex-shrink-0">
-                <Database className="h-4 w-4 text-amber-600" />
+              <div className="bg-blue-50 p-2 rounded-lg flex-shrink-0">
+                <Users className="h-4 w-4 text-blue-600" />
               </div>
               <div>
-                <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">DB</p>
-                <p className="text-sm font-bold text-gray-900">{dbStatus}</p>
+                <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">
+                  Teachers
+                </p>
+                <p className="text-sm font-bold text-gray-900">{totalTeachers}</p>
               </div>
             </div>
           </div>

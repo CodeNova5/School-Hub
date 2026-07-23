@@ -96,10 +96,14 @@ export async function GET(req: NextRequest) {
       .eq("school_id", schoolId)
       .order("level");
 
-    const classDistributionData = classDistribution?.map((cls) => ({
-      name: cls.name,
-      value: cls.students?.[0]?.count || 0,
-    })) || [];
+    // Filter for only Junior and Senior Secondary classes (JSS 1-SSS 3)
+    const secondaryLevels = ['Junior Secondary', 'Senior Secondary'];
+    const classDistributionData = classDistribution
+      ?.filter((cls) => secondaryLevels.includes(cls.education_level))
+      .map((cls) => ({
+        name: cls.name,
+        value: cls.students?.[0]?.count || 0,
+      })) || [];
 
     // 7. Student Enrollment Trend (last 6 months from student created_at, filtered by school)
     const sixMonthsAgo = new Date();

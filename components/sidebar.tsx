@@ -38,14 +38,12 @@ import {
   ChevronsRight,
 } from "lucide-react";
 
-import Image from "next/image";
 import { APP_NAME } from "@/data";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { AdminPermission } from "@/lib/types";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface NavItem {
   href: string;
@@ -85,9 +83,6 @@ export function Sidebar({
   const [adminPermissions, setAdminPermissions] = useState<Set<AdminPermission>>(new Set());
   const [isPermissionsLoaded, setIsPermissionsLoaded] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
-  const [userName, setUserName] = useState("");
-  const [userAvatar, setUserAvatar] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState("");
 
   useEffect(() => {
     if (role === "teacher") {
@@ -100,7 +95,6 @@ export function Sidebar({
       fetchAdminPermissions();
       fetchNotificationCount();
     }
-    fetchUserInfo();
   }, [role]);
 
   async function fetchNotificationCount() {
@@ -118,73 +112,6 @@ export function Sidebar({
     } catch (error) {
       console.error("Error fetching notification count:", error);
     }
-  }
-
-  async function fetchUserInfo() {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      let fullName = user.email?.split("@")[0] || "User";
-      let avatarUrl: string | null = null;
-      let roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
-
-      if (role === "admin") {
-        const { data } = await supabase
-          .from("admins")
-          .select("name")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        if (data?.name) fullName = data.name;
-        roleLabel = user.user_metadata?.role === "super_admin" ? "Super Admin" : "Administrator";
-      } else if (role === "teacher") {
-        const { data } = await supabase
-          .from("teachers")
-          .select("first_name, last_name, photo_url")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        if (data) {
-          fullName = `${data.first_name} ${data.last_name}`;
-          avatarUrl = data.photo_url;
-        }
-        roleLabel = "Teacher";
-      } else if (role === "student") {
-        const { data } = await supabase
-          .from("students")
-          .select("first_name, last_name, image_url")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        if (data) {
-          fullName = `${data.first_name} ${data.last_name}`;
-          avatarUrl = data.image_url;
-        }
-        roleLabel = "Student";
-      } else if (role === "parent") {
-        const { data } = await supabase
-          .from("parents")
-          .select("name")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        if (data?.name) fullName = data.name;
-        roleLabel = "Parent";
-      }
-
-      setUserName(fullName);
-      setUserAvatar(avatarUrl);
-      setUserRole(roleLabel);
-    } catch (error) {
-      console.error("Error fetching user info:", error);
-    }
-  }
-
-  function getUserInitials(): string {
-    if (!userName) return "..";
-    return userName
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
   }
 
   async function fetchAdminPermissions() {
@@ -492,27 +419,20 @@ export function Sidebar({
         <div className="flex h-full flex-col">
           {/* Header with Logo and Name */}
           <div className="flex items-center justify-between h-16 px-4 border-b border-slate-700/50">
-            <Link href={`/${role}`} className={cn(
+            <div className={cn(
               "flex items-center gap-3 transition-all",
               collapsed && "justify-center"
             )}>
-              <div className="relative flex h-9 w-9 items-center justify-center rounded-lg overflow-hidden flex-shrink-0">
-                <Image
-                  src="/logo.png"
-                  alt="Logo"
-                  width={36}
-                  height={36}
-                  className="object-contain"
-                  priority
-                />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold">
+                <School className="h-5 w-5" />
               </div>
               {!collapsed && (
                 <div className="flex flex-col">
                   <span className="text-sm font-bold text-white">{APP_NAME}</span>
-                  <span className="text-[10px] text-slate-400 uppercase tracking-wider">School Hub</span>
+                  <span className="text-xs text-slate-400">School Hub</span>
                 </div>
               )}
-            </Link>
+            </div>
 
             {/* Mobile Close */}
             <Button
@@ -606,30 +526,6 @@ export function Sidebar({
               );
             })}
           </nav>
-
-          {/* User Profile Section */}
-          <div className={cn(
-            "border-t border-slate-700/50 p-3",
-            collapsed && "px-2"
-          )}>
-            <div className={cn(
-              "flex items-center gap-3 rounded-lg p-2 hover:bg-slate-700/50 transition-colors cursor-pointer",
-              collapsed && "justify-center px-2"
-            )}>
-              <Avatar className="h-8 w-8 flex-shrink-0">
-                {userAvatar && <AvatarImage src={userAvatar} alt={userName} />}
-                <AvatarFallback className="bg-gradient-to-br from-blue-500 to-blue-600 text-white text-xs font-semibold">
-                  {getUserInitials()}
-                </AvatarFallback>
-              </Avatar>
-              {!collapsed && (
-                <div className="flex flex-col min-w-0">
-                  <span className="text-sm font-medium text-white truncate">{userName || "Loading..."}</span>
-                  <span className="text-[10px] text-slate-400 uppercase tracking-wider">{userRole}</span>
-                </div>
-              )}
-            </div>
-          </div>
 
           {/* Footer with Collapse Button */}
           <div className="border-t border-slate-700/50 p-3">

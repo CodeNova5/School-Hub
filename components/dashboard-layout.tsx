@@ -36,7 +36,7 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
         <main
           className={`
              flex-1 p-4 sm:p-6 md:p-8 transition-all duration-300
-               ${collapsed ? "md:ml-20" : "md:ml-64"}
+               ${collapsed ? "md:ml-[72px]" : "md:ml-[260px]"}
                `}
         >
           {children}

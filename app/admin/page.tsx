@@ -4,10 +4,10 @@ import React, { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { DashboardSkeleton } from '@/components/dashboard-skeleton';
 import { Button } from '@/components/ui/button';
+
 import { SubscriptionGraceBanner } from '@/components/subscription-grace-banner';
 import { SubscriptionTermBanner } from '@/components/subscription-term-banner';
 import { SubscriptionHolidayBanner } from '@/components/subscription-holiday-banner';
-import { SubscriptionYearlyTimeline } from '@/components/subscription-yearly-timeline';
 import { StudentLimitBanner, type LimitInfo } from '@/components/student-limit-banner';
 import { AlertCircle, FileText, Calendar, GraduationCap } from 'lucide-react';
 import { OnboardingChecklist } from '@/components/onboarding-checklist';
@@ -92,7 +92,9 @@ export default function AdminDashboard() {
 
   const syncTokenOnLoad = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const user = session?.user;
       if (user && schoolId) {
         await syncNotificationToken(user.id, 'admin', schoolId);
@@ -131,7 +133,7 @@ export default function AdminDashboard() {
     if (diffInSeconds < 60) return 'Just now';
     if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
     if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
-    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} days ago`;
+    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
     return then.toLocaleDateString();
   };
 
@@ -209,42 +211,19 @@ export default function AdminDashboard() {
   return (
     <DashboardLayout role="admin">
       <div className="space-y-6">
-        {/* Onboarding & Banners */}
+        {/* ── Critical Banners (only show when relevant) ── */}
         <OnboardingChecklist isNewSchool={isNewSchool} />
         <StudentLimitBanner limitInfo={limitInfo} />
         <SubscriptionGraceBanner />
         <SubscriptionTermBanner />
         <SubscriptionHolidayBanner />
-        <SubscriptionYearlyTimeline />
 
-        {/* Subscription Banner */}
-        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100 rounded-xl p-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="bg-amber-100 p-2 rounded-lg">
-              <span className="text-xl">👑</span>
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-gray-900">You are on the Professional Plan</p>
-              <p className="text-xs text-gray-500">Your subscription is active until 30th June, 2025</p>
-            </div>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.push('/admin/subscription')}
-            className="border-amber-200 hover:bg-amber-50 text-amber-700"
-          >
-            View Subscription
-          </Button>
-        </div>
-
-        {/* Welcome Header */}
+        {/* ── Welcome & Quick Stats ── */}
         <WelcomeHeader
           schoolName="Greenfield Group of Schools"
           notificationCount={12}
         />
 
-        {/* Quick Stats Cards */}
         <QuickStatsCards
           stats={{
             totalStudents: dashboardData.stats.totalStudents,
@@ -259,7 +238,7 @@ export default function AdminDashboard() {
           }}
         />
 
-        {/* Charts & Activity Row */}
+        {/* ── Charts & Activity ── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
             <EnrollmentTrendChart data={dashboardData.enrollmentTrend} />
@@ -267,7 +246,7 @@ export default function AdminDashboard() {
           <RecentActivities activities={getRecentActivities()} />
         </div>
 
-        {/* Class Distribution */}
+        {/* ── Class Distribution & Quick Actions ── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
             <ClassDistributionChart data={dashboardData.classDistribution} />
@@ -275,14 +254,14 @@ export default function AdminDashboard() {
           <QuickActions />
         </div>
 
-        {/* Key Metrics */}
+        {/* ── Key Metrics ── */}
         <KeyMetricsTabs
           stats={dashboardData.stats}
           systemStatus={dashboardData.systemStatus}
           termName={dashboardData.currentTerm?.name}
         />
 
-        {/* Bottom Row: Finance, Events, System */}
+        {/* ── Bottom Row: Finance, Events, System ── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <FinanceOverview />
           <UpcomingEvents />

@@ -231,6 +231,7 @@ export function Sidebar({
       title: "OPERATIONS",
       items: [
         { href: "/admin/attendance", label: "Attendance", icon: <ClipboardList className="h-5 w-5" /> },
+        { href: "/admin/attendance/qr-scanner", label: "QR Attendance Scanner", icon: <QrCode className="h-5 w-5" /> },
         { href: "/admin/reports", label: "Reports", icon: <FileText className="h-5 w-5" />, permission: "results:read" },
         { href: "/admin/promotions", label: "Promotions", icon: <TrendingUp className="h-5 w-5" />, permission: "classes:write" },
         { href: "/admin/history", label: "History", icon: <History className="h-5 w-5" />, permission: "classes:read" },
